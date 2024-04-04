@@ -22,24 +22,19 @@ from diffrax import Tsit5
 
 
 # package specific imports 
-from dynamics import case_studies
+from ode import case_studies
 
 
- cfg,
-design_args,
-uncertain_params,
-unit,
-input_args,
-
-
-
-def unit_dynamics(cfg, params, x0, node   
+def unit_dynamics(params, u, cfg, node   
 ):
     # defining the dynamics
-    term = ODETerm(case_study[cfg.case_study_dynamics][node])
+    term = ODETerm(case_studies[cfg.case_study_dynamics][node])
 
     # defining the diffrax solver
     solver = dispatcher[cfg.integration.scheme[node]]
+
+    # defining saveat 
+    saveat = SaveAt(t1=True) # just return the final time step
 
     # define step size controller for solver
     step_size_controller = dispatcher[cfg.integration.step_size_controller]
@@ -50,7 +45,7 @@ def unit_dynamics(cfg, params, x0, node
         cfg.integration.t0,
         cfg.integration.tf,
         cfg.integration.dt0,
-        x0,
+        u,
         args=params,
         max_steps=cfg.integration.max_steps,
         stepsize_controller=step_size_controller,

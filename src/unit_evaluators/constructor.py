@@ -2,8 +2,10 @@
 from abc import ABC
 from functools import partial
 import jax.numpy as jnp 
+from jax import vmap, jit
 
 from integrators import unit_dynamics
+from utils import arrhenius_kinetics_fn as arrhenius
 
 class base_unit(ABC):
     def __init__(self, cfg, graph, node):
@@ -93,12 +95,27 @@ class unit_cfg:
         self.cfg, self.graph, self.node = cfg, graph, node
 
         if cfg.vmap_unit_evaluation:
-            raise NotImplementedError('vmap of unit evaluation is not yet implemented')
+            # --- set the unit evaluation fn
+            if graph.nodes[node]['unit_op'] == 'dynamic':
+                #vmapped = vmap(unit_dynamics, in_axes=(None, 0, 0, None), out_axes=0)
+                self.evaluator = vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0,0), out_axes=0)
+            else:
+                raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
+
+            # --- set the decision dependent evaluation fn
+            if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
+                EA, R, A = cfg.arrhenius.EA[node], cfg.arrhenius.R, cfg.arrhenius.A[node]
+                self.decision_dependent_params = vmap(partial(arrhenius, Ea=EA, R=R, A=A), in_axes=0, out_axes=0)
+            elif graph.nodes[node]['unit_params_fn'] is None:
+                self.decision_dependent_params = lambda x: jnp.empty(x.shape[0])
+            else:
+                raise NotImplementedError('Not implemented error')
+
 
         else: 
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
-                self.evaluator = partial(unit_dynamics, cfg=cfg, node=node)
+                self.evaluator = lambda x, y : jit(partial(unit_dynamics, cfg=cfg, node=node))(x.squeeze(), y.squeeze())
             else:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 
@@ -113,6 +130,3 @@ class unit_cfg:
 
         return
     
-
-if __name__ == '__main__':
-    # TODO write a test function to evaluate the dynamics
