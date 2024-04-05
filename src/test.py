@@ -11,8 +11,6 @@ class TestGraphAssembly(unittest.TestCase):
                                      [0, 0, 1],
                                      [0, 0, 0]])
 
-        
-
         # Create a sample configuration
         class Config:
             class arrhenius:

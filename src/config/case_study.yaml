@@ -48,3 +48,12 @@ extendedDS_bounds:
 vmap_unit_evaluation:
   - False
   - False
+
+arrhenius:
+  EA: 
+    - 2500.2
+    - 5000.1
+  A:
+    - 6.66e-06
+    - 0.0010335
+  R: 8.314
