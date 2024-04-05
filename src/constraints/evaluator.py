@@ -77,6 +77,8 @@ class forward_surrogate_constraint(constraint_evaluator_base):
     def __init__(self, cfg, graph, node):
         super().__init__(cfg, graph, node)
 
+        # NOTE we should enable pmap and pool type evaluation here
+
     def load_solver(self):
         """
         Loads the solver
