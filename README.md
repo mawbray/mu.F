@@ -1,5 +1,4 @@
-# feasibility-decomposition-control
-
+# feasibility
 ## installation
 
 ```
