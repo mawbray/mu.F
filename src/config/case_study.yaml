@@ -1,0 +1,50 @@
+
+
+n_design_args:
+  - 2
+  - 2
+
+n_input_args:
+  2
+
+KS_bounds:  # unit, arg, b
+  - - - 0.0
+      - 1.0
+    - - 0.0
+      - 1.0
+  - - - 0.0
+      - 1.0
+    - - 0.0
+      - 1.0
+
+fn_evals: 
+  - 0
+  - 0
+
+unit_op:
+  - 'dynamic'
+  - 'dynamic'
+
+unit_params_fn:
+  - Arrhenius
+  - Arrhenius
+
+parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weight in posteiror distribution]}]]
+  - - c: [1]
+      w: 1
+  - - c: [1]
+      w: 1
+
+parameters_best_estimate: # list of lists [node][[param1]] most likely estimate
+  - [1]
+  - [1]
+
+
+extendedDS_bounds:
+  - None
+  - None
+
+
+vmap_unit_evaluation:
+  - False
+  - False

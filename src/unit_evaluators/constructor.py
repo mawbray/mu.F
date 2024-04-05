@@ -4,8 +4,8 @@ from functools import partial
 import jax.numpy as jnp 
 from jax import vmap, jit
 
-from integrators import unit_dynamics
-from utils import arrhenius_kinetics_fn as arrhenius
+from unit_evaluators.integrators import unit_dynamics
+from unit_evaluators.utils import arrhenius_kinetics_fn as arrhenius
 
 class base_unit(ABC):
     def __init__(self, cfg, graph, node):
@@ -94,7 +94,7 @@ class unit_cfg:
 
         self.cfg, self.graph, self.node = cfg, graph, node
 
-        if cfg.vmap_unit_evaluation:
+        if cfg.vmap_unit_evaluation[self.node]:
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
                 #vmapped = vmap(unit_dynamics, in_axes=(None, 0, 0, None), out_axes=0)
@@ -106,7 +106,7 @@ class unit_cfg:
             if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
                 EA, R, A = cfg.arrhenius.EA[node], cfg.arrhenius.R, cfg.arrhenius.A[node]
                 self.decision_dependent_params = vmap(partial(arrhenius, Ea=EA, R=R, A=A), in_axes=0, out_axes=0)
-            elif graph.nodes[node]['unit_params_fn'] is None:
+            elif graph.nodes[node]['unit_params_fn'] is None: # NOTE this allocation has not been tested
                 self.decision_dependent_params = lambda x: jnp.empty(x.shape[0])
             else:
                 raise NotImplementedError('Not implemented error')
@@ -124,7 +124,7 @@ class unit_cfg:
                 EA, R, A = cfg.arrhenius.EA[node], cfg.arrhenius.R, cfg.arrhenius.A[node]
                 self.decision_dependent_params = partial(arrhenius, Ea=EA, R=R, A=A)
             elif graph.nodes[node]['unit_params_fn'] is None:
-                self.decision_dependent_params = lambda x: jnp.empty(x.shape[0])
+                self.decision_dependent_params = lambda x: jnp.empty(x.shape[0]) # NOTE this allocation has not been testeds
             else:
                 raise NotImplementedError('Not implemented error')
 
