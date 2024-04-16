@@ -1,12 +1,16 @@
 from abc import ABC
+from typing import Iterable, Callable, List
+from omegaconf import DictConfig
+
+import numpy as np
 import jax.numpy as jnp
 from jax import vmap, jit
-
 from functools import partial
 from scipy.stats import beta
 import jax.scipy.stats as jscp_stats
+from multiprocessing import Pool
 
-
+from utilities import worker_function, parallelise_batch, determine_batch_size, create_batches
 
 class constraint_evaluator_base(ABC):
     def __init__(self, cfg, graph, node):
@@ -69,15 +73,108 @@ class process_constraint_evaluator(constraint_evaluator_base):
 
         return 
 
-
-class forward_surrogate_constraint(constraint_evaluator_base):
-    """
-    A forward surrogate constraint evaluator
-    """
+class forward_surrogate_constraint_base(constraint_evaluator_base):
     def __init__(self, cfg, graph, node):
         super().__init__(cfg, graph, node)
 
-        # NOTE we should enable pmap and pool type evaluation here
+    def prepare_forward_surrogate(self, inputs):
+        """
+        Prepares the forward constraints surrogates and decision variables
+        """
+        raise NotImplementedError("Method not implemented")
+    
+    def load_solver(self):
+        """
+        Loads the solver
+        """
+        raise NotImplementedError("Method not implemented")
+
+    def standardise_inputs(self, inputs, in_node):
+        """
+        Standardises the inputs
+        """
+        raise NotImplementedError("Method not implemented")
+    
+    def standardise_model_decisions(self, decisions, in_node):
+        """
+        Standardises the decisions
+        """
+        raise NotImplementedError("Method not implemented")
+    
+    def evaluate(self, inputs):
+        """
+        Evaluates the constraints
+        """
+        raise NotImplementedError("Method not implemented")
+    
+    def mp_evaluation(
+        self,
+        solver: Iterable[Callable],
+        initial_guess: Iterable[np.ndarray],
+        max_devices: int,
+    ):
+        """
+        Parallel evaluation of constrained NLPs using multiprocessing pool.
+        :param objectives: List of objective functions
+        :param constraints: List of constraint functions
+        :param decision_bounds: List of decision bounds
+        :param cfg: Configuration
+        """
+
+        # determine the batch size
+        workers, remainder = determine_batch_size(len(solver), max_devices)
+        # split the objectives, constraints and bounds into batches
+        solver_batches = create_batches(workers, solver)
+        initial_guess_batches = create_batches(workers, initial_guess)
+                
+        # parallelise the batch
+        result_dict = {}
+        evals = 0
+        for i, (solver, init_guess, device) in enumerate(zip(solver_batches, initial_guess_batches, workers)):
+            results = parallelise_batch(solver, device, init_guess)
+            for j, result in enumerate(results):
+                result_dict[evals + j] = result
+            evals += len(results)
+
+        return result_dict
+
+
+
+class forward_surrogate_constraint(forward_surrogate_constraint_base):
+    """
+    A forward surrogate constraint
+    - solved using casadi interface with jax and IPOPT
+    - parallelism is provided by multiprocessing pool
+        : may be extended to jax-pmap in the future if someone develops a nice nlp solver in jax
+    """
+    def __init__(self, cfg, graph, node, pool):
+        super().__init__(cfg, graph, node)
+        # pool settings
+        self.pool = pool
+        if self.pool is None: 
+            raise Warning("No multiprocessing pool provided. Forward surrogate constraints will be evaluated sequentially.")
+        if self.pool is 'jax-pmap':
+            raise NotImplementedError("jax-pmap is not supported for this constraint type at the moment.")
+        if self.pool != 'jax-pmap':
+            self.evaluation_method = self.mp_evaluation
+        # shaping function to return to sampler. (depends on the way constraints are defined by the user)
+        if cfg.notion_of_feasibility == 'positive': # i.e. feasible is g(x)>=0
+            self.shaping_function = lambda x: -x
+        elif cfg.notion_of_feasibility == 'negative': # i.e. feasible is g(x)<=0
+            self.shaping_function = lambda x: x
+        else:
+            raise ValueError("Invalid notion of feasibility.")
+
+    def get_predecessors_inputs(self, inputs):
+        """
+        Gets the inputs from the predecessors
+        """
+        pred_inputs = {}
+        for pred in self.graph.predecessors(self.node):
+            input_indices = self.graph.edges[pred, self.node]['input_indices']
+            pred_inputs[pred]= inputs[:,input_indices]
+        return pred_inputs
+
 
     def load_solver(self):
         """
@@ -89,30 +186,43 @@ class forward_surrogate_constraint(constraint_evaluator_base):
         """
         Evaluates the constraints
         """
-        constraints = self.load_unit_constraints()
-        if len(constraints) > 0: 
-            constraint_holder = []
-            for cons_fn in constraints:
-                g = cons_fn(inputs, self.cfg)
-                if g.ndim < 2: g = g.reshape(-1, 1)
+        objective, constraints, bounds = self.prepare_forward_problem(inputs)
+
+        fn_evaluations = self.evaluation_method(constraints, objective, bounds, [self.cfg for _ in range(inputs.shape[0])], self.pool)
+
+        return self.shaping_function(jnp.array(fn_evaluations))
+
     
-    def prepare_forward_surrogate(self, inputs):
+    def prepare_forward_problem(self, inputs):
         """
-        Prepares the forward constraints
+        Prepares the forward constraints surrogates and decision variables
         """
-        forward_surrogates = []
+        forward_constraints = {pred: None for pred in self.graph.predecessors(self.node)}
+        forward_bounds = {pred: None for pred in self.graph.predecessors(self.node)}
+        forward_objective = {pred: None for pred in self.graph.predecessors(self.node)}
+
+        # get the inputs from the predecessors of the node
+        pred_inputs = self.get_predecessors_inputs(inputs)
+
         for pred in self.graph.predecessors(self.node):
-            if self.cfg.standardisation.forward_coupling:
-                inputs = self.standardise_inputs(inputs, pred)
-                surrogate = self.graph.edges[pred, self.node]["forward_surrogate"]
-                def surrogate_fn(x, inputs):
-                    return surrogate(x).reshape(-1,) - inputs.reshape(-1,)
-                forward_surrogates.append(jit(partial(surrogate_fn, inputs=inputs)))
+            # standardisation of inputs if required
+            if self.cfg.standardisation.forward_coupling: pred_inputs = self.standardise_inputs(pred_inputs, pred)
+            # load the forward surrogate
+            surrogate = self.graph.edges[pred, self.node]["forward_surrogate"]
+            # create a partial function for the optimizer to evaluate
+            forward_constraints[pred] = [jit(partial(lambda x, inputs: surrogate(x).reshape(-1,) - inputs.reshape(-1,), inputs=pred_inputs[i,:]) for i in range(pred_inputs.shape[0]))]
+            # load the standardised bounds
+            decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
+            if self.cfg.standardisation.forward_coupling: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
+            forward_bounds[pred] = [decision_bounds.copy() for i in range(pred_inputs.shape[0])]
+            # load the forward objective
+            classifier = self.graph.nodes[pred]["classifier"]
+            forward_objective[pred] = [jit(lambda x: classifier(x).squeeze()) for _ in range(pred_inputs.shape[0])]
 
 
-        decisions = self.standardise_model_decisions(decisions, pred)
+        # return the forward surrogates and decision bounds
 
-        return self.evaluate(inputs)
+        return forward_objective, forward_constraints, forward_bounds
     
     def standardise_inputs(self, inputs, in_node):
         """
@@ -126,8 +236,9 @@ class forward_surrogate_constraint(constraint_evaluator_base):
         Standardises the decisions
         """
         mean, std = self.graph.nodes[in_node]['x_scalar'].mean_, self.graph.nodes[in_node]['x_scalar'].std_
-        return (decisions - mean) / std
-        
+        return [(decision - mean) / std for decision in decisions]
+    
+
 
 
 def lower_bound_fn(
