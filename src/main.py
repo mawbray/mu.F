@@ -2,11 +2,12 @@
 
 """
 TODO :
-- surrogate constructor 
-- samplers constructor 
-- reconstruction constructor
-- intialisation constructor 
-- integration of all code constructor
+- constraint and solver constructor
+- surrogate module 
+- samplers module 
+- reconstruction module
+- intialisation module 
+- integration of all code module
 
 
 
