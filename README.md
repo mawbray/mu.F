@@ -1,6 +1,6 @@
 <h1 align="center">
   <a href="https://github.com/mawbray/mu.F/blob/main/mu_.png">
-    <img src="https://github.com/mawbray/mu.F/blob/main/mu_.png"/></a><br>
+    <img src="https://github.com/mawbray/mu.F/blob/main/mu_.png" width="100" height="100" /></a><br>
   <b>Multi-unit feasibility and flexibility</b><br>
 </h1>
 <p align="center">
