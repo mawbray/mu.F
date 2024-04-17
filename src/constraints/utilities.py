@@ -59,8 +59,6 @@ def worker_function(input_queue, output_queue, solver):
 
 
 
-
-# TODO move the below to the solvers module
 if __name__ == '__main__':
     #from multiprocessing import Pool 
     import multiprocessing as mp
