@@ -81,8 +81,8 @@ class casadi_box_eq_nlp_solver(solver_base):
 
 
 class jax_box_nlp_solver(solver_base):
-    def __init__(self, logging, objective_func, bounds):
-        super().__init__(logging)
+    def __init__(self, logging, cfg, objective_func, bounds):
+        super().__init__(logging, cfg)
         self.construct_solver(objective_func, bounds)
 
     def construct_solver(self, objective_func, bounds):
@@ -98,3 +98,10 @@ class jax_box_nlp_solver(solver_base):
         objective, objective_grad, error = self.solver(initial_guesses)
         
         return objective, objective_grad, error
+    
+    def get_status(self, error):
+        return error <= self.cfg.box_constrained.tol 
+
+    def get_objective(self, objective):
+        return objective
+    
