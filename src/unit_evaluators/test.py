@@ -47,23 +47,28 @@ class config:
         self.study = 'study_0'
         self.n_units = 2
         self.include_intermediate_constraint = False
-        self.vmap_unit_evaluation =True
+        self.vmap_unit_evaluation = [True, True]
         self.case_study_dynamics ='serial_batch'
         self.integration= integration()
         self.arrhenius= arrhenius()
         #self.units = units()
-        #self.root_node_inputs()
+    
+    def __post__init__(self):
+        self.units = [0, 1]
+        self.root_node_inputs = [[2000., 0., 0.]]*2
+
 
 @dataclass(frozen=False, kw_only=True)
 class graph_obj:
-    nodes: dict=field(default_factory= lambda: {0: {'unit_op': 'dynamic', 'unit_params_fn': 'Arrhenius'}, 
-    1: {'unit_op': 'dynamic', 'unit_params_fn': 'Arrhenius'}})
+    nodes: dict=field(default_factory= lambda: {0: {'unit_op': 'dynamic', 'unit_params_fn': 'Arrhenius', 'unit_uncertainty': True}, 
+    1: {'unit_op': 'dynamic', 'unit_params_fn': 'Arrhenius', 'unit_uncertainty': True}})
 
 
 class TestUnitEvaluation(unittest.TestCase):
     def setUp(self):
         # Create a sample configuration object, graph, and node
         cfg = config()  # Replace with your actual configuration object
+        cfg.__post__init__()
         graph = graph_obj()  # Replace with your actual graph object
         node = 1  # Replace with your actual node
         list_ = cfg.arrhenius
@@ -72,16 +77,19 @@ class TestUnitEvaluation(unittest.TestCase):
 
     def test_evaluate(self):
         # Define sample design arguments and input arguments
-        design_args = jnp.array([1, 2, 3]).reshape(1,-1)  # Replace with your actual design arguments
-        input_args = jnp.array([4, 5, 6]).reshape(1,-1)  # Replace with your actual input arguments
+        design_args = jnp.array([1, 2, 3]*2).reshape(2,-1)  # Replace with your actual design arguments
+
+        input_args = jnp.array([4, 5, 6]*2).reshape(2,-1)  # Replace with your actual input arguments
+
+        uncertain_params = jnp.array([7, 8, 9]*5).reshape(5,-1)
 
         # Call the evaluate method and get the result
-        result = self.unit_eval.evaluate(design_args, input_args)
+        result = self.unit_eval.evaluate(design_args, None, uncertain_params)
 
 
         # Assert that the result is as expected
         if self.unit_eval.cfg.vmap_unit_evaluation:
-            expected_result = (design_args.shape[0],3)  # Replace with your expected result
+            expected_result = (design_args.shape[0],uncertain_params.shape[0], 3)  # Replace with your expected result
         else: 
             expected_result = (3,)
         self.assertEqual(result.shape, expected_result)

@@ -1,6 +1,16 @@
 import jax.numpy as jnp
 import pandas as pd
 from omegaconf import DictConfig
+from dataclasses import dataclass
+
+
+
+
+@dataclass 
+class standardisation_metrics:
+    mean: jnp.ndarray
+    std: jnp.ndarray
+
 
 
 
@@ -11,6 +21,18 @@ def evaluate_classifier(classifier, data_points, cfg, index):
     df = pd.DataFrame(mapping)
 
     return df
+
+def forward_evaluation_data_preparation(graph: dict, unit_index, cfg: DictConfig = None, successor_node: int = None):
+    # access historical support and function values
+    input_data = graph.edges[unit_index, successor_node]["surrogate_training"]
+
+    return input_data
+
+def regression_node_data_preparation(graph: dict, unit_index: int, cfg: DictConfig = None):
+    # access historical support and function values
+    data = graph.nodes[unit_index]["probability_map_training"]
+
+    return data
 
 
 def binary_classifier_data_preparation(

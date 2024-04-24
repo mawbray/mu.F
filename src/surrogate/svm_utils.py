@@ -13,12 +13,12 @@ from sklearn.model_selection import KFold, GridSearchCV
 import jax.numpy as jnp
 from jax import jit
 
-from data_utils import binary_classifier_data_preparation
+from data_utils import binary_classifier_data_preparation, standardisation_metrics
 
 import logging
 
 
-def train_svm(dataset, unit_index, cfg, iterate):
+def train_svm(cfg, dataset, num_folds, unit_index, iterate):
     """
     Construct the classifier for the forward pass.
 
@@ -36,7 +36,9 @@ def train_svm(dataset, unit_index, cfg, iterate):
         data_points, labels, unit_index=unit_index, iterate=iterate, cfg=cfg
     )
 
-    return classifier, s_vectors, p_dict
+    args = convert_svm_to_jax(classifier)
+
+    return classifier, args
 
 
 def compute_best_svm_classifier(
@@ -94,7 +96,8 @@ def get_x_scalar_from_pipeline(pipeline):
     return pipeline[0]
 
 
-def convert_svm_to_jax(cfg, pipeline):
+
+def convert_svm_to_jax(pipeline):
 
     # Extract the support vectors and coefficients from the SVM model
     svm_model = pipeline[1]
@@ -123,8 +126,5 @@ def convert_svm_to_jax(cfg, pipeline):
         decision = jnp.dot(coefficients, rbf_kernel(support_vectors, x,epsilon=kernel_param)) + intercept
         return decision
 
-    if cfg.standardise_for_problem_conditioning: svm = svm_standardised
-    else: svm = svm_unstandardised
-
-    return svm
+    return (svm_standardised, svm_unstandardised, standardisation_metrics(mean=x_mean, std=x_std))
 

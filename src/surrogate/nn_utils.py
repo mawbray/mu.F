@@ -25,9 +25,7 @@ from functools import partial
 from omegaconf import DictConfig
 from functools import partial
 
-
-from data_engineer import compute_support_shrinking_parameterisation, evaluate_classifier
-from projection_processing import process_space_visualisation
+from data_utils import standardisation_metrics
 
 
 # --- neural network regressor --- #
@@ -93,12 +91,7 @@ def hyperparameter_selection(cfg: DictConfig, D: Dataset, num_folds: int, rng_ke
         return opt_model(x)
 
     
-    if cfg.standardise_for_problem_conditioning: 
-        query_model = query_standardised_model
-    else: 
-        query_model = query_unstandardised_model
-
-    return best_hyperparams, best_model, best_params, [x_scalar, y_scalar], query_model
+    return opt_model, (query_standardised_model, query_unstandardised_model, standardisation_metrics(x_mean, x_std), standardisation_metrics(y_mean, y_std))
 
 
 def train_nn_surrogate_model(cfg: DictConfig, D: Dataset, model: nn.Module, num_folds: int, rng_key: random.PRNGKey=jax.random.PRNGKey(0), model_type='regressor') -> float:
@@ -118,7 +111,7 @@ def train_nn_surrogate_model(cfg: DictConfig, D: Dataset, model: nn.Module, num_
         # Evaluate the model on the validation set
         y_pred = model.apply(trained_params, X_val)
         if model_type == 'classifier':
-            fold_loss = jnp.mean(optax.softmax_cross_entropy(y_pred, y_val))
+            fold_loss = jnp.mean(optax.softmax_cross_entropy_with_integer_labels(y_pred, y_val))
         elif model_type == 'regressor':
             fold_loss = jnp.mean(jnp.square(y_val - y_pred))
         else:
@@ -165,7 +158,7 @@ def train_one_step_classifier(state, model, batch):
     def loss_fn(params):
         #labels must be a one hot encoded array
         y_pred = model.apply(params, batch['X'])
-        loss = jnp.mean(optax.softmax_cross_entropy(batch['y'], y_pred))
+        loss = jnp.mean(optax.softmax_cross_entropy_with_integer_labels(batch['y'], y_pred))
         return loss
 
     grad_fn = jax.value_and_grad(loss_fn)

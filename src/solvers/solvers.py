@@ -22,14 +22,8 @@ class solver_base(ABC):
     
     def get_status(self):
         raise NotImplementedError
-    
-    def get_time(self):
-        raise NotImplementedError
-    
+       
     def get_objective(self):
-        raise NotImplementedError
-    
-    def get_constraints(self):
         raise NotImplementedError
     
     def initial_guess(self):
@@ -69,9 +63,6 @@ class casadi_box_eq_nlp_solver(solver_base):
     def get_status(self, solver):
         return solver.stats()['success']
     
-    def get_time(self, solver):
-        return solver.stats()['t_wall_total'], solver.stats()['t_proc']
-    
     def get_objective(self, solution):
         return solution['f']
     
@@ -96,6 +87,7 @@ class jax_box_nlp_solver(solver_base):
     
     def solve(self, initial_guesses):
         objective, objective_grad, error = self.solver(initial_guesses)
+        self.objective = objective
         
         return objective, objective_grad, error
     

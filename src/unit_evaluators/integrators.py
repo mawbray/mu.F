@@ -22,11 +22,14 @@ from diffrax import Tsit5
 
 
 # package specific imports 
-from unit_evaluators.ode import case_studies
+from ode import case_studies
 
 
-def unit_dynamics(params, u, cfg, node   
-):
+def unit_dynamics(params, u, uncertainty_params, cfg, node):   
+
+    # defining the params to pass to the vector field
+    params = jnp.hstack([params, uncertainty_params])
+
     # defining the dynamics
     term = ODETerm(case_studies[cfg.case_study_dynamics][node])
 
@@ -38,7 +41,7 @@ def unit_dynamics(params, u, cfg, node
 
     # define step size controller for solver
     step_size_controller = dispatcher[cfg.integration.step_size_controller]
-
+    
     return diffeqsolve(
         term,
         solver,

@@ -10,7 +10,7 @@ from scipy.stats import beta
 import jax.scipy.stats as jscp_stats
 
 
-
+from src.constraints.evaluator import process_constraint_evaluator
 from utilities import worker_function, parallelise_batch, determine_batches, create_batches
 
 class constraint_evaluator_base(ABC):
@@ -46,11 +46,11 @@ class process_constraint_evaluator(constraint_evaluator_base):
         constraints = self.load_unit_constraints()
         if len(constraints) > 0: 
             constraint_holder = []
-            for cons_fn in constraints:
+            for cons_fn in constraints: # iterate over the constraints that were previously loaded as a dictionary on to the graph
                 g = cons_fn(dynamics_profile, self.cfg) # positive constraint value means constraint is satisfied
                 if g.ndim < 2: g = g.reshape(-1, 1)
                 constraint_holder.append(g)
-            return jnp.hstack(constraint_holder)
+            return jnp.concatenate(constraint_holder, axis=-1)
         else:
             return None # return None if no unit level constraints are imposed.
         
@@ -68,7 +68,7 @@ class process_constraint_evaluator(constraint_evaluator_base):
         constraints = self.graph.nodes[self.node]['constraints'].copy()
         # vectorize each constraint
         for key, constraint in constraints.items():
-            constraints[key] = jit(vmap(constraint, in_axes=(0, None), out_axes=0))
+            constraints[key] = vmap(vmap(constraint, in_axes=(0, None), out_axes=0), in_axes=(1, None), out_axes=1)
         # load the vectorized constraints back onto the graph
         self.graph.nodes[self.node]['constraints'] = constraints
 
