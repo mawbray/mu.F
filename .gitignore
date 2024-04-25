@@ -160,5 +160,8 @@ cython_debug/
 #.idea/
 
 
+# hydra outputs
 /src/outputs/
 /src/multirun/
+# deus algorithm
+/src/samplers/algorithms/deus/
