@@ -1,5 +1,6 @@
 
 from abc import ABC
+from deepcopy import copy
 from functools import partial
 import jax.numpy as jnp 
 from jax import vmap, jit
@@ -36,6 +37,7 @@ class unit_evaluation(base_unit):
         """
         super().__init__(cfg, graph, node)
         self.unit_cfg = unit_cfg(cfg, graph, node)
+
 
     def get_decision_dependent_params(self, decisions, uncertain_params=None):
         """
@@ -100,6 +102,7 @@ class unit_cfg:
         """
 
         self.cfg, self.graph, self.node = cfg, graph, node
+        self.n_theta = cfg.uncertain_parameters.n_theta[node]
 
         # if vmap is enabled in cfg, set the unit evaluation and decision dependent evaluation functions using vmap
         if cfg.vmap_unit_evaluation[self.node]:
@@ -147,14 +150,16 @@ class network_simulator(ABC):
         self.constraint_evaluator = constraint_evaluator
 
     def simulate(self, decisions, uncertain_params=None):
-        
+        n_theta = 0
         for node in self.graph.nodes:
+            n_theta_p = n_theta + self.graph.nodes[node]['forward_evaluator'].unit_cfg.n_theta
+
             if self.graph.nodes[node].in_degree == 0:
                 inputs = None
             else:
                 inputs = jnp.hstack([jnp.copy(self.graph.edges[predecessor, node]['input_data_store']) for predecessor in self.graph.predecessors(node)])
 
-            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions, inputs, uncertain_params)
+            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions, inputs, uncertain_params[:,n_theta:n_theta_p])
             
             for successor in self.graph.successors(node):
                 self.graph.edges[node, successor]['input_data_store'] = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))
@@ -162,6 +167,8 @@ class network_simulator(ABC):
             node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
 
             self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(outputs)
+
+            n_theta = copy(n_theta_p)
 
         # constraint evaluation, information for extended KS bounds
         return {node: self.graph[node]['constraint_store'] for node in self.graph.nodes}, {edge: self.graph.edges[edge[0],edge[1]]['input_data_store'] for edge in self.graph.edges}

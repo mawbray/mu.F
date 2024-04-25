@@ -13,6 +13,13 @@ utilities for Casadi NLP solver with equality constraints
 """
 
 def generate_initial_guess(n_starts, n_d, bounds):
+    """
+    Here we have defined a Sobol sequence to generate the initial guesses for the NLP solver
+    n_starts: int
+    n_d: int
+    bounds: list
+    - NOTE: this could be tidier if we loaded the sampler onto the solvers class from the samplers module.
+    """
     # method for constrained nlp solution
     n_d = len(bounds[0])
     lower_bound = bounds[0]
