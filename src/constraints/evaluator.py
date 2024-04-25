@@ -31,13 +31,16 @@ class process_constraint_evaluator(constraint_evaluator_base):
     Means to simply evaluate the process constraints imposed on a unit.
     """
 
-    def __init__(self, cfg, graph, node):
+    def __init__(self, cfg, graph, node, pool):
         """
         Initializes
         """
         super().__init__(cfg, graph, node)
         if cfg.vmap_constraint_evaluation:
             self.vmap_evaluation()
+
+    def __call__(self, dynamics_profile):
+        return self.evaluate(dynamics_profile)
 
     def evaluate(self, dynamics_profile):
         """
@@ -141,7 +144,7 @@ class coupling_surrogate_constraint_base(constraint_evaluator_base):
 
 
 
-class forward_surrogate_constraint(coupling_surrogate_constraint_base):
+class forward_constraint_evaluator(coupling_surrogate_constraint_base):
     """
     A forward surrogate constraint
     - solved using casadi interface with jax and IPOPT
@@ -169,6 +172,9 @@ class forward_surrogate_constraint(coupling_surrogate_constraint_base):
             self.shaping_function = lambda x: x
         else:
             raise ValueError("Invalid notion of feasibility.")
+        
+    def __call__(self, inputs):
+        return self.evaluate(inputs)
 
     def get_predecessors_inputs(self, inputs):
         """
@@ -192,13 +198,13 @@ class forward_surrogate_constraint(coupling_surrogate_constraint_base):
         Evaluates the constraints
         """
         objective, constraints, bounds = self.prepare_forward_problem(inputs)
-        solver_object = self.load_solver()
+        solver_object = self.load_solver()  # solver type has been defined elsewhere in the case study/graph construction. 
         pred_fn_evaluations = {}
         # iterate over predecessors and evaluate the constraints
         for pred in self.graph.predecessors(self.node):
-            forward_solver = [partial(worker_function, solver=solver_object(objective[pred][i], constraints[pred][i], bounds[pred][i])) for i in range(inputs.shape[0])]
+            forward_solver = [partial(worker_function, solver=solver_object.from_method(solver_object.logging, solver_object.cfg, solver_object.solver_type, objective[pred][i], bounds[pred][i], constraints[pred][i])) for i in range(inputs.shape[0])] # update the solver, returns a new class specific to the subproblem
             initial_guesses = [solve.initial_guess() for solve in forward_solver]
-            pred_fn_evaluations[pred] = self.evaluation_method(forward_solver, initial_guesses, max_devices=self.cfg.max_devices)
+            pred_fn_evaluations[pred] = self.evaluation_method(forward_solver, initial_guesses, max_devices=self.cfg.max_devices) # TODO make sure this is compatible with format returned by solver
 
         # reshape the evaluations
         fn_evaluations = [pred_fn_evaluations[pred] for pred in self.graph.predecessors(self.node)]
@@ -308,12 +314,12 @@ class backward_surrogate_constraint(coupling_surrogate_constraint_base):
         succ_fn_evaluations = {}
         # iterate over successors and evaluate the constraints
         for succ in self.graph.successors(self.node):
-            forward_solver = [solver_object(objective[succ][i], bounds[succ][i]) for i in range(outputs.shape[0])]
+            forward_solver = [solver_object.from_method(solver_object.logging, solver_object.cfg, solver_object.solver_type, objective[succ][i], bounds[succ][i]) for i in range(outputs.shape[0])]
             initial_guesses = [solve.initial_guess() for solve in forward_solver]
             succ_fn_evaluations[succ] = self.evaluation_method(forward_solver, initial_guesses)
 
         # reshape the evaluations
-        fn_evaluations = [succ_fn_evaluations[succ] for succ in self.graph.successors(self.node)]
+        fn_evaluations = [succ_fn_evaluations[succ] for succ in self.graph.successors(self.node)] # TODO make sure this is compatible with format returned by solver
 
         return self.shaping_function(jnp.hstack(fn_evaluations))
     

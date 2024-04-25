@@ -65,7 +65,7 @@ class unit_evaluation(base_unit):
         and then evaluates the unit using these parameters.
         """
         if uncertain_params is None:
-            uncertain_params = jnp.zeros((10,1))
+            uncertain_params = jnp.empty((1,1))
         dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
         sys_params = jnp.hstack([dd_params, design_args])
 
@@ -138,6 +138,9 @@ class unit_cfg:
         return
     
 class network_simulator(ABC):
+    """
+    
+    """
     def __init__(self, cfg, graph, constraint_evaluator):
         self.cfg = cfg
         self.graph = graph.copy()
@@ -162,5 +165,16 @@ class network_simulator(ABC):
 
         # constraint evaluation, information for extended KS bounds
         return {node: self.graph[node]['constraint_store'] for node in self.graph.nodes}, {edge: self.graph.edges[edge[0],edge[1]]['input_data_store'] for edge in self.graph.edges}
+    
+    def get_constraints(self, decisions, uncertain_params=None):
+        constraints, _ = self.simulate(decisions, uncertain_params)
+        return constraints
+    
+    def get_extended_ks_info(self, decisions, uncertain_params=None):
+        _, edge_data = self.simulate(decisions, uncertain_params)
+        return edge_data
 
+    def get_data(self, decisions, uncertain_params=None):
+        constraints, edge_data = self.simulate(decisions, uncertain_params)
+        return constraints, edge_data
         

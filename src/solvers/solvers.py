@@ -57,7 +57,7 @@ class casadi_box_eq_nlp_solver(solver_base):
             self.logging.info(f'Constraints: {constraints}')
             self.logging.info(f'Time: wall - {time[0]}, process - {time[1]}')
 
-        return status, time, objective, constraints
+        return {'success': status, 'time': time, 'objective': objective, 'constraints': constraints}
     
     
     def get_status(self, solver):
@@ -87,9 +87,7 @@ class jax_box_nlp_solver(solver_base):
     
     def solve(self, initial_guesses):
         objective, objective_grad, error = self.solver(initial_guesses)
-        self.objective = objective
-        
-        return objective, objective_grad, error
+        return {'objective': objective, 'ojective_grad': objective_grad, 'error': error}
     
     def get_status(self, error):
         return error <= self.cfg.box_constrained.tol 
