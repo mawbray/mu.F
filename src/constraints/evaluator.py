@@ -206,8 +206,8 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
             initial_guesses = [solve.initial_guess() for solve in forward_solver]
             pred_fn_evaluations[pred] = self.evaluation_method(forward_solver, initial_guesses, max_devices=self.cfg.max_devices) # TODO make sure this is compatible with format returned by solver
 
-        # reshape the evaluations
-        fn_evaluations = [pred_fn_evaluations[pred] for pred in self.graph.predecessors(self.node)]
+        # reshape the evaluations and just get information about the constraints.
+        fn_evaluations = [pred_fn_evaluations[pred]['objective'] for pred in self.graph.predecessors(self.node)]
 
         return self.shaping_function(jnp.hstack(fn_evaluations))
 
@@ -238,9 +238,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
             classifier = self.graph.nodes[pred]["classifier"]
             forward_objective[pred] = [jit(lambda x: classifier(x).squeeze()) for _ in range(pred_inputs.shape[0])]
 
-
         # return the forward surrogates and decision bounds
-
         return forward_objective, forward_constraints, forward_bounds
     
     def standardise_inputs(self, inputs, in_node):
