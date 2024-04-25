@@ -164,4 +164,4 @@ cython_debug/
 /src/outputs/
 /src/multirun/
 # deus algorithm
-/src/samplers/algorithms/deus/*
+/src/samplers/algorithms/deus*
