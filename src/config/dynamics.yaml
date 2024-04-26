@@ -3,10 +3,7 @@ Ea1: 2500.2
 A1: 6.66e-06
 Ea2: 5000.1
 A2: 0.0010335
-Ea1_sigma: 0.0
-A1_sigma: 0.0
-Ea2_sigma: 0.0
-A2_sigma: 0.0
+
 R: 8.314
 units:
 - 0

@@ -1,0 +1,58 @@
+from abc import ABC
+from typing import Tuple
+
+from omegaconf import DictConfig
+import jax.numpy as jnp
+
+from predictor import predictor
+from trainer import trainer
+
+
+class surrogate_base(ABC):
+    def __init__(self, graph, unit_index: int, cfg: DictConfig, model_type: str, iterate: int) -> None:
+
+        self.cfg = cfg
+        self.graph = graph
+        self.unit_index = unit_index
+        assert type(model_type) == tuple, "model_type must be a tuple of strings"
+        self.model_type = model_type
+        self.model_class = model_type[0]
+        self.model_subclass = model_type[1]
+        self.model_surrogate = model_type[2]
+        self.iterate = iterate
+
+        assert self.model_class in ["regression", "classification"], "model_class must be either 'regression' or 'classification'"
+        if self.model_class == "regression":
+            assert self.model_subclass in ["ANN", "GP"], "regression model_subclass must be either 'ANN' or 'GP'"
+        elif self.model_class == "classification":
+            assert self.model_subclass in ["ANN", "SVM"], "classifier model_subclass must be either 'ANN', or 'SVM'"
+
+        assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate"], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate'] indicating a parameterisation of the feasible region, probability map or unit dynamics respectively."
+
+    def fit(self) -> None:
+        pass
+
+    def predict(self, string: str, X: jnp.ndarray) -> jnp.ndarray:
+        pass
+
+    def get_model(self, string:str) -> callable:
+        pass
+
+        
+
+class surrogate(surrogate_base):
+    def __init__(self, graph, unit_index, cfg: DictConfig, model_type: str, iterate:int) -> None:
+        super().__init__(graph, unit_index, cfg, model_type, iterate)
+        self.model = None
+        self.trainer = trainer(graph, unit_index, cfg, model_type, iterate)
+        self.predictor = predictor(cfg, model_type)
+
+    def fit(self) -> None:
+        self.trainer.train()
+        self.predictor.load_trained_model(self.trainer)
+
+    def predict(self, string:str, X: jnp.ndarray) -> jnp.ndarray:
+        return self.predictor.predict(self.get_model(string), X)
+
+    def get_model(self, string: str) -> callable:
+        return self.predictor.return_prediction_function(string)

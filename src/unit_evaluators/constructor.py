@@ -1,17 +1,21 @@
 
 from abc import ABC
+from deepcopy import copy
 from functools import partial
 import jax.numpy as jnp 
 from jax import vmap, jit
 
 from integrators import unit_dynamics
 from utils import arrhenius_kinetics_fn as arrhenius
+from src.constraints.evaluator import constraint_evaluator
 
 class base_unit(ABC):
     def __init__(self, cfg, graph, node):
         self.cfg = cfg
         self.graph = graph
         self.node = node
+        if self.graph.nodes[node]['unit_uncertainty'] :
+            self.uncertainty = True
 
     def get_decision_dependent_params(self, decisions):
         raise NotImplementedError
@@ -34,7 +38,8 @@ class unit_evaluation(base_unit):
         super().__init__(cfg, graph, node)
         self.unit_cfg = unit_cfg(cfg, graph, node)
 
-    def get_decision_dependent_params(self, decisions):
+
+    def get_decision_dependent_params(self, decisions, uncertain_params=None):
         """
         Returns the decision dependent parameters.
 
@@ -44,9 +49,9 @@ class unit_evaluation(base_unit):
         Returns:
             array: Decision dependent parameters.
         """
-        return self.unit_cfg.decision_dependent_params(decisions)
+        return self.unit_cfg.decision_dependent_params(decisions, uncertain_params)
 
-    def evaluate(self, design_args, input_args):
+    def evaluate(self, design_args, input_args, uncertain_params=None):
         """
         Evaluates the unit.
 
@@ -61,15 +66,19 @@ class unit_evaluation(base_unit):
         concatenates them with the design arguments to form the system parameters, 
         and then evaluates the unit using these parameters.
         """
-        dd_params = self.get_decision_dependent_params(design_args)
+        if uncertain_params is None:
+            uncertain_params = jnp.empty((1,1))
+        dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
         sys_params = jnp.hstack([dd_params, design_args])
 
         if input_args is None: 
-            inputs = jnp.array(self.cfg.root_node_inputs[self.node])
+            inputs = jnp.array([self.cfg.root_node_inputs[self.node]]*design_args.shape[0])
         else: 
             inputs = input_args
 
-        return self.unit_cfg.evaluator(sys_params, inputs)
+        print(sys_params.shape, inputs.shape, uncertain_params.shape)
+
+        return self.unit_cfg.evaluator(sys_params, inputs, uncertain_params)
 
 
 
@@ -93,29 +102,30 @@ class unit_cfg:
         """
 
         self.cfg, self.graph, self.node = cfg, graph, node
+        self.n_theta = cfg.uncertain_parameters.n_theta[node]
 
-        if cfg.vmap_unit_evaluation:
+        # if vmap is enabled in cfg, set the unit evaluation and decision dependent evaluation functions using vmap
+        if cfg.vmap_unit_evaluation[self.node]:
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
-                #vmapped = vmap(unit_dynamics, in_axes=(None, 0, 0, None), out_axes=0)
-                self.evaluator = vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0,0), out_axes=0)
+                self.evaluator = vmap(vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0,0, None), out_axes=0), in_axes=(None, None, 0), out_axes=1) # inputs are design args, input args, uncertain params
             else:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 
             # --- set the decision dependent evaluation fn
             if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
                 EA, R, A = cfg.arrhenius.EA[node], cfg.arrhenius.R, cfg.arrhenius.A[node]
-                self.decision_dependent_params = vmap(partial(arrhenius, Ea=EA, R=R, A=A), in_axes=0, out_axes=0)
-            elif graph.nodes[node]['unit_params_fn'] is None:
-                self.decision_dependent_params = lambda x: jnp.empty(x.shape[0])
+                self.decision_dependent_params = vmap(vmap(partial(arrhenius, Ea=EA, R=R, A=A), in_axes=(0, None), out_axes=0), in_axes=(None, 0), out_axes=1)
+            elif graph.nodes[node]['unit_params_fn'] is None: # NOTE this allocation has not been tested
+                self.decision_dependent_params = lambda x, y: jnp.empty(x.shape[0])
             else:
                 raise NotImplementedError('Not implemented error')
 
-
+        # if vmap is not enabled in cfg, set the unit evaluation and decision dependent evaluation functions without using vmap
         else: 
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
-                self.evaluator = lambda x, y : jit(partial(unit_dynamics, cfg=cfg, node=node))(x.squeeze(), y.squeeze())
+                self.evaluator = lambda x, y, z: jit(partial(unit_dynamics, cfg=cfg, node=node))(x.squeeze(), y.squeeze(), z.squeeze())
             else:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 
@@ -124,9 +134,54 @@ class unit_cfg:
                 EA, R, A = cfg.arrhenius.EA[node], cfg.arrhenius.R, cfg.arrhenius.A[node]
                 self.decision_dependent_params = partial(arrhenius, Ea=EA, R=R, A=A)
             elif graph.nodes[node]['unit_params_fn'] is None:
-                self.decision_dependent_params = lambda x: jnp.empty(x.shape[0])
+                self.decision_dependent_params = lambda x, y: jnp.empty(x.shape[0]) # NOTE this allocation has not been testeds
             else:
                 raise NotImplementedError('Not implemented error')
 
         return
     
+class network_simulator(ABC):
+    """
+    
+    """
+    def __init__(self, cfg, graph, constraint_evaluator):
+        self.cfg = cfg
+        self.graph = graph.copy()
+        self.constraint_evaluator = constraint_evaluator
+
+    def simulate(self, decisions, uncertain_params=None):
+        n_theta = 0
+        for node in self.graph.nodes:
+            n_theta_p = n_theta + self.graph.nodes[node]['forward_evaluator'].unit_cfg.n_theta
+
+            if self.graph.nodes[node].in_degree == 0:
+                inputs = None
+            else:
+                inputs = jnp.hstack([jnp.copy(self.graph.edges[predecessor, node]['input_data_store']) for predecessor in self.graph.predecessors(node)])
+
+            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions, inputs, uncertain_params[:,n_theta:n_theta_p])
+            
+            for successor in self.graph.successors(node):
+                self.graph.edges[node, successor]['input_data_store'] = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))
+
+            node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
+
+            self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(outputs)
+
+            n_theta = copy(n_theta_p)
+
+        # constraint evaluation, information for extended KS bounds
+        return {node: self.graph[node]['constraint_store'] for node in self.graph.nodes}, {edge: self.graph.edges[edge[0],edge[1]]['input_data_store'] for edge in self.graph.edges}
+    
+    def get_constraints(self, decisions, uncertain_params=None):
+        constraints, _ = self.simulate(decisions, uncertain_params)
+        return constraints
+    
+    def get_extended_ks_info(self, decisions, uncertain_params=None):
+        _, edge_data = self.simulate(decisions, uncertain_params)
+        return edge_data
+
+    def get_data(self, decisions, uncertain_params=None):
+        constraints, edge_data = self.simulate(decisions, uncertain_params)
+        return constraints, edge_data
+        
