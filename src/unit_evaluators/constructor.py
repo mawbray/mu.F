@@ -76,10 +76,39 @@ class unit_evaluation(base_unit):
         else: 
             inputs = input_args
 
-        print(sys_params.shape, inputs.shape, uncertain_params.shape)
-
         return self.unit_cfg.evaluator(sys_params, inputs, uncertain_params)
 
+class subproblem_unit_wrapper(unit_evaluation):
+    def __init__(self, cfg, graph, node):
+        """
+        Initializes the subproblem_unit_wrapper object.
+
+        Args:
+            cfg (object): Configuration object containing various settings and parameters.
+            graph (object): Graph object representing the structure of the system.
+            node (str): The node in the graph for which this subproblem_unit_wrapper object is being created.
+
+        The method calls the unit_evaluation's __init__ method to initialize the object.
+        """
+        super().__init__(cfg, graph, node)
+
+    def get_constraints(self, decisions, uncertain_params=None):
+        """
+        Returns the constraints for the given decisions and uncertain parameters.
+
+        Args:
+            decisions (array): Array of decisions.
+            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
+
+        Returns:
+            array: The constraints for the given decisions and uncertain parameters.
+
+        The method splits the decisions into design arguments and input arguments based on the number of design arguments in the node, 
+        and then evaluates the unit using these arguments and the uncertain parameters.
+        """
+        n_d = self.graph.nodes[self.node]['n_design_args']
+        design_args, input_args = decisions[:,:n_d], decisions[:,n_d:]
+        return self.evaluate(design_args, input_args, uncertain_params)
 
 
 class unit_cfg:
@@ -142,7 +171,10 @@ class unit_cfg:
     
 class network_simulator(ABC):
     """
-    
+    Abstract base class for a network simulator.
+
+    This class is responsible for simulating a network of interconnected nodes and edges. 
+    Each node represents a unit operation in a process, and each edge represents the flow of material between units.
     """
     def __init__(self, cfg, graph, constraint_evaluator):
         self.cfg = cfg
@@ -150,6 +182,20 @@ class network_simulator(ABC):
         self.constraint_evaluator = constraint_evaluator
 
     def simulate(self, decisions, uncertain_params=None):
+        """
+        Simulates the network for the given decisions and uncertain parameters.
+
+        Args:
+            decisions (array): Array of decisions.
+            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
+
+        Returns:
+            dict: A dictionary where the keys are the nodes and the values are the constraints for each node.
+            dict: A dictionary where the keys are the edges and the values are the input data for each edge.
+
+        The method simulates the network by iterating over each node, evaluating the node, storing the output in the input data store of each successor edge, 
+        and storing the constraints of the node in the constraint store of the node.
+        """
         n_theta = 0
         for node in self.graph.nodes:
             n_theta_p = n_theta + self.graph.nodes[node]['forward_evaluator'].unit_cfg.n_theta
@@ -174,14 +220,51 @@ class network_simulator(ABC):
         return {node: self.graph[node]['constraint_store'] for node in self.graph.nodes}, {edge: self.graph.edges[edge[0],edge[1]]['input_data_store'] for edge in self.graph.edges}
     
     def get_constraints(self, decisions, uncertain_params=None):
+        """
+        Returns the constraints for the given decisions and uncertain parameters.
+
+        Args:
+            decisions (array): Array of decisions.
+            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
+
+        Returns:
+            dict: A dictionary where the keys are the nodes and the values are the constraints for each node.
+
+        The method simulates the network and returns the constraints.
+        """
         constraints, _ = self.simulate(decisions, uncertain_params)
         return constraints
     
     def get_extended_ks_info(self, decisions, uncertain_params=None):
+        """
+        Returns the input data for each edge for the given decisions and uncertain parameters.
+
+        Args:
+            decisions (array): Array of decisions.
+            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
+
+        Returns:
+            dict: A dictionary where the keys are the edges and the values are the input data for each edge.
+
+        The method simulates the network and returns the input data for each edge.
+        """
         _, edge_data = self.simulate(decisions, uncertain_params)
         return edge_data
 
     def get_data(self, decisions, uncertain_params=None):
+        """
+        Returns the constraints and the input data for each edge for the given decisions and uncertain parameters.
+
+        Args:
+            decisions (array): Array of decisions.
+            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
+
+        Returns:
+            dict: A dictionary where the keys are the nodes and the values are the constraints for each node.
+            dict: A dictionary where the keys are the edges and the values are the input data for each edge.
+
+        The method simulates the network and returns the constraints and the input data for each edge.
+        """
         constraints, edge_data = self.simulate(decisions, uncertain_params)
         return constraints, edge_data
         

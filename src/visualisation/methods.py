@@ -16,141 +16,34 @@ def plotting_format():
 
     return
 
-
-def method_plot(save_folder, cfg, G, df):
-    inside_samples_decom = [pd.read_excel(os.path.join(save_folder,f'inside_samples_{i+1}.xlsx')) for i in range(3)]
-    outside_samples_decom = [pd.read_excel(os.path.join(save_folder,f'outside_samples_{i+1}.xlsx')) for i in range(3)]
-
-    # just keep those variables with U2 in the column name
-    inside_samples_decom = [in_[[col for col in in_.columns if f"U{i+1}" in col]] for (i,in_) in enumerate(inside_samples_decom)]
-    outside_samples_decom = [in_[[col for col in in_.columns if f"U{i+1}" in col]] for (i,in_) in enumerate(outside_samples_decom)]
-
-    ## plot a scatter of the DS using those intialised samples in the forward pass
-    init_df = G.graph['initial_forward_pass']
-    DS_bounds = [np.array(G.nodes[unit_index]['KS_bounds']) for unit_index in G.nodes]
-    DS_bounds = np.vstack(DS_bounds)
-    DS_bounds = pd.DataFrame(DS_bounds.T, columns=cfg.design_space_dimensions)
-    init_df.rename(columns={"U3: P.C. Pressure (MPa)": "U3: P.C.P. (MPa)", "U3: M.C. Pressure (MPa)": "U3: M.C.P. (MPa)"}, inplace=True)
-    DS_bounds.rename(columns={"U3: P.C. Pressure (MPa)": "U3: P.C.P. (MPa)", "U3: M.C. Pressure (MPa)": "U3: M.C.P. (MPa)"}, inplace=True)
-    design_space_names = cfg.design_space_dimensions
-    process_space_names = cfg.process_space_names
-    subsets_names = []
-    for ps in process_space_names:
-        x = [p for p in ps if p in design_space_names]
-        subsets_names.append(x)
-
-    #inside_samples_restrict = [in_[cols] for in_, cols in zip(inside_samples_decom, subsets_names)]
-    #outside_samples_restrict = [in_[cols] for in_, cols in zip(outside_samples_decom, subsets_names)]
-    print(df)
-    df.rename(columns={"U3: P.C. Pressure (MPa)": "U3: P.C.P. (MPa)", "U3: M.C. Pressure (MPa)": "U3: M.C.P. (MPa)"}, inplace=True)
-    print(df)
-    print(inside_samples_decom[-1])
-    print(outside_samples_decom[-1])
-    inside_samples_decom[-1].rename(columns={"U3: Pre-comp. Pressure (MPa)": "U3: P.C.P. (MPa)", "U3: Main-comp. Pressure (MPa)": "U3: M.C.P. (MPa)"}, inplace=True)
-    outside_samples_decom[-1].rename(columns={"U3: Pre-comp. Pressure (MPa)": "U3: P.C.P. (MPa)", "U3: Main-comp. Pressure (MPa)": "U3: M.C.P. (MPa)"}, inplace=True)
-
-    print(inside_samples_decom[-1])
-    print(outside_samples_decom[-1])
-
+def initializer_cp(df):
     plotting_format()
-    fig = plt.figure(figsize=(35, 35))
-    cols = init_df.columns
-    pp = sns.PairGrid(
-        init_df[cols],
-        aspect=1.4
-    )
-    pp.map_diag(hide_current_axis)
-    pp.map_upper(hide_current_axis)
-
-    pp.map_lower(sns.scatterplot, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5)
-    indices = zip(*np.tril_indices_from(pp.axes, -1))
-    #print([(i,j) for i,j in indices])
-    print(pp.x_vars)
-    print(pp.y_vars)
-
-    for i, j in indices: 
-        x_var = pp.x_vars[j]
-        y_var = pp.y_vars[i]
-        ax = pp.axes[i, j]
-        if x_var in DS_bounds.columns and y_var in DS_bounds.columns:
-            ax.axvline(x=DS_bounds[x_var].iloc[0], ls='--', linewidth=3, c='black')
-            ax.axvline(x=DS_bounds[x_var].iloc[1], ls='--', linewidth=3, c='black')
-            ax.axhline(y=DS_bounds[y_var].iloc[0], ls='--', linewidth=3, c='black')
-            ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
-
-
-    pp.savefig("initial_forward_pass.svg", dpi=300)
-
-    # Pair-wise Scatter Plots
-    fig = plt.figure(figsize=(35, 35))
-    cols = df.columns
-    pp = sns.PairGrid(
-        init_df[cols],
-        aspect=1.4,
-    )
-    pp.map_diag(hide_current_axis)
-    pp.map_upper(hide_current_axis)
-
-    pp.map_lower(sns.scatterplot, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5)
-    indices = zip(*np.tril_indices_from(pp.axes, -1))
-    #print([(i,j) for i,j in indices])
-    print(pp.x_vars)
-    print(pp.y_vars)
-
-    for i, j in indices: 
-        x_var = pp.x_vars[j]
-        y_var = pp.y_vars[i]
-        ax = pp.axes[i, j]
-        if x_var in DS_bounds.columns and y_var in DS_bounds.columns:
-            print(x_var, y_var)
-            ax.axvline(x=DS_bounds[x_var].iloc[0], ls='--', linewidth=3, c='black')
-            ax.axvline(x=DS_bounds[x_var].iloc[1], ls='--', linewidth=3, c='black')
-            ax.axhline(y=DS_bounds[y_var].iloc[0], ls='--', linewidth=3, c='black')
-            ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
-
-
-    # Get the indices of the lower triangle of the pair grid plot
-    indices = zip(*np.tril_indices_from(pp.axes, -1))
-    #print([(i,j) for i,j in indices])
-    print(pp.x_vars)
-    print(pp.y_vars)
-    print(outside_samples_decom)
-    for i, j in indices: 
-        x_var = pp.x_vars[j]
-        y_var = pp.y_vars[i]
-        ax = pp.axes[i, j]
-        #for os_ in outside_samples_decom:
-        #    print(os_.columns)
-        #    if x_var in os_.columns and y_var in os_.columns:
-        #        sns.scatterplot(x=x_var, y=y_var, data=os_, edgecolor="k", c='k', alpha=0.1, ax=ax) 
-        for is_ in inside_samples_decom:
-            print(is_.columns)
-            if x_var in is_.columns and y_var in is_.columns:
-                sns.scatterplot(x=x_var, y=y_var, data=is_, edgecolor="k", c='r', alpha=0.8, ax=ax)
-        
-
-    #pp.map_lower(sns.scatterplot, data=df, edgecolor="k", c="b", linewidth=0.5)
-    # Save the updated figure
-    pp.savefig("decomposed_pair_grid_plot.svg", dpi=300)
-
-    ### plot final boss -- full reconstruction
-
-
-    # Pair-wise Scatter Plots
     fig = plt.figure(figsize=(35, 35))
     cols = df.columns
     pp = sns.PairGrid(
         df[cols],
-        aspect=1.4,
+        aspect=1.4
     )
     pp.map_diag(hide_current_axis)
     pp.map_upper(hide_current_axis)
+    
+    return pp
+
+def get_ds_bounds(cfg, G):
+    DS_bounds = [np.array(G.nodes[unit_index]['KS_bounds']) for unit_index in G.nodes]
+    DS_bounds = np.vstack(DS_bounds)
+    DS_bounds = pd.DataFrame(DS_bounds.T, columns=cfg.design_space_dimensions)
+    return DS_bounds
+
+def init_plot(cfg, G, pp= None, init=True, save=True):
+    init_df = G.graph['initial_forward_pass']
+    DS_bounds = get_ds_bounds(cfg, G)
+
+    if init:
+        pp = initializer_cp(init_df)
 
     pp.map_lower(sns.scatterplot, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5)
     indices = zip(*np.tril_indices_from(pp.axes, -1))
-    #print([(i,j) for i,j in indices])
-    print(pp.x_vars)
-    print(pp.y_vars)
 
     for i, j in indices: 
         x_var = pp.x_vars[j]
@@ -162,51 +55,57 @@ def method_plot(save_folder, cfg, G, df):
             ax.axhline(y=DS_bounds[y_var].iloc[0], ls='--', linewidth=3, c='black')
             ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
 
+    if save: pp.savefig("initial_forward_pass.svg", dpi=300)
+
+    return pp
+
+def decompose_call(cfg, G):
+    pp = init_plot(cfg, G, init=True, save=False)
+    pp = decomposition_plot(cfg, G, pp, save=True)
+    return pp
 
 
-    # Get the indices of the lower triangle of the pair grid plot
+def decomposition_plot(cfg, G, pp, save=True):
+    # load live sets for each subproblem from the graph
+    inside_samples_decom = [G.nodes[node]['live_set_inner'] for node in G.nodes]
+
+    # just keep those variables with Ui in the column name
+    inside_samples_decom = [in_[[col for col in in_.columns if f"U{i+1}" in col]] for (i,in_) in enumerate(inside_samples_decom)]
+
+     # Get the indices of the lower triangle of the pair grid plot
     indices = zip(*np.tril_indices_from(pp.axes, -1))
-    #print([(i,j) for i,j in indices])
-    print(pp.x_vars)
-    print(pp.y_vars)
-    print(outside_samples_decom)
+
     for i, j in indices: 
         x_var = pp.x_vars[j]
         y_var = pp.y_vars[i]
         ax = pp.axes[i, j]
-        #for os_ in outside_samples_decom:
-        #    print(os_.columns)
-        #    if x_var in os_.columns and y_var in os_.columns:
-        #        sns.scatterplot(x=x_var, y=y_var, data=os_, edgecolor="k", c='k', alpha=0.1, ax=ax) 
         for is_ in inside_samples_decom:
             print(is_.columns)
             if x_var in is_.columns and y_var in is_.columns:
                 sns.scatterplot(x=x_var, y=y_var, data=is_, edgecolor="k", c='r', alpha=0.8, ax=ax)
         
+    if save: pp.savefig("decomposed_pair_grid_plot.svg", dpi=300)
 
-    pp.map_lower(sns.scatterplot, data=df, edgecolor="k", c="b", linewidth=0.5)
-    # Save the updated figure
-    pp.savefig("updated_pair_grid_plot.svg", dpi=300)
+    return pp
+    
+def reconstruction_plot(cfg, G, reconstructed_df, save=True):
 
-    date_time = 'outputs/2024-04-11/16-25-35'
-    save_file = os.path.join(cwd, os.path.join(date_time,'joint_inside_samples.xlsx'))
-    joint_data_direct = pd.read_excel(save_file, index_col=0)
-    joint_data_direct.rename(columns={"U3: P.C. Pressure (MPa)": "U3: P.C.P. (MPa)", "U3: M.C. Pressure (MPa)": "U3: M.C.P. (MPa)"}, inplace=True)
+    pp = initializer_cp(reconstructed_df)
+    pp = init_plot(cfg, G, pp, init=False, save=False)
+    pp = decomposition_plot(cfg, G, pp, save =False)
+    pp.map_lower(sns.scatterplot, data=reconstructed_df, edgecolor="k", c="b", linewidth=0.5)
+
+    if save: pp.savefig("reconstructed_pair_grid_plot.svg", dpi=300)
+
+    return pp
+
+def design_space_plot(cfg, G, joint_data_direct, path):
 
     # Pair-wise Scatter Plots
-    fig = plt.figure(figsize=(35, 35))
-    cols = joint_data_direct.columns
-    pp = sns.PairGrid(
-        joint_data_direct[cols],
-        aspect=1.4,
-    )
-    pp.map_diag(hide_current_axis)
-    pp.map_upper(hide_current_axis)
-
+    pp = initializer_cp(joint_data_direct)
+    DS_bounds = get_ds_bounds(cfg, G)
+    
     indices = zip(*np.tril_indices_from(pp.axes, -1))
-    #print([(i,j) for i,j in indices])
-    print(pp.x_vars)
-    print(pp.y_vars)
 
     for i, j in indices: 
         x_var = pp.x_vars[j]
@@ -218,13 +117,11 @@ def method_plot(save_folder, cfg, G, df):
             ax.axhline(y=DS_bounds[y_var].iloc[0], ls='--', linewidth=3, c='black')
             ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
 
-
     pp.map_lower(sns.scatterplot, data=joint_data_direct, edgecolor="k", c="b", linewidth=0.5)
     # Save the updated figure
-    pp.savefig("direct_pair_grid_plot.svg", dpi=300)
+    pp.savefig(path + ".svg", dpi=300)
 
-    return
-
+    return 
 
 
 def hide_current_axis(*args, **kwds):

@@ -1,0 +1,17 @@
+# dynamics definition
+Ea1: 2500.2
+A1: 6.66e-06
+Ea2: 5000.1
+A2: 0.0010335
+
+R: 8.314
+units:
+- 0
+- 1
+study: study_0
+x0:
+- 2000
+- 0
+- 0
+n_units: 2
+include_intermediate_constraint: False
