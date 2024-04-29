@@ -106,9 +106,14 @@ class subproblem_unit_wrapper(unit_evaluation):
         The method splits the decisions into design arguments and input arguments based on the number of design arguments in the node, 
         and then evaluates the unit using these arguments and the uncertain parameters.
         """
+        design_args, input_args = self.get_input_decision_split(decisions)
+        
+        return self.evaluate(design_args, input_args, uncertain_params)
+    
+    def get_input_decision_split(self, decisions):
         n_d = self.graph.nodes[self.node]['n_design_args']
         design_args, input_args = decisions[:,:n_d], decisions[:,n_d:]
-        return self.evaluate(design_args, input_args, uncertain_params)
+        return design_args, input_args
 
 
 class unit_cfg:

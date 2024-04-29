@@ -73,8 +73,8 @@ class trainer(trainer_base):
         return dataset
 
 
-    def train(self) -> jnp.ndarray:
-        dataset = self.get_data()
+    def train(self, node=None) -> jnp.ndarray:
+        dataset = self.get_data(successor_node=node)
         self.load_trainer_methods()
         model, args = self.trainer(self.cfg, dataset, num_folds=self.cfg.num_folds) 
 

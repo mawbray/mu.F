@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 
 
+
 class graph_constructor_base(ABC):
     def __init__(self, cfg, adjacency_matrix):
         self.cfg = cfg

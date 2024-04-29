@@ -47,8 +47,8 @@ class surrogate(surrogate_base):
         self.trainer = trainer(graph, unit_index, cfg, model_type, iterate)
         self.predictor = predictor(cfg, model_type)
 
-    def fit(self) -> None:
-        self.trainer.train()
+    def fit(self, node=None) -> None:
+        self.trainer.train(node)
         self.predictor.load_trained_model(self.trainer)
 
     def predict(self, string:str, X: jnp.ndarray) -> jnp.ndarray:

@@ -154,6 +154,8 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
     Syntax: 
         initialise: class_instance(cfg, graph, node, pool)
         call: class_instance.evaluate(inputs)
+
+    TODO - think about how best to pass uncertain parameters.
     """
     def __init__(self, cfg, graph, node, pool):
         super().__init__(cfg, graph, node)
@@ -262,6 +264,8 @@ class backward_surrogate_constraint(coupling_surrogate_constraint_base):
     - solved with JaxOpt solvers
     - parallelism is provided by jax-pmap
         : may be extended to other solvers e.g. casADi/IPOPT in the future
+
+    TODO - think about how best to pass uncertain parameters.
     """
     def __init__(self, cfg, graph, node, pool):
         super().__init__(cfg, graph, node)

@@ -13,11 +13,22 @@ class constraint_evaluator(ABC):
 
         if constraint_type == 'process':
             self.constraint_evaluator = process_constraint_evaluator(cfg, graph, node, pool)
+            self.evaluate = self.evaluate_process
         elif constraint_type == 'forward':
             self.constraint_evaluator = forward_constraint_evaluator(cfg, graph, node, pool)
+            self.evaluate = self.evaluate_forward
         elif constraint_type == 'backward':
             self.constraint_evaluator = partial(backward_constraint_evaluator, cfg=cfg, graph=graph, node=node, pool=pool)
+            self.evaluate = self.evaluate_backward
+        else:   
+            raise ValueError('Invalid constraint type')
 
-    def evaluate(self, iterated_object):
-        return self.constraint_evaluator(iterated_object)
+    def evaluate_process(self, design, inputs, outputs):
+        return self.constraint_evaluator(design, inputs, outputs)
+    
+    def evaluate_forward(self, inputs):
+        return self.constraint_evaluator(inputs)
+    
+    def evaluate_backward(self, outputs):
+        return self.constraint_evaluator(outputs)
     
