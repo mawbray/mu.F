@@ -21,7 +21,7 @@ from samplers.utils import create_problem_description_deus
 from deus import DEUS
 from utils import dataset_object as dataset_holder
 from utils import data_processing as data_processor
-
+from utils import apply_feasibility
 
 def apply_nested_sampling(cfg, graph, mode:str="forward", max_devices=1):
     # TODO:
@@ -110,13 +110,13 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
     """
 
     # Extract the input-output and classifier data from the model
-    x_io, y_io = data_processor(model.input_output_data).transform_data_to_matrix()
-    x_classifier, y_classifier = data_processor(model.classifier_data).transform_data_to_matrix()
+    x_io, y_io = data_processor(model.input_output_data).transform_data_to_matrix() 
+    x_classifier, y_classifier = data_processor(model.classifier_data).transform_data_to_matrix() # rename data to constraints
+    x_prob, y_prob = data_processor(model.probability_map_data).transform_data_to_matrix() # rename data to constraints
 
-    # Select a subset of the data based on the classifier    
-    
-
-    selected_x, selected_y = x_io[select_cond.squeeze(), :], y_io[select_cond.squeeze(), :]
+    # Select a subset of the data based on the classifier    TODO - implement selection of data depending on whether we want a classifier, a regressor or a probability map, switch on or switch of probability map storage.
+    selected_x, selected_y = apply_feasibility(x_classifier, y_classifier).get_feasible()
+    selected_px, selected_py = apply_feasibility(x_prob, y_prob).get_feasible()
 
     # Apply the selected function to the y data and store forward evaluations on the graph
     for successor in graph.successors(node):
@@ -287,6 +287,7 @@ class subproblem_model(ABC):
         n_theta, n_g = g.shape[-2], g.shape[-1]
         # storing classifier data and updating function evaluations
         self.classifier_data = update_data(self.classifier_data, d, g)  # updating dataset for surrogate model of forward unit evaluation
+        self.probability_map_data = update_data(self.probability_map_data, d, self.SAA(g))  # updating dataset for surrogate model of forward unit evaluation
         # adding function evaluations
         self.function_evaluations += g.shape[0]*g.shape[1]
         # return information for DEUS
@@ -297,11 +298,10 @@ class subproblem_model(ABC):
     
     def SAA(self, constraints):
         if self.cfg.notion_of_feasibility == 'positive':
-            return jnp.mean(jnp.cond(jnp.max(constraints, axis=-1) >= 0 , 1, 0), axis=1)
+            return jnp.mean(jnp.cond(jnp.max(constraints, axis=-1) >= 0 , 1, 0), axis=1).expand_dims(axis=1).expand_dims(axis=1)
         else:
-            return jnp.mean(jnp.cond(jnp.max(constraints, axis=-1) <= 0 , 1, 0), axis=1)
+            return jnp.mean(jnp.cond(jnp.max(constraints, axis=-1) <= 0 , 1, 0), axis=1).expand_dims(axis=1).expand_dims(axis=1)
         
-
     
 def update_data(data, *args):
     """ Method to update the data holder with new data"""
@@ -311,50 +311,3 @@ def update_data(data, *args):
         data.add(*args)
 
     return data
-
-class feasibility_base(ABC):
-    def __init__(self, dataset_X, dataset_Y, cfg):
-        self.dataset_X = dataset_X
-        self.dataset_Y = dataset_Y
-        self.cfg = cfg
-        if self.cfg.formulation == 'probabilistic':
-            self.feasible_function = self.probabilistic_feasibility
-        elif self.cfg.formulation == 'deterministic':
-            self.feasible_function = self.deterministic_feasibility
-        else:
-            raise ValueError(f"Formulation {self.cfg.formulation} not recognised. Please use 'probabilistic' or 'deterministic'.")
-    
-    def probabilistic_feasibility(self, X, Y):
-        """
-        Method to evaluate the probabilistic feasibility of the data
-        """
-        pass
-
-    def deterministic_feasibility(self, X, Y):
-        """
-        Method to evaluate the deterministic feasibility of the data
-        """
-        pass
-
-
-class apply_feasibility(feasibility_base):
-    def __init__(self, dataset_X, dataset_Y, cfg):
-        super().__init__(dataset_X, dataset_Y, cfg)
-        self.feasible_function = self.feasible_function
-
-    def probabilistic_feasibility(self, X, Y):
-        """
-        Method to evaluate the probabilistic feasibility of the data
-        """
-        
-        if
-
-    def deterministic_feasibility(self, X, Y):
-        """
-        Method to evaluate the deterministic feasibility of the data
-        """
-        if self.cfg.notion_of_feasibility == 'positive':
-            select_cond = jnp.max(Y, axis=-1)  >= 0 
-        else:
-            select_cond = jnp.max(Y, axis=-1)  <= 0  
-       

@@ -79,6 +79,53 @@ class data_processing(ABC):
         return jnp.vstack(data_store_X), jnp.vstack(data_store_Y)
     
 
+class feasibility_base(ABC):
+    def __init__(self, dataset_X, dataset_Y, cfg):
+        self.dataset_X = dataset_X
+        self.dataset_Y = dataset_Y
+        self.cfg = cfg
+        if self.cfg.formulation == 'probabilistic':
+            self.feasible_function = self.probabilistic_feasibility
+        elif self.cfg.formulation == 'deterministic':
+            self.feasible_function = self.deterministic_feasibility
+        else:
+            raise ValueError(f"Formulation {self.cfg.formulation} not recognised. Please use 'probabilistic' or 'deterministic'.")
+    
+    def probabilistic_feasibility(self, X, Y):
+        """
+        Method to evaluate the probabilistic feasibility of the data
+        """
+        pass
+
+    def deterministic_feasibility(self, X, Y):
+        """
+        Method to evaluate the deterministic feasibility of the data
+        """
+        pass
 
 
+class apply_feasibility(feasibility_base):
+    def __init__(self, dataset_X, dataset_Y, cfg):
+        super().__init__(dataset_X, dataset_Y, cfg)
+
+    def get_feasible(self):
+        return self.feasible_function(self.dataset_X, self.dataset_Y)
+
+    def probabilistic_feasibility(self, X, Y):
+        """
+        Method to evaluate the probabilistic feasibility of the data
+        """
+        select_cond = jnp.where(Y >= self.cfg.probability_level, 1, 0)
+        return X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :]
+
+    def deterministic_feasibility(self, X, Y):
+        """
+        Method to evaluate the deterministic feasibility of the data
+        """
+        if self.cfg.notion_of_feasibility == 'positive':
+            select_cond = jnp.max(Y, axis=-1)  >= 0 
+        else:
+            select_cond = jnp.max(Y, axis=-1)  <= 0  
+       
+        return X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :]
 
