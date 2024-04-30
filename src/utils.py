@@ -1,6 +1,7 @@
 import pickle
 from abc import ABC
 import jax.numpy as jnp
+from typing import List
 
 def save_graph(G, mode):
     """
@@ -41,3 +42,43 @@ class dataset_object(ABC):
         self.y.append(y_in if self.output_rank >=2 else y_in.expand_dims(axis=-1))
         return 
     
+
+class data_processing(ABC):
+    def __init__(self, dataset_object):
+        self.dataset_object = dataset_object
+        self.d = dataset_object.d
+        self.p = dataset_object.p
+        self.y = dataset_object.y
+        self.check_data()
+
+    def check_data(self):
+        n_d = len(self.d)
+        assert n_d == len(self.p) == len(self.y), "The number of design, parameters and outputs objects within the data object should be the same, currently {} n_d, {} n_p and {} n_o".format(n_d, len(self.p), len(self.y))
+
+    def get_data(self):
+        for i in range(len(self.d)):
+            yield self.d[i], self.p[i], self.y[i]
+        
+    def transform_data_to_matrix(self):
+        """
+        Dealing with the data in a matrix format
+         - This is useful for training neural networks
+        """
+        data = self.get_data()
+        data_store_X, data_store_Y = []
+        for d, p, y in data:
+            X, Y = [], []
+            for i in range(p.shape[0]):
+                X.append(jnp.hstack([d, jnp.repeat(p[i],d.shape[0], axis=0)]))
+                Y.append(y[:,i,:].reshape(d.shape[0],-1))
+            X = jnp.vstack(X)
+            Y = jnp.vstack(Y)
+            data_store_X.append(X)
+            data_store_Y.append(Y)
+
+        return jnp.vstack(data_store_X), jnp.vstack(data_store_Y)
+    
+
+
+
+

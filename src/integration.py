@@ -20,7 +20,7 @@ from samplers.space_filling import sobol_sample_design_space_nd
 from samplers.utils import create_problem_description_deus
 from deus import DEUS
 from utils import dataset_object as dataset_holder
-
+from utils import data_processing as data_processor
 
 
 def apply_nested_sampling(cfg, graph, mode:str="forward", max_devices=1):
@@ -110,43 +110,39 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
     """
 
     # Extract the input-output and classifier data from the model
-    x_io = model.input_output_data.X
-    y_io = model.input_output_data.y
-    x_classifier = model.classifier_data.X
-    y_classifier = model.classifier_data.y
+    x_io, y_io = data_processor(model.input_output_data).transform_data_to_matrix()
+    x_classifier, y_classifier = data_processor(model.classifier_data).transform_data_to_matrix()
 
-    # Select a subset of the data based on the classifier
-    if cfg.notion_of_feasibility == 'positive':
-        select_cond = jnp.max(y_classifier, axis=-1)  >= 0 
-    else:
-        select_cond = jnp.max(y_classifier, axis=-1)  <= 0  
+    # Select a subset of the data based on the classifier    
+    
 
     selected_x, selected_y = x_io[select_cond.squeeze(), :], y_io[select_cond.squeeze(), :]
 
     # Apply the selected function to the y data and store forward evaluations on the graph
     for successor in graph.successors(node):
-        # apply edge function to output data
+        # --- apply edge function to output data --- #
         io_fn = graph.edges[node, successor]["edge_fn"]
-        # apply the function to the selected output data
+        # --- apply the function to the selected output data --- #
         y_updated_io = io_fn(selected_y) # should be rank 3 tensor with (nd, n_theta, n_g)
         y_updated = transform_vmap_output(y_updated_io)
+        # ensure the output data is rank 2
         if y_updated.ndim > 2: y_updated= y_updated.squeeze()
         if y_updated.ndim < 2: y_in_node= y_in_node.reshape(-1,1)
-        # select the approximation method
+        # --- select the approximation method
         if cfg.approximation == 'box': 
              feasible_outer_approx = calculate_box_outer_approximation
         elif cfg.approximation == 'ellipsoid':
             raise NotImplementedError("Ellipsoid approximation not implemented yet.")
 
-        # find box bounds on inputs
+        # --- find box bounds on inputs
         graph.edges[node, successor][
             "input_data_bounds"
         ] = feasible_outer_approx(y_updated, cfg)
 
         # store the forward evaluations on the graph for surrogate training
         y_in_node = io_fn(y_io)
-        
-        x_in = 
+    
+
         if y_in_node.ndim > 2: y_in_node= y_in_node.squeeze()
         if y_in_node.ndim < 2: y_in_node= y_in_node.reshape(-1,1)
 
@@ -233,7 +229,8 @@ class subproblem_model(ABC):
 
         # dataset initialisation 
         self.input_output_data = None 
-        self.classifier_data = None 
+        self.constraint_data = None 
+        self.probability_map_data = None
         self.mode = mode
         self.evaluation_mode = evaluation_mode
         self.max_devices = max_devices
@@ -257,7 +254,6 @@ class subproblem_model(ABC):
         return np.vstack(constraints)
         
     def subproblem_constraint_evals(self, d, p):
-        
         # unit forward pass
         outputs = self.unit_forward_evaluator.get_constraints(d, p) # outputs (rank 3 tensor if we have parametric uncertainty in the unit, n_d \times n_theta \times n_g)
 
@@ -282,9 +278,7 @@ class subproblem_model(ABC):
         # update input output data for forward surrogate model
         self.input_output_data = update_data(self.input_output_data, d, p, outputs, d_axis=-1, p_axis=-1, y_axis=-1)  # updating dataset for surrogate model of forward unit evaluation
 
-        
         return jnp.concatenate([process_constraint_evals, forward_constraint_evals, backward_constraint_evals], axis=-1)  # return raw constraint values (n_d \times n_theta \times n_g)
-
 
     def s(self, d, p):
         # evaluate feasibility and then update classifier data and number of function evaluations
@@ -298,9 +292,15 @@ class subproblem_model(ABC):
         # return information for DEUS
         return [g[i,:,:].reshape(n_theta,n_g) for i in range(g.shape[0])]
         
-
     def get_constraints(self, d, p):
         return self.s(d, p)
+    
+    def SAA(self, constraints):
+        if self.cfg.notion_of_feasibility == 'positive':
+            return jnp.mean(jnp.cond(jnp.max(constraints, axis=-1) >= 0 , 1, 0), axis=1)
+        else:
+            return jnp.mean(jnp.cond(jnp.max(constraints, axis=-1) <= 0 , 1, 0), axis=1)
+        
 
     
 def update_data(data, *args):
@@ -311,3 +311,50 @@ def update_data(data, *args):
         data.add(*args)
 
     return data
+
+class feasibility_base(ABC):
+    def __init__(self, dataset_X, dataset_Y, cfg):
+        self.dataset_X = dataset_X
+        self.dataset_Y = dataset_Y
+        self.cfg = cfg
+        if self.cfg.formulation == 'probabilistic':
+            self.feasible_function = self.probabilistic_feasibility
+        elif self.cfg.formulation == 'deterministic':
+            self.feasible_function = self.deterministic_feasibility
+        else:
+            raise ValueError(f"Formulation {self.cfg.formulation} not recognised. Please use 'probabilistic' or 'deterministic'.")
+    
+    def probabilistic_feasibility(self, X, Y):
+        """
+        Method to evaluate the probabilistic feasibility of the data
+        """
+        pass
+
+    def deterministic_feasibility(self, X, Y):
+        """
+        Method to evaluate the deterministic feasibility of the data
+        """
+        pass
+
+
+class apply_feasibility(feasibility_base):
+    def __init__(self, dataset_X, dataset_Y, cfg):
+        super().__init__(dataset_X, dataset_Y, cfg)
+        self.feasible_function = self.feasible_function
+
+    def probabilistic_feasibility(self, X, Y):
+        """
+        Method to evaluate the probabilistic feasibility of the data
+        """
+        
+        if
+
+    def deterministic_feasibility(self, X, Y):
+        """
+        Method to evaluate the deterministic feasibility of the data
+        """
+        if self.cfg.notion_of_feasibility == 'positive':
+            select_cond = jnp.max(Y, axis=-1)  >= 0 
+        else:
+            select_cond = jnp.max(Y, axis=-1)  <= 0  
+       
