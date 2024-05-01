@@ -14,6 +14,7 @@ import logging
 import hydra
 from omegaconf import DictConfig
 import pandas as pd
+import networkx as nx
 
 """
 TODO :
@@ -37,6 +38,9 @@ def main(cfg: DictConfig) -> None:
     # iterate over the modes defined in the config file
     mode = cfg.mode
 
+    # getting precedence order
+    precedence_order = list(nx.topological_sort(G))
+
     for i, m in enumerate(mode):
         # initialisation
         if (i == 0) and not (m == 'forward'):
@@ -45,7 +49,7 @@ def main(cfg: DictConfig) -> None:
             visualiser(cfg, G, string='initialisation', path=f'initialisation_{m}_iterate_{i}').visualise()
         
         # decomposition
-        G = apply_decomposition(cfg, G, mode=m, max_devices=max_devices)
+        G = apply_decomposition(cfg, G, precedence_order, mode=m, max_devices=max_devices)
         # visualisation of decomposition
         visualiser(cfg, G, string='decomposition', path=f'decomposition_{m}_iterate_{i}').visualise()
         save_graph(G.copy(), m + '_iterate_' + str(i))
