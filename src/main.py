@@ -40,7 +40,7 @@ def main(cfg: DictConfig) -> None:
     for i, m in enumerate(mode):
         # initialisation
         if (i == 0) and not (m == 'forward'):
-            G = initialisation(cfg, G, network_simulator, constraint_evaluator, sobol_sampler(), approximator).run()
+            G = initialisation(cfg, G, network_simulator, constraint_evaluator, sobol_sampler(), approximator).run() # TODO update uncertainty evaluations
             # visualisation of initialisation
             visualiser(cfg, G, string='initialisation', path=f'initialisation_{m}_iterate_{i}').visualise()
         
@@ -53,7 +53,7 @@ def main(cfg: DictConfig) -> None:
         # reconstruction
         if cfg.reconstruct[i]:
             network_model = network_model(cfg, G, constraint_evaluator)
-            joint_live_set = reconstruction(G, cfg, network_model, max_devices)
+            joint_live_set = reconstruction(G, cfg, network_model, max_devices) # TODO update uncertainty evaluations
             
             # update the graph with the function evaluations
             for node in G.nodes():
