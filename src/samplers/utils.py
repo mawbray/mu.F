@@ -1,5 +1,8 @@
 
-
+from omegaconf import DictConfig
+import networkx as nx
+import hydra
+import numpy as np
 
 
 def design_list_constructor(bounds_for_design):
@@ -31,7 +34,7 @@ def extended_design_list_constructor(bounds_for_input, bounds_for_design):
 
 def get_unit_bounds(G: nx.DiGraph, unit_index: int):
     # constructing holder for input and design parameter bounds
-    if G.nodes[unit_index]['extendedDS_bounds'] is None:
+    if G.nodes[unit_index]['extendedDS_bounds'] == 'None':
         design_var = design_list_constructor(G.nodes[unit_index]['KS_bounds'])
         if G.in_degree()[unit_index] > 0: 
             bounds_for_input = [G.edges[predec,unit_index]["input_data_bounds"] for predec in G.predecessors(unit_index)]
@@ -55,9 +58,9 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
     print(f'EXTENDED DS DIM.: {len(bounds)}')
         
     the_activity_form = {
-        "activity_type": cfg.deus.activity_type,
+        "activity_type": cfg.samplers.deus.activity_type,
         "activity_settings": {
-            "case_name": f"{cfg.case_study}_{unit_index}_fwd_{forward_mode}",
+            "case_name": f"{cfg.case_study.case_study}_{unit_index}_fwd_{forward_mode}",
             "case_path": hydra.core.hydra_config.HydraConfig.get().runtime.output_dir,
             "resume": False, #' in general following the implementation here, we cannot load the problem via pickle
             "save_period": 1
@@ -68,7 +71,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
             "constraints_func_name": "none",
             "parameters_best_estimate": G.nodes[unit_index]['parameters_best_estimate'],
             "parameters_samples": G.nodes[unit_index]['parameters_samples'],
-            "target_reliability": cfg.target_reliability,
+            "target_reliability": cfg.samplers.target_reliability,
             "design_variables": [bound for bound in bounds.values()]
         },
 
@@ -101,8 +104,8 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
             #},
             "phases_setup": {
                 "initial": {
-                    "nlive": cfg.ns.n_live,
-                    "nproposals": cfg.ns.n_replacements
+                    "nlive": cfg.samplers.ns.n_live,
+                    "nproposals": cfg.samplers.ns.n_replacements
                 },
                 "deterministic": {
                     "skip": True
@@ -115,7 +118,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
                     "nlive_change": {
                         "mode": "user_given",
                         "schedule": [
-                            (.00, cfg.ns.n_live, cfg.ns.n_replacements),
+                            (.00, cfg.samplers.ns.n_live, cfg.samplers.ns.n_replacements),
                         ]
                     }
                 }
@@ -125,11 +128,11 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
             "sampling": {
                 "algorithm": "mc_sampling-ns_global",
                 "settings": {
-                     "nlive": cfg.ns.n_live,  # This is overridden by points_schedule
-                     "nproposals": cfg.ns.n_replacements,  # This is overriden by points_schedule
+                     "nlive": cfg.samplers.ns.n_live,  # This is overridden by points_schedule
+                     "nproposals": cfg.samplers.ns.n_replacements,  # This is overriden by points_schedule
                      "prng_seed": 1989,
-                     "f0": cfg.ns.f0,
-                     "alpha": cfg.ns.alpha,
+                     "f0": cfg.samplers.ns.f0,
+                     "alpha": cfg.samplers.ns.alpha,
                      "stop_criteria": [
                          {"max_iterations": 100000}
                      ],

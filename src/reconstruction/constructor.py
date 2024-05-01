@@ -1,9 +1,9 @@
 from abc import ABC
 import numpy as np
 
-from samplers import sobol_sample_design_space_nd
-from objects import live_set
-from methods import construct_cartesian_product_of_live_sets
+from reconstruction.samplers import sobol_sampler
+from reconstruction.objects import live_set
+from reconstruction.methods import construct_cartesian_product_of_live_sets
 
 
 class reconstruct_base(ABC):

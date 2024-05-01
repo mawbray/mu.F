@@ -36,4 +36,4 @@ def serial_mechanism_vc_batch_dynamics(
 
 
 # define a dictionary that contains unit wise dynamics for each of the nodes in the graph in the case study
-case_studies = {'serial_batch': {0: serial_mechanism_vc_batch_dynamics, 1: serial_mechanism_vc_batch_dynamics}}
+case_studies = {'serial_mechanism_batch': {0: serial_mechanism_vc_batch_dynamics, 1: serial_mechanism_vc_batch_dynamics}}

@@ -3,7 +3,7 @@ from typing import List, Tuple
 from functools import partial
 
 import pandas as pd
-from methods import init_plot, decompose_call, reconstruction_plot, design_space_plot
+from visualisation.methods import init_plot, decompose_call, reconstruction_plot, design_space_plot
 
 class visualiser(ABC):
     def __init__(self, cfg, G, data: pd.DataFrame=None, string:str='design_space', path=None):

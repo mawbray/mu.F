@@ -13,21 +13,21 @@ def case_study_constructor(cfg):
     """
 
     # Create a sample constraint dictionary
-    constraint_dictionary = CS_holder[cfg.case_study]
+    constraint_dictionary = CS_holder[cfg.case_study.case_study]
 
     # create edge functions
-    if cfg.vmap_evaluations:
-        dict_of_edge_fn = vmap_CS_edge_holder[cfg.case_study]
+    if cfg.case_study.vmap_evaluations:
+        dict_of_edge_fn = vmap_CS_edge_holder[cfg.case_study.case_study]
     else:
-        dict_of_edge_fn = CS_edge_holder[cfg.case_study]
+        dict_of_edge_fn = CS_edge_holder[cfg.case_study.case_study]
 
     # Create a graph constructor object
-    G = graph_constructor(cfg, cfg.adjacency_matrix)
+    G = graph_constructor(cfg, cfg.case_study.adjacency_matrix)
 
     # Call the case_study_allocation function
     G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary)
 
-    return G
+    return G.get_graph()
 
 
 
@@ -44,19 +44,19 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary):
     """
 
     # add nodes properties to the graph
-    G.add_arg_to_nodes('n_design_args', cfg.n_design_args)
-    G.add_arg_to_nodes('KS_bounds', cfg.KS_bounds)
-    G.add_arg_to_nodes('parameters_best_estimate', cfg.parameters_best_estimate)
-    G.add_arg_to_nodes('parameters_samples', cfg.parameters_samples)
-    G.add_arg_to_nodes('fn_evals', cfg.fn_evals)
-    G.add_arg_to_nodes('unit_op', cfg.unit_op)
-    G.add_arg_to_nodes('unit_params_fn', cfg.unit_params_fn)
-    G.add_arg_to_nodes('extendedDS_bounds', cfg.extendedDS_bounds)
+    G.add_arg_to_nodes('n_design_args', cfg.case_study.n_design_args)
+    G.add_arg_to_nodes('KS_bounds', cfg.case_study.KS_bounds)
+    G.add_arg_to_nodes('parameters_best_estimate', cfg.case_study.parameters_best_estimate)
+    G.add_arg_to_nodes('parameters_samples', cfg.case_study.parameters_samples)
+    G.add_arg_to_nodes('fn_evals', cfg.case_study.fn_evals)
+    G.add_arg_to_nodes('unit_op', cfg.case_study.unit_op)
+    G.add_arg_to_nodes('unit_params_fn', cfg.case_study.unit_params_fn)
+    G.add_arg_to_nodes('extendedDS_bounds', cfg.case_study.extendedDS_bounds)
     G.add_arg_to_nodes('constraints', constraint_dictionary)
 
 
     # add miscellaneous information to the graph
-    G.add_n_input_args(cfg.n_input_args)
+    G.add_n_input_args(cfg.case_study.n_input_args)
     G.add_input_indices()
 
     # add edge properties to the graph

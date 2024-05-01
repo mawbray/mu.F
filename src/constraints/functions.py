@@ -103,5 +103,5 @@ def unit2_volume_ub(steady_state_outputs, cfg):
 
 
 """ insert case study specific functions for constraints here"""
-CS_holder = {'tablet_press': {0: (unit1_volume_ub), 1: (unit2_volume_ub, tablet_composition_lb, tablet_composition_ub), 2: (tablet_hardness_lb, tablet_hardness_ub, tablet_size_lb, tablet_size_ub)}, 
-             'CSTR': {0: purity_unit_1_ub, 1: purity_unit_2_lb}}
+CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_composition_lb, tablet_composition_ub], 2: [tablet_hardness_lb, tablet_hardness_ub, tablet_size_lb, tablet_size_ub]}, 
+             'serial_mechanism_batch': {0: [purity_unit_1_ub], 1: [purity_unit_2_lb]}}

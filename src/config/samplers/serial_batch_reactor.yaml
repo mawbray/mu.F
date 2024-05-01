@@ -5,23 +5,12 @@ deus:
 
 notion_of_feasibility: 'positive'
 
-
-n_live: 50
-final_sample_live: 4000 
-n_replacements: 500 
-n_iter: 15000 
-f0: 0.1
-alpha: 0.2
-prior: Uniform
-rejector: suob-ellipsoid
-prior_bounds_input:
-- None
-mu_prior:
-- None
-- None
-sigma_prior:
-- None
-- None
-nullpoint_storage: true
-fn_evals_efficiency: true
-joint_probability: 1
+ns:
+  n_live: 50
+  final_sample_live: 4000 
+  n_replacements: 500 
+  n_iter: 15000 
+  f0: 0.1
+  alpha: 0.2
+  prior: Uniform
+  rejector: suob-ellipsoid

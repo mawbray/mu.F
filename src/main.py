@@ -24,7 +24,7 @@ TODO :
 """
 
 
-@hydra.main(config_path="config", config_name="tablet_press")
+@hydra.main(config_path="config", config_name="integrator")
 def main(cfg: DictConfig) -> None:
     # Set the maximum number of devices
     max_devices = len(jax.devices('cpu'))
@@ -36,7 +36,7 @@ def main(cfg: DictConfig) -> None:
     save_graph(G.copy(), "initial")
 
     # iterate over the modes defined in the config file
-    mode = cfg.mode
+    mode = cfg.case_study.mode
 
     # getting precedence order
     precedence_order = list(nx.topological_sort(G))
@@ -50,6 +50,7 @@ def main(cfg: DictConfig) -> None:
         
         # decomposition
         G = apply_decomposition(cfg, G, precedence_order, mode=m, max_devices=max_devices)
+
         # visualisation of decomposition
         visualiser(cfg, G, string='decomposition', path=f'decomposition_{m}_iterate_{i}').visualise()
         save_graph(G.copy(), m + '_iterate_' + str(i))

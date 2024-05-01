@@ -45,8 +45,8 @@ class construct_deus_problem(construct_base):
         super().__init__(sampler_class, problem_description, model)
 
     def load_model_to_sampler(self):
-        self.problem_description['solver']['score_evaluation']['constraints_func_ptr'] = self.model.get_constraints
-        self.problem_description['solver']['efp_evaluation']['constraints_func_ptr'] = self.model.get_constraints
+        self.problem_description['solver']['settings']['score_evaluation']['constraints_func_ptr'] = self.model.get_constraints
+        self.problem_description['solver']['settings']['efp_evaluation']['constraints_func_ptr'] = self.model.get_constraints
         return
 
     def get_solution(self):

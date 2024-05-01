@@ -11,7 +11,9 @@ penalty_method_coupler:
   augmented_obj_tol: 0.001
 
 
-evaluation_mode: 'jax-pmap' #serial 
+evaluation_mode: 
+  forward: pool
+  backward: jax-pmap #serial 
 
 
 forward_coupling:

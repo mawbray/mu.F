@@ -25,7 +25,7 @@ from functools import partial
 from omegaconf import DictConfig
 from functools import partial
 
-from data_utils import standardisation_metrics
+from surrogate.data_utils import standardisation_metrics
 
 
 # --- neural network regressor --- #

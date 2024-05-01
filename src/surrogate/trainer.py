@@ -7,10 +7,10 @@ import numpy as np
 from omegaconf import DictConfig
 from gpjax import Dataset
 
-from data_utils import binary_classifier_data_preparation, regression_data_preparation, forward_evaluation_data_preparation
-from gp_utils import train as train_gp
-from nn_utils import train as train_ann
-from svm_utils import train as train_svm
+from surrogate.data_utils import binary_classifier_data_preparation, regression_node_data_preparation, forward_evaluation_data_preparation
+from surrogate.gp_utils import train as train_gp
+from surrogate.nn_utils import train as train_ann
+from surrogate.svm_utils import train as train_svm
 
 
 class trainer_base(ABC):
@@ -63,7 +63,7 @@ class trainer(trainer_base):
 
     def get_data(self, successor_node: int = None) -> None:
         if (self.model_class == 'regression') and (self.model_surrogate != 'forward_evaluation_surrogate'): # TODO make sure this method exists and acts on the right component of the graph e.g. edge or node
-            dataset = regression_data_preparation(self.graph, self.unit_index, self.cfg)
+            dataset = regression_node_data_preparation(self.graph, self.unit_index, self.cfg)
         elif (self.model_class == 'regression') and (self.model_surrogate == 'forward_evaluation_surrogate'):
             dataset = forward_evaluation_data_preparation(self.graph, self.unit_index, self.cfg, successor_node)
         elif self.model_class == 'classification': # this is only used for determining node data i..e in approximating feasibility

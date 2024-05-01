@@ -13,12 +13,12 @@ from sklearn.model_selection import KFold, GridSearchCV
 import jax.numpy as jnp
 from jax import jit
 
-from data_utils import binary_classifier_data_preparation, standardisation_metrics
+from surrogate.data_utils import binary_classifier_data_preparation, standardisation_metrics
 
 import logging
 
 
-def train_svm(cfg, dataset, num_folds, unit_index, iterate):
+def train(cfg, dataset, num_folds, unit_index, iterate):
     """
     Construct the classifier for the forward pass.
 

@@ -22,7 +22,7 @@ from diffrax import Tsit5
 
 
 # package specific imports 
-from ode import case_studies
+from unit_evaluators.ode import case_studies
 
 
 def unit_dynamics(params, u, uncertainty_params, cfg, node):   

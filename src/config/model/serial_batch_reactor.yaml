@@ -15,6 +15,8 @@ x0:
   - 0 # component 2
   - 0 # component 3
 
+uncertain_parameters:
+  n_theta: [0, 0]
 
 constraint:
   purity_u1: 0.75
@@ -31,4 +33,4 @@ integration:
   - 2000
   - 0
   - 0
-  max_steps: 10000000
+  max_steps: 1000000

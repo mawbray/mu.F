@@ -38,6 +38,6 @@ vmap_data_transform = vmap(vmap(data_transform, in_axes=(0, None), out_axes=0), 
 
 
 """ insert case study specific functions for constraints here"""
-CS_edge_holder = {'tablet_press': {(0,1): data_IO_1, (1,2): data_IO_2}, 'CSTR': {(0,1): data_transform}}
-vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_IO_2}, 'CSTR': {(0,1): vmap_data_transform}}
+CS_edge_holder = {'tablet_press': {(0,1): data_IO_1, (1,2): data_IO_2}, 'serial_mechanism_batch': {(0,1): data_transform}}
+vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_IO_2}, 'serial_mechanism_batch': {(0,1): vmap_data_transform}}
 

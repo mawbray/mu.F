@@ -1,12 +1,12 @@
 
 from abc import ABC
-from deepcopy import copy
+from copy import copy
 from functools import partial
 import jax.numpy as jnp 
 from jax import vmap, jit
 
-from integrators import unit_dynamics
-from utils import arrhenius_kinetics_fn as arrhenius
+from unit_evaluators.integrators import unit_dynamics
+from unit_evaluators.utils import arrhenius_kinetics_fn as arrhenius
 
 
 class base_unit(ABC):
@@ -14,8 +14,6 @@ class base_unit(ABC):
         self.cfg = cfg
         self.graph = graph
         self.node = node
-        if self.graph.nodes[node]['unit_uncertainty'] :
-            self.uncertainty = True
 
     def get_decision_dependent_params(self, decisions):
         raise NotImplementedError
@@ -136,10 +134,10 @@ class unit_cfg:
         """
 
         self.cfg, self.graph, self.node = cfg, graph, node
-        self.n_theta = cfg.uncertain_parameters.n_theta[node]
+        self.n_theta = cfg.model.uncertain_parameters.n_theta[node]
 
         # if vmap is enabled in cfg, set the unit evaluation and decision dependent evaluation functions using vmap
-        if cfg.vmap_unit_evaluation[self.node]:
+        if cfg.case_study.vmap_evaluations:
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
                 self.evaluator = vmap(vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0,0, None), out_axes=0), in_axes=(None, None, 0), out_axes=1) # inputs are design args, input args, uncertain params
@@ -148,7 +146,7 @@ class unit_cfg:
 
             # --- set the decision dependent evaluation fn
             if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
-                EA, R, A = cfg.arrhenius.EA[node], cfg.arrhenius.R, cfg.arrhenius.A[node]
+                EA, R, A = cfg.model.arrhenius.EA[node], cfg.model.arrhenius.R, cfg.model.arrhenius.A[node]
                 self.decision_dependent_params = vmap(vmap(partial(arrhenius, Ea=EA, R=R, A=A), in_axes=(0, None), out_axes=0), in_axes=(None, 0), out_axes=1)
             elif graph.nodes[node]['unit_params_fn'] is None: # NOTE this allocation has not been tested
                 self.decision_dependent_params = lambda x, y: jnp.empty(x.shape[0])
@@ -165,7 +163,7 @@ class unit_cfg:
 
             # --- set the decision dependent evaluation fn
             if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
-                EA, R, A = cfg.arrhenius.EA[node], cfg.arrhenius.R, cfg.arrhenius.A[node]
+                EA, R, A = cfg.model.arrhenius.EA[node], cfg.model.arrhenius.R, cfg.model.arrhenius.A[node]
                 self.decision_dependent_params = partial(arrhenius, Ea=EA, R=R, A=A)
             elif graph.nodes[node]['unit_params_fn'] is None:
                 self.decision_dependent_params = lambda x, y: jnp.empty(x.shape[0]) # NOTE this allocation has not been testeds
@@ -202,15 +200,18 @@ class network_simulator(ABC):
         and storing the constraints of the node in the constraint store of the node.
         """
         n_theta = 0
+        u_p = None
         for node in self.graph.nodes:
-            n_theta_p = n_theta + self.graph.nodes[node]['forward_evaluator'].unit_cfg.n_theta
+            if not (uncertain_params == None) :
+                n_theta_p = n_theta + self.graph.nodes[node]['forward_evaluator'].unit_cfg.n_theta
+                u_p = uncertain_params[:,n_theta:n_theta_p]
 
             if self.graph.nodes[node].in_degree == 0:
                 inputs = None
             else:
                 inputs = jnp.hstack([jnp.copy(self.graph.edges[predecessor, node]['input_data_store']) for predecessor in self.graph.predecessors(node)])
 
-            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions, inputs, uncertain_params[:,n_theta:n_theta_p])
+            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions, inputs, u_p)
             
             for successor in self.graph.successors(node):
                 self.graph.edges[node, successor]['input_data_store'] = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))

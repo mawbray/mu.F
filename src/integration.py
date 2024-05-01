@@ -18,6 +18,7 @@ from utils import dataset_object as dataset_holder
 from utils import data_processing as data_processor
 from utils import apply_feasibility
 
+
 def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterate=0, max_devices=1):
 
     if mode == "backward" or mode == "forward-backward":
@@ -28,13 +29,12 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward' or 'forward-backward'.")
         
 
-
     # Iterate over the nodes and apply nested sampling
     for node in nodes:
         logging.info(f'------- Characterising node {node} according to precedence order: {nodes} -------')
-        # define model for deus  unit_index, cfg, G, mode, evaluation_mode, max_devices)
-        model = subproblem_model(node, cfg, graph, mode=mode, evaluation_mode=cfg.evaluation_mode, max_devices=max_devices)
-        # create problem sheet according to cfg create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiGraph, unit_index:float, forward_mode:bool = False)
+        # define model for deus
+        model = subproblem_model(node, cfg, graph, mode=mode, max_devices=max_devices)
+        # create problem sheet according to cfg 
         problem_sheet = create_problem_description_deus(cfg, model, graph, node, mode) 
         # solve extended DS using NS
         solver =  construct_deus_problem(DEUS, problem_sheet, model)
@@ -227,7 +227,7 @@ def classifier_construction(cfg, graph, node, iterate):
 
 
 class subproblem_model(ABC):
-    def __init__(self, unit_index, cfg, G, mode, evaluation_mode, max_devices):     
+    def __init__(self, unit_index, cfg, G, mode, max_devices):     
         """
          TODO 
             1 - validate data storage and retrieval
@@ -240,26 +240,25 @@ class subproblem_model(ABC):
         self.cfg, self.G = cfg, G
 
         # subproblem construction
-        self.process_constraints = constraint_evaluator(cfg, G, unit_index, cfg.constraints.pool, 'process')
+        self.process_constraints = constraint_evaluator(cfg, G, unit_index, pool=None, constraint_type='process')
         if mode == 'forward':
-            self.forward_constraints = constraint_evaluator(cfg, G, unit_index, cfg.constraints.pool, 'forward')
+            self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
             self.backward_constraints = None
         elif mode == 'backward':
-            self.backward_constraints = constraint_evaluator(cfg, G, unit_index, cfg.constraints.pool, 'backward')
+            self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
             self.forward_constraints = None
         elif mode == 'forward-backward':
-            self.forward_constraints = constraint_evaluator(cfg, G, unit_index, cfg.constraints.pool, 'forward')
-            self.backward_constraints = constraint_evaluator(cfg, G, unit_index, cfg.constraints.pool, 'backward')
+            self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
+            self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
 
         # subproblem unit construction
-        self.unit_forward_evaluator = subproblem_unit_wrapper(cfg, G, unit_index, mode)
+        self.unit_forward_evaluator = subproblem_unit_wrapper(cfg, G, unit_index)
 
         # dataset initialisation 
         self.input_output_data = None 
         self.constraint_data = None 
         self.probability_map_data = None
         self.mode = mode
-        self.evaluation_mode = evaluation_mode
         self.max_devices = max_devices
 
 

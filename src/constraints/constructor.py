@@ -3,7 +3,7 @@ from functools import partial
 import jax.numpy as jnp
 from jax import vmap, jit
 
-from evaluator import process_constraint_evaluator, forward_constraint_evaluator, backward_constraint_evaluator
+from constraints.evaluator import process_constraint_evaluator, forward_constraint_evaluator, backward_constraint_evaluator
 
 class constraint_evaluator(ABC):
     def __init__(self, cfg, graph, node, pool=None, constraint_type='process'):

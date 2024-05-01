@@ -10,8 +10,7 @@ from scipy.stats import beta
 import jax.scipy.stats as jscp_stats
 
 
-from src.constraints.evaluator import process_constraint_evaluator
-from utilities import worker_function, parallelise_batch, determine_batches, create_batches
+from constraints.utilities import worker_function, parallelise_batch, determine_batches, create_batches
 
 class constraint_evaluator_base(ABC):
     def __init__(self, cfg, graph, node):
@@ -36,7 +35,7 @@ class process_constraint_evaluator(constraint_evaluator_base):
         Initializes
         """
         super().__init__(cfg, graph, node)
-        if cfg.vmap_constraint_evaluation:
+        if cfg.case_study.vmap_evaluations:
             self.vmap_evaluation()
 
     def __call__(self, dynamics_profile):
@@ -68,12 +67,11 @@ class process_constraint_evaluator(constraint_evaluator_base):
         Vectorizes the the constraints and then loads them back onto the graph
         """
         # get constraints from the graph
-        constraints = self.graph.nodes[self.node]['constraints'].copy()
+        constraints = self.graph.nodes[self.node]['constraints']
         # vectorize each constraint
-        for key, constraint in constraints.items():
-            constraints[key] = jit(vmap(jit(vmap(constraint, in_axes=(0, None), out_axes=0)), in_axes=(1, None), out_axes=1))
+        cons = (jit(vmap(jit(vmap(constraint, in_axes=(0, None), out_axes=0)), in_axes=(1, None), out_axes=1)) for constraint in constraints)
         # load the vectorized constraints back onto the graph
-        self.graph.nodes[self.node]['constraints'] = constraints
+        self.graph.nodes[self.node]['constraints'] = cons
 
         return 
 
@@ -168,9 +166,9 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         if self.pool != 'jax-pmap':
             self.evaluation_method = self.mp_evaluation
         # shaping function to return to sampler. (depends on the way constraints are defined by the user)
-        if cfg.notion_of_feasibility == 'positive': # i.e. feasible is g(x)>=0
+        if cfg.samplers.notion_of_feasibility == 'positive': # i.e. feasible is g(x)>=0
             self.shaping_function = lambda x: -x
-        elif cfg.notion_of_feasibility == 'negative': # i.e. feasible is g(x)<=0
+        elif cfg.samplers.notion_of_feasibility == 'negative': # i.e. feasible is g(x)<=0
             self.shaping_function = lambda x: x
         else:
             raise ValueError("Invalid notion of feasibility.")

@@ -4,8 +4,8 @@ from typing import Tuple
 from omegaconf import DictConfig
 import jax.numpy as jnp
 
-from predictor import predictor
-from trainer import trainer
+from surrogate.predictor import predictor
+from surrogate.trainer import trainer
 
 
 class surrogate_base(ABC):
