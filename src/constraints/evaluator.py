@@ -31,7 +31,7 @@ class process_constraint_evaluator(constraint_evaluator_base):
     Means to simply evaluate the process constraints imposed on a unit.
     """
 
-    def __init__(self, cfg, graph, node, pool):
+    def __init__(self, cfg, graph, node, pool=None):
         """
         Initializes
         """

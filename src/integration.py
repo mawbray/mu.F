@@ -8,34 +8,22 @@ import numpy as np
 import logging
 
 from constraints.constructor import constraint_evaluator
-from unit_evaluators.constructor import subproblem_unit_wrapper, network_simulator
-from initialisation.methods import initialisation
-from reconstruction.constructor import reconstruction
-from visualisation.visualiser import visualiser
+from unit_evaluators.constructor import subproblem_unit_wrapper
 from surrogate.surrogate import surrogate
-from solvers.constructor import solver_construction
 from samplers.constructor import construct_deus_problem
 from samplers.appproximators import calculate_box_outer_approximation
-from samplers.space_filling import sobol_sample_design_space_nd
 from samplers.utils import create_problem_description_deus
 from deus import DEUS
 from utils import dataset_object as dataset_holder
 from utils import data_processing as data_processor
 from utils import apply_feasibility
 
-def apply_nested_sampling(cfg, graph, mode:str="forward", max_devices=1):
-    # TODO:
-    # redefine the constraints to return direct constraint evaluations and not indicator values.
-    # implement the methods to reconstruct
-    
-    # Create a list of nodes in the graph according to the precedence order
-    nodes = nx.topological_sort(graph)
-
+def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterate=0, max_devices=1):
 
     if mode == "backward" or mode == "forward-backward":
-        nodes = reversed(list(nodes))
+        nodes = reversed(precedence_order.copy())
     elif mode == "forward":
-        nodes = list(nodes)
+        nodes = precedence_order.copy()
     else:
         raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward' or 'forward-backward'.")
         
@@ -44,20 +32,21 @@ def apply_nested_sampling(cfg, graph, mode:str="forward", max_devices=1):
     # Iterate over the nodes and apply nested sampling
     for node in nodes:
         logging.info(f'------- Characterising node {node} according to precedence order: {nodes} -------')
-        # define model for deus
-        model = ModelA(node, cfg, graph, mode=mode, notion_of_feasibility=cfg.notion_of_feasibility, evaluation_mode=cfg.evaluation_mode, max_devices=max_devices)
-        # create problem sheet according to cfg
-        problem_sheet = create_activity_form(cfg, model, graph, node) 
+        # define model for deus  unit_index, cfg, G, mode, evaluation_mode, max_devices)
+        model = subproblem_model(node, cfg, graph, mode=mode, evaluation_mode=cfg.evaluation_mode, max_devices=max_devices)
+        # create problem sheet according to cfg create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiGraph, unit_index:float, forward_mode:bool = False)
+        problem_sheet = create_problem_description_deus(cfg, model, graph, node, mode) 
         # solve extended DS using NS
-        live_set, deadpoints_all, model = run_deus_nested_sampling(
-            problem_sheet, model, cfg, graph, node
-        )
+        solver =  construct_deus_problem(DEUS, problem_sheet, model)
+        solver.solve()
+        feasible_set, infeasible_set = solver.get_solution()
         # estimate box for bounds for DS downstream
-        process_data_forward(cfg, graph, node, model, live_set)
+        process_data_forward(cfg, graph, node, model, feasible_set)
         # train constraints for DS downstream using data now stored in the graph
-        if mode == 'forward': surrogate_training_forward(cfg, graph, node)
+        if mode in ['forward', 'forward-backward']: surrogate_training_forward(cfg, graph, node)
         # classifier construction for current unit
-        classifier_construction(cfg, graph, node)
+        if cfg.surrogate.classifier: classifier_construction(cfg, graph, node, iterate)
+        if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
 
 
     return graph
@@ -94,6 +83,34 @@ def surrogate_training_forward(cfg, graph, node, iterate:int=0):
 
 
 
+def probability_map_construction(cfg, graph, node, iterate):
+    """
+    Construct the probability map for the forward pass.
+
+    Parameters:
+    cfg (object): The configuration object with a 'probability_map' attribute.
+    graph (object): The graph object.
+    node (object): The current node in the graph.
+
+    Returns:
+    None
+    """
+    # train the model
+    ls_surrogate = surrogate(graph, node, cfg, ('regression', 'ANN', 'probability_map_surrogate'), iterate)
+    ls_surrogate.fit(node=None)
+    if cfg.surrogate.probability_map_args.standardised:
+        query_model = ls_surrogate.get_model('standardised_model')
+    else:
+        query_model = ls_surrogate.get_model('unstandardised_model')
+    
+    # store the trained model in the graph
+    graph.nodes[node]["probability_map"] = query_model
+    graph.nodes[node]['probability_map_x_scalar'] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
+    graph.edges[node]['probability_map_y_scalar'] = ls_surrogate.trainer.get_model_object('standardisation_metrics_output')
+
+    return
+
+
 def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibility='positive'):
     """
     Process the data in the forward direction.
@@ -108,26 +125,36 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
     Returns:
     None
     """
+    # Select a subset of the data based on the classifier  
+    if cfg.surrogate.classifier:
+        # if the classifier is trained, select the feasible data - in the case of probabistic constraints, this will provide feasible data with P=1
+        x_classifier, y_classifier = data_processor(model.classifier_data).transform_data_to_matrix(lambda x: x) # rename data to constraints
+        _, _, feasible_indices = apply_feasibility(x_classifier, y_classifier).get_feasible(return_indices = True)
+        graph.nodes[node]["classifier_training"] = model.classifier_data
+    if cfg.surrogate.probability_map:
+        # in the case of probabistic constraints, this will provide feasible data with P level set by the user.
+        x_prob, y_prob = data_processor(model.probability_map_data).transform_data_to_matrix(lambda x: x) # rename data to constraints
+        _, _, feasible_indices = apply_feasibility(x_prob, y_prob).get_feasible()
+    
+    # add live set to the node    
+    graph.nodes[node]["live_set_inner"] = live_set
 
-    # Extract the input-output and classifier data from the model
-    x_io, y_io = data_processor(model.input_output_data).transform_data_to_matrix() 
-    x_classifier, y_classifier = data_processor(model.classifier_data).transform_data_to_matrix() # rename data to constraints
-    x_prob, y_prob = data_processor(model.probability_map_data).transform_data_to_matrix() # rename data to constraints
-
-    # Select a subset of the data based on the classifier    TODO - implement selection of data depending on whether we want a classifier, a regressor or a probability map, switch on or switch of probability map storage.
-    selected_x, selected_y = apply_feasibility(x_classifier, y_classifier).get_feasible()
-    selected_px, selected_py = apply_feasibility(x_prob, y_prob).get_feasible()
-
-    # Apply the selected function to the y data and store forward evaluations on the graph
+    # Apply the selected function to the y data and store forward evaluations on the graph for surrogate training
     for successor in graph.successors(node):
+
         # --- apply edge function to output data --- #
         io_fn = graph.edges[node, successor]["edge_fn"]
+
+        # --- select the approximation method
+        if cfg.surrogate.input_output:
+            # Extract the input-output and classifier data from the model
+            x_io, y_io = data_processor(model.input_output_data).transform_data_to_matrix(io_fn) 
+            selected_y_io = y_io[feasible_indices,:]
+        
         # --- apply the function to the selected output data --- #
-        y_updated_io = io_fn(selected_y) # should be rank 3 tensor with (nd, n_theta, n_g)
-        y_updated = transform_vmap_output(y_updated_io)
         # ensure the output data is rank 2
-        if y_updated.ndim > 2: y_updated= y_updated.squeeze()
-        if y_updated.ndim < 2: y_in_node= y_in_node.reshape(-1,1)
+        if y_io.ndim > 2: y_io= y_io.squeeze()
+        if selected_y_io.ndim < 2: selected_y_io= selected_y_io.reshape(-1,1)
         # --- select the approximation method
         if cfg.approximation == 'box': 
              feasible_outer_approx = calculate_box_outer_approximation
@@ -137,22 +164,13 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
         # --- find box bounds on inputs
         graph.edges[node, successor][
             "input_data_bounds"
-        ] = feasible_outer_approx(y_updated, cfg)
+        ] = feasible_outer_approx(selected_y_io, cfg)
 
         # store the forward evaluations on the graph for surrogate training
-        y_in_node = io_fn(y_io)
-    
-
-        if y_in_node.ndim > 2: y_in_node= y_in_node.squeeze()
-        if y_in_node.ndim < 2: y_in_node= y_in_node.reshape(-1,1)
-
-        forward_evals = dataset_holder(X=x_io, y=y_in_node)
-        graph.edges[node, successor]["surrogate_training"] = forward_evals # store the forward evaluations on the graph for surrogate training
+        forward_evals = dataset_holder(X=x_io, y=y_io)
+        graph.edges[node, successor]["surrogate_training"] = forward_evals 
 
     # Store the classifier data and the live set data to the node
-    graph.nodes[node]["classifier_training"] = model.classifier_data
-    graph.nodes[node]["live_set_inner"] = live_set
-
     update_node_bounds_iplus1(graph, node, cfg)
 
     return
@@ -180,7 +198,7 @@ def update_node_bounds_iplus1(graph, node, cfg):
     return
 
 
-def classifier_construction(cfg, graph, node):
+def classifier_construction(cfg, graph, node, iterate):
     """
     Construct the classifier for the forward pass.
 
@@ -192,11 +210,20 @@ def classifier_construction(cfg, graph, node):
     Returns:
     classifier: The trained classifier. (-1 belongs to feasible region, 1 does not belong to feasible region)
     """
-
+    # train the model
+    ls_surrogate = surrogate(graph, node, cfg, ('classification', 'SVM', 'live_set_surrogate'), iterate)
+    ls_surrogate.fit(node=None)
+    if cfg.surrogate.classifier_args.standardised:
+        query_model = ls_surrogate.get_model('standardised_model')
+    else:
+        query_model = ls_surrogate.get_model('unstandardised_model')
     
+    # store the trained model in the graph
+    graph.nodes[node]["classifier"] = query_model
+    graph.nodes[node]['classifier_x_scalar'] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
+    graph.edges[node]['classifier_y_scalar'] = ls_surrogate.trainer.get_model_object('standardisation_metrics_output')
 
-    return construct_coupling_constraint(graph, node, cfg)
-
+    return 
 
 
 class subproblem_model(ABC):
@@ -276,7 +303,8 @@ class subproblem_model(ABC):
             backward_constraint_evals = None
 
         # update input output data for forward surrogate model
-        self.input_output_data = update_data(self.input_output_data, d, p, outputs, d_axis=-1, p_axis=-1, y_axis=-1)  # updating dataset for surrogate model of forward unit evaluation
+        if self.cfg.surrogate.forward_evaluation_surrogate:
+            self.input_output_data = update_data(self.input_output_data, d, p, outputs, d_axis=-1, p_axis=-1, y_axis=-1)  # updating dataset for surrogate model of forward unit evaluation
 
         return jnp.concatenate([process_constraint_evals, forward_constraint_evals, backward_constraint_evals], axis=-1)  # return raw constraint values (n_d \times n_theta \times n_g)
 
@@ -286,8 +314,10 @@ class subproblem_model(ABC):
         # shape parameters for returning constraint evaluations to DEUS
         n_theta, n_g = g.shape[-2], g.shape[-1]
         # storing classifier data and updating function evaluations
-        self.classifier_data = update_data(self.classifier_data, d, g)  # updating dataset for surrogate model of forward unit evaluation
-        self.probability_map_data = update_data(self.probability_map_data, d, self.SAA(g))  # updating dataset for surrogate model of forward unit evaluation
+        if self.cfg.surrogate.classifier:
+            self.classifier_data = update_data(self.classifier_data, d, g)  # updating dataset for surrogate model of forward unit evaluation
+        if self.cfg.surrogate.probability_map:
+            self.probability_map_data = update_data(self.probability_map_data, d, self.SAA(g))  # updating dataset for surrogate model of forward unit evaluation
         # adding function evaluations
         self.function_evaluations += g.shape[0]*g.shape[1]
         # return information for DEUS

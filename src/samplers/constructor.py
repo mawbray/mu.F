@@ -3,6 +3,7 @@ from typing import Type
 import pickle
 import logging
 import time
+import numpy as np
 
 class construct_base(ABC):
     def __init__(self, sampler_class, problem_description: dict, model):

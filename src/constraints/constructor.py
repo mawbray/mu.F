@@ -6,7 +6,7 @@ from jax import vmap, jit
 from evaluator import process_constraint_evaluator, forward_constraint_evaluator, backward_constraint_evaluator
 
 class constraint_evaluator(ABC):
-    def __init__(self, cfg, graph, node, pool, constraint_type):
+    def __init__(self, cfg, graph, node, pool=None, constraint_type='process'):
         self.cfg = cfg
         self.graph = graph
         self.node = node

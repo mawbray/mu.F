@@ -42,6 +42,8 @@ class dataset_object(ABC):
         self.y.append(y_in if self.output_rank >=2 else y_in.expand_dims(axis=-1))
         return 
     
+        
+    
 
 class data_processing(ABC):
     def __init__(self, dataset_object):
@@ -58,8 +60,8 @@ class data_processing(ABC):
     def get_data(self):
         for i in range(len(self.d)):
             yield self.d[i], self.p[i], self.y[i]
-        
-    def transform_data_to_matrix(self):
+
+    def transform_data_to_matrix(self, edge_fn):
         """
         Dealing with the data in a matrix format
          - This is useful for training neural networks
@@ -70,7 +72,8 @@ class data_processing(ABC):
             X, Y = [], []
             for i in range(p.shape[0]):
                 X.append(jnp.hstack([d, jnp.repeat(p[i],d.shape[0], axis=0)]))
-                Y.append(y[:,i,:].reshape(d.shape[0],-1))
+                y_edge = edge_fn(y)
+                Y.append(y_edge[:,i,:].reshape(d.shape[0],-1))
             X = jnp.vstack(X)
             Y = jnp.vstack(Y)
             data_store_X.append(X)
@@ -111,14 +114,14 @@ class apply_feasibility(feasibility_base):
     def get_feasible(self):
         return self.feasible_function(self.dataset_X, self.dataset_Y)
 
-    def probabilistic_feasibility(self, X, Y):
+    def probabilistic_feasibility(self, X, Y, return_indices=True):
         """
         Method to evaluate the probabilistic feasibility of the data
         """
         select_cond = jnp.where(Y >= self.cfg.probability_level, 1, 0)
         return X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :]
 
-    def deterministic_feasibility(self, X, Y):
+    def deterministic_feasibility(self, X, Y, return_indices=True):
         """
         Method to evaluate the deterministic feasibility of the data
         """
@@ -126,6 +129,7 @@ class apply_feasibility(feasibility_base):
             select_cond = jnp.max(Y, axis=-1)  >= 0 
         else:
             select_cond = jnp.max(Y, axis=-1)  <= 0  
-       
-        return X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :]
-
+        if not return_indices:
+            return X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :]
+        else:
+            return  X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :], select_cond.squeeze()

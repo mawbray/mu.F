@@ -68,7 +68,7 @@ class trainer(trainer_base):
             dataset = forward_evaluation_data_preparation(self.graph, self.unit_index, self.cfg, successor_node)
         elif self.model_class == 'classification': # this is only used for determining node data i..e in approximating feasibility
             data_points, labels = binary_classifier_data_preparation(self.graph, self.unit_index, self.cfg)
-            if self.model_subclass == 'svm' : dataset = (data_points, labels)
+            if self.model_subclass == 'SVM' : dataset = (data_points, labels)
             elif self.model_subclass == 'ANN' : dataset = Dataset(X=data_points, y=labels)
         return dataset
 

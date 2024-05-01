@@ -3,6 +3,14 @@ from scipy.stats.qmc import Sobol
 
 
 
+class sobol_sampler:
+    def __init__(self):
+        pass
+
+    def sample_design_space(self, n_design_args, bounds, n):
+        return sobol_sample_design_space_nd(n_design_args, bounds, n)
+
+
 def sobol_sample_design_space_nd(n_design_args, bounds, n):
 
     # better to sample using whole dimensionality of design space to ensure coverage

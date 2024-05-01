@@ -117,4 +117,4 @@ class reconstruction(reconstruct_base):
         :return: The constraint values
         """
         # evaluate the joint model
-        return self.model.g(candidates,  np.array([1.0]))
+        return self.model.simulate(candidates,  np.array([1.0]))

@@ -33,7 +33,7 @@ def train_svm(cfg, dataset, num_folds, unit_index, iterate):
     data_points, labels = dataset
     # construct a classifier based on the data available # NOTE simple classifier for now
     s_vectors, classifier, p_dict, labels = compute_best_svm_classifier(
-        data_points, labels, unit_index=unit_index, iterate=iterate, cfg=cfg
+        data_points, labels, unit_index=unit_index, iterate=iterate, cfg=cfg, num_folds=num_folds
     )
 
     args = convert_svm_to_jax(classifier)

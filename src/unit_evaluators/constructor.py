@@ -7,7 +7,7 @@ from jax import vmap, jit
 
 from integrators import unit_dynamics
 from utils import arrhenius_kinetics_fn as arrhenius
-from src.constraints.evaluator import constraint_evaluator
+
 
 class base_unit(ABC):
     def __init__(self, cfg, graph, node):
