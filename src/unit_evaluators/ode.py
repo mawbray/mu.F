@@ -14,8 +14,12 @@ def serial_mechanism_vc_batch_dynamics(
     - dynamics normalised to selection of batch time.
     - constant volume, batch mode, design variables are Temp. and Batch time
     - serial reaction mechanism 2A ->_{k1} B ->_{k2} C"""
+    
     # component_concentrations
-    Ca, Cb, Cc = state[0], state[1], state[2]
+    Ca = state[0]
+    Cb = state[1]
+    Cc = state[2]
+
     # parameters
     k1, k2, tf1 = parameters[0], parameters[1], parameters[2]
 

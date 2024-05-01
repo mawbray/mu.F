@@ -36,14 +36,18 @@ unit_params_fn:
   - Arrhenius
 
 parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weight in posteiror distribution]}]]
-  - - c: [1]
-      w: 1
-  - - c: [1]
-      w: 1
+  - - c: [1,2]
+      w: .5
+    - c: [1,2]
+      w: .5
+  - - c: [1,2]
+      w: .5
+    - c: [1,2]
+      w: .5
 
 parameters_best_estimate: # list of lists [node][[param1]] most likely estimate
-  - [1]
-  - [1]
+  - [1, 2]
+  - [1, 2]
 
 extendedDS_bounds: [None, None]
 

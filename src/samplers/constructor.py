@@ -19,17 +19,15 @@ class construct_base(ABC):
         self.construct_problem()
 
     def construct_problem(self):
-        self.sampler_class(self.problem_description)
+        self.sampler = self.sampler_class(self.problem_description)
         return
 
     def load_model_to_sampler(self):
         raise NotImplementedError("load_model_to_sampler should be implemented in the derived class")
 
     def solve(self):
-        t0 = time.time()
-        self.sampler_class.solve()
-        logging.info(f"Time taken to solve the problem: {time.time() - t0} seconds")
-        return 
+        """ This is up to you to implement and is solver dependent """
+        raise NotImplementedError("solve should be implemented in the derived class")
 
     def get_solution(self):
         """ This is up to you to implement and is solver dependent """
@@ -48,6 +46,12 @@ class construct_deus_problem(construct_base):
         self.problem_description['solver']['settings']['score_evaluation']['constraints_func_ptr'] = self.model.get_constraints
         self.problem_description['solver']['settings']['efp_evaluation']['constraints_func_ptr'] = self.model.get_constraints
         return
+    
+    def solve(self):
+        t0 = time.time()
+        self.sampler.solve()
+        logging.info(f"Time taken to solve the problem: {time.time() - t0} seconds")
+        return 
 
     def get_solution(self):
         pd = self.problem_description

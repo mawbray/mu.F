@@ -64,17 +64,12 @@ class unit_evaluation(base_unit):
         concatenates them with the design arguments to form the system parameters, 
         and then evaluates the unit using these parameters.
         """
-        if uncertain_params is None:
-            uncertain_params = jnp.empty((1,1))
+
         dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
         sys_params = jnp.hstack([dd_params, design_args])
 
-        if input_args is None: 
-            inputs = jnp.array([self.cfg.root_node_inputs[self.node]]*design_args.shape[0])
-        else: 
-            inputs = input_args
 
-        return self.unit_cfg.evaluator(sys_params, inputs, uncertain_params)
+        return self.unit_cfg.evaluator(sys_params, input_args, uncertain_params)
 
 class subproblem_unit_wrapper(unit_evaluation):
     def __init__(self, cfg, graph, node):
@@ -105,6 +100,10 @@ class subproblem_unit_wrapper(unit_evaluation):
         and then evaluates the unit using these arguments and the uncertain parameters.
         """
         design_args, input_args = self.get_input_decision_split(decisions)
+        if input_args.shape[1] == 0: 
+            input_args = jnp.array([self.cfg.model.root_node_inputs[self.node]]*design_args.shape[0])
+        if uncertain_params is None:
+            uncertain_params = jnp.empty((1,1))
         
         return self.evaluate(design_args, input_args, uncertain_params)
     

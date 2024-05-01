@@ -56,6 +56,12 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
     print(f"Unit index: {unit_index}")
     print(f"Bounds: {bounds}")
     print(f'EXTENDED DS DIM.: {len(bounds)}')
+
+    print(G.nodes[unit_index]['parameters_best_estimate'])
+    print(G.nodes[unit_index]['parameters_samples'])
+    print(type(G.nodes[unit_index]['parameters_best_estimate']))
+    print(type(G.nodes[unit_index]['parameters_samples']))
+
         
     the_activity_form = {
         "activity_type": cfg.samplers.deus.activity_type,
@@ -69,8 +75,8 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
         "problem": {
             "user_script_filename": "none",
             "constraints_func_name": "none",
-            "parameters_best_estimate": G.nodes[unit_index]['parameters_best_estimate'],
-            "parameters_samples": G.nodes[unit_index]['parameters_samples'],
+            "parameters_best_estimate": [el for el in G.nodes[unit_index]['parameters_best_estimate']],
+            "parameters_samples": [{key: value for key,value in dict_.items()} for dict_ in G.nodes[unit_index]['parameters_samples']],
             "target_reliability": cfg.samplers.target_reliability,
             "design_variables": [bound for bound in bounds.values()]
         },

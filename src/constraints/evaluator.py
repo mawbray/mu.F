@@ -49,7 +49,7 @@ class process_constraint_evaluator(constraint_evaluator_base):
         if len(constraints) > 0: 
             constraint_holder = []
             for cons_fn in constraints: # iterate over the constraints that were previously loaded as a dictionary on to the graph
-                g = cons_fn(dynamics_profile, self.cfg) # positive constraint value means constraint is satisfied
+                g = cons_fn(dynamics_profile) # positive constraint value means constraint is satisfied
                 if g.ndim < 2: g = g.reshape(-1, 1)
                 constraint_holder.append(g)
             return jnp.concatenate(constraint_holder, axis=-1)
@@ -60,7 +60,7 @@ class process_constraint_evaluator(constraint_evaluator_base):
         """
         Loads the constraints from the graph 
         """
-        return list(self.graph.nodes[self.node]['constraints'].values())
+        return list(self.graph.nodes[self.node]['constraints'])
     
     def vmap_evaluation(self):
         """
@@ -69,7 +69,7 @@ class process_constraint_evaluator(constraint_evaluator_base):
         # get constraints from the graph
         constraints = self.graph.nodes[self.node]['constraints']
         # vectorize each constraint
-        cons = (jit(vmap(jit(vmap(constraint, in_axes=(0, None), out_axes=0)), in_axes=(1, None), out_axes=1)) for constraint in constraints)
+        cons = (jit(vmap(jit(vmap(partial(constraint, cfg=self.cfg), in_axes=(0), out_axes=0)), in_axes=(1), out_axes=1)) for constraint in constraints)
         # load the vectorized constraints back onto the graph
         self.graph.nodes[self.node]['constraints'] = cons
 

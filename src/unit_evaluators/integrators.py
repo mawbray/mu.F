@@ -27,30 +27,33 @@ from unit_evaluators.ode import case_studies
 
 def unit_dynamics(params, u, uncertainty_params, cfg, node):   
 
+    if params.ndim < 2:
+        params = jnp.expand_dims(params, axis=0)
+
     # defining the params to pass to the vector field
-    params = jnp.hstack([params, uncertainty_params])
+    params = jnp.hstack([params, uncertainty_params]).squeeze()
 
     # defining the dynamics
-    term = ODETerm(case_studies[cfg.case_study_dynamics][node])
+    term = ODETerm(case_studies[cfg.case_study.case_study][node])
 
     # defining the diffrax solver
-    solver = dispatcher[cfg.integration.scheme[node]]
+    solver = dispatcher[cfg.model.integration.scheme]
 
     # defining saveat 
     saveat = SaveAt(t1=True) # just return the final time step
 
     # define step size controller for solver
-    step_size_controller = dispatcher[cfg.integration.step_size_controller]
+    step_size_controller = dispatcher[cfg.model.integration.step_size_controller]
     
     return diffeqsolve(
         term,
         solver,
-        cfg.integration.t0,
-        cfg.integration.tf,
-        cfg.integration.dt0,
-        u,
+        cfg.model.integration.t0,
+        cfg.model.integration.tf,
+        cfg.model.integration.dt0,
+        y0=u,
         args=params,
-        max_steps=cfg.integration.max_steps,
+        max_steps=cfg.model.integration.max_steps,
         stepsize_controller=step_size_controller,
         saveat=saveat,
     ).ys[
