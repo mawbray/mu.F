@@ -44,7 +44,7 @@ class graph_constructor(graph_constructor_base):
     
     def add_n_input_args(self, n_input_args):
         for (i, j) in self.G.edges:
-            self.G.edges[i,j]["n_input_args"] = n_input_args[(i, j)]
+            self.G.edges[i,j]["n_input_args"] = n_input_args[f'({i},{j})']
         for node in self.G.nodes:
             self.G.nodes[node]["n_input_args"] = sum([self.G.edges[predec, node]["n_input_args"] for predec in self.G.predecessors(node)])
         return

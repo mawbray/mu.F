@@ -1,8 +1,6 @@
 import numpy as np
 from scipy.stats.qmc import Sobol
 
-
-
 class sobol_sampler:
     def __init__(self):
         pass

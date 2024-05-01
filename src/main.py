@@ -7,7 +7,7 @@ from constraints.constructor import constraint_evaluator
 from samplers.space_filling import sobol_sampler
 from samplers.appproximators import calculate_box_outer_approximation as approximator 
 
-from cs_assembly import * 
+from cs_assembly import case_study_constructor
 from utils import *
 
 import logging

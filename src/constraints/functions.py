@@ -1,6 +1,6 @@
 """ case study specific functions """
 
-from jax import jit 
+from jax import jit, vmap
 import jax.numpy as jnp
 from functools import partial
 
@@ -33,6 +33,7 @@ def purity_unit_2_lb(dynamic_profile, cfg):
 @partial(jit, static_argnums=(1))
 def purity_unit_1_ub(dynamic_profile, cfg):
     return cfg.constraint.purity_u2 - purity_c(dynamic_profile, cfg)
+
 
 
 
@@ -100,3 +101,7 @@ def unit1_volume_ub(steady_state_outputs, cfg):
 def unit2_volume_ub(steady_state_outputs, cfg):
     return cfg.constraint.unit2_volume - unit_volume(steady_state_outputs, cfg)
 
+
+""" insert case study specific functions for constraints here"""
+CS_holder = {'tablet_press': {0: (unit1_volume_ub), 1: (unit2_volume_ub, tablet_composition_lb, tablet_composition_ub), 2: (tablet_hardness_lb, tablet_hardness_ub, tablet_size_lb, tablet_size_ub)}, 
+             'CSTR': {0: purity_unit_1_ub, 1: purity_unit_2_lb}}

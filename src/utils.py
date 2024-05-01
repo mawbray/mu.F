@@ -19,7 +19,6 @@ def save_graph(G, mode):
         G.nodes[node]["constraints"] = None   # drop constraint functions (all of these are non-serializable.)
         G.nodes[node]['classifier'] = None 
 
-    
     # Save the graph to a file
     filename = f"graph_{mode}.pickle"
     with open(filename, 'wb') as f:

@@ -1,0 +1,12 @@
+
+
+case_study: case_study
+models: seraial_reactor_dynamics
+surrogate: surrogate
+steady_state: tablet_press
+solvers: solvers
+samplers: samplers
+reconstruction: reconstruction
+init: initialisation
+graph: graph
+max_devices: 10

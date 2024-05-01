@@ -1,0 +1,37 @@
+penalty_method_coupler:
+  n_starts: 4
+  n_iterates: 7
+  mu_increment: 2.5
+  mu_og: 2.5
+  ftol0: 0.001
+  ftol_increment: 0.01
+  augmented_grad_tol: 0.01
+  augmented_constr_tol: 0.01
+  ftol_min: 0.00001
+  augmented_obj_tol: 0.001
+
+
+evaluation_mode: 'jax-pmap' #serial 
+
+
+forward_coupling:
+  solve_equality_constrained_problem: casadi_ipopt_equality_constrained # jaxoptscipy_boxconstrained_minimize # scipy_constrained_minimize  #  
+  casadi_ipopt_options:
+    maxiter: 1000
+    verbose: False
+    tol: 1e-6
+    options:
+      verbose: 0
+      maxiter: 1000
+      disp: False
+  jax_opt_options:
+    n_starts: 4
+    n_iterates: 7
+    mu_increment: 2.5
+    mu_og: 2.5
+    ftol0: 0.001
+    ftol_increment: 0.01
+    augmented_grad_tol: 0.01
+    augmented_constr_tol: 0.01
+    ftol_min: 0.00001
+    augmented_obj_tol: 0.001

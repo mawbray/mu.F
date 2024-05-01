@@ -71,7 +71,7 @@ class process_constraint_evaluator(constraint_evaluator_base):
         constraints = self.graph.nodes[self.node]['constraints'].copy()
         # vectorize each constraint
         for key, constraint in constraints.items():
-            constraints[key] = vmap(vmap(constraint, in_axes=(0, None), out_axes=0), in_axes=(1, None), out_axes=1)
+            constraints[key] = jit(vmap(jit(vmap(constraint, in_axes=(0, None), out_axes=0)), in_axes=(1, None), out_axes=1))
         # load the vectorized constraints back onto the graph
         self.graph.nodes[self.node]['constraints'] = constraints
 

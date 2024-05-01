@@ -1,8 +1,37 @@
 
 from unit_evaluators.constructor import unit_evaluation
+from constraints.functions import CS_holder
+from graph.graph_assembly import graph_constructor
+from graph.methods import CS_edge_holder, vmap_CS_edge_holder
 
 
-def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, constraint_args):
+def case_study_constructor(cfg):
+    """
+    Construct the case study graph
+    :param cfg: The configuration object
+    :return: The graph construction object
+    """
+
+    # Create a sample constraint dictionary
+    constraint_dictionary = CS_holder[cfg.case_study]
+
+    # create edge functions
+    if cfg.vmap_evaluations:
+        dict_of_edge_fn = vmap_CS_edge_holder[cfg.case_study]
+    else:
+        dict_of_edge_fn = CS_edge_holder[cfg.case_study]
+
+    # Create a graph constructor object
+    G = graph_constructor(cfg, cfg.adjacency_matrix)
+
+    # Call the case_study_allocation function
+    G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary)
+
+    return G
+
+
+
+def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary):
     """
     Add miscellaneous information to the graph
     :param G: The graph constructor
@@ -24,7 +53,6 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, constr
     G.add_arg_to_nodes('unit_params_fn', cfg.unit_params_fn)
     G.add_arg_to_nodes('extendedDS_bounds', cfg.extendedDS_bounds)
     G.add_arg_to_nodes('constraints', constraint_dictionary)
-    G.add_arg_to_nodes('constraint_args', constraint_args)
 
 
     # add miscellaneous information to the graph
