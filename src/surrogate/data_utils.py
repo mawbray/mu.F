@@ -54,7 +54,7 @@ def binary_classifier_data_preparation(
     else:
         raise NotImplementedError('Only binary classifier is supported for now')
 
-    support, labels = return_subsample_of_data(support, labels, cfg.coupling_constraint.subsample_size)
+    support, labels = return_subsample_of_data(support, labels, cfg.surrogate.subsample_size)
 
     return support, labels
 

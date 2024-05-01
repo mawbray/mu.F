@@ -1,3 +1,4 @@
 
 
 sobol_samples: 4096
+vol_scale: 0.05

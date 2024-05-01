@@ -82,8 +82,6 @@ def compute_best_svm_classifier(
     return support_vectors, model, training_performance, labels
     
     
-
-
 @jit
 def rbf_kernel(x, y, epsilon=1e-3):
     # Compute the RBF kernel for multivariate case, this implementation is reasonable and avoids constructing large matrices.

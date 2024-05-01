@@ -15,3 +15,20 @@ x0:
   - 0 # component 2
   - 0 # component 3
 
+
+constraint:
+  purity_u1: 0.75
+  purity_u2: 0.82
+
+
+integration:
+  scheme: tsit5  # dopri8
+  step_size_controller: pid
+  t0: 0
+  tf: 1
+  dt0: 1.0e-05
+  x0:
+  - 2000
+  - 0
+  - 0
+  max_steps: 10000000
