@@ -69,7 +69,7 @@ def main(cfg: DictConfig) -> None:
             df.to_excel(f'inside_samples_{mode}_iterate_{i}.xlsx')
             save_graph(G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))
 
-
+    # The following loop logs the function evaluations for each node in the graph.
     for node in G.nodes():
         logging.info(f"Function evaluations for node {node}: {G.nodes[node]['fn_evals']}")
 
