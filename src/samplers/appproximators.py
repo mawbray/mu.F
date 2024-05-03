@@ -6,7 +6,7 @@ def calculate_box_outer_approximation(data, config):
 
     Parameters:
     data (jnp.array): The input data.
-    config (object): The configuration object with a 'forward_pass.vol_scale' attribute.
+    config (object): The configuration object with a 'samplers.vol_scale' attribute.
 
     Returns:
     list: The minimum and maximum values of the box outer approximation.
@@ -16,7 +16,7 @@ def calculate_box_outer_approximation(data, config):
     data_range = jnp.max(data, axis=0) - jnp.min(data, axis=0)
 
     # Calculate the increment/decrement value for the box outer approximation
-    delta = config.forward_pass.vol_scale / 2 * data_range
+    delta = config.samplers.vol_scale / 2 * data_range
 
     # Calculate the minimum and maximum values of the box outer approximation
     min_value = jnp.min(data - delta, axis=0)

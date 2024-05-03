@@ -52,7 +52,7 @@ class graph_constructor(graph_constructor_base):
    
     def add_input_indices(self):
         for node in self.G.nodes:
-            n_d = self.G.nodes[node]["n_design_args"]
+            n_d = 0
             for predec in self.G.predecessors(node):
                 self.G.edges[predec, node]["input_indices"] = [n_d + i for i in range(self.G.edges[predec, node]["n_input_args"])]
                 n_d += self.G.edges[predec, node]["n_input_args"]

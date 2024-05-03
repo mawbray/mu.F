@@ -1,3 +1,9 @@
+import os
+import multiprocessing
+os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
+    multiprocessing.cpu_count()
+)
+
 from integration import apply_decomposition
 from initialisation.methods import initialisation
 from reconstruction.constructor import reconstruction

@@ -1,22 +1,20 @@
 from abc import ABC
-
-from solvers import casadi_box_eq_nlp_solver, jax_box_nlp_solver
+from solvers.solvers import casadi_box_eq_nlp_solver, jax_box_nlp_solver
 
 
 class solver_construction(ABC):
     """ This is a base class used to construct local solvers for the feasibility problem """
-    def __init__(self, logging, cfg, solver_type):
-        self.logging = logging
+    def __init__(self, cfg, solver_type):
         self.cfg = cfg
         self.solver_type = solver_type
 
     @staticmethod
-    def from_method(logging, cfg, solver_type, objective_func, bounds, eq_constraints_func=None):
+    def from_method(cfg, solver_type, objective_func, bounds, eq_constraints_func=None):
         """
         Important - This is to be called to actually load the objective function, constraints, and bounds into the solver and return a solver object specific to the subproblem
         - NOTE to users; if anyone finds this particularly problematic, please raise an issue and I will come back to it.    
         """
-        new_solver_class = solver_construction(logging, cfg, solver_type)
+        new_solver_class = solver_construction(cfg, solver_type)
         if type(objective_func) == type(None):
             raise ValueError('Objective function must be provided')
         if type(eq_constraints_func) == type(None):
@@ -32,9 +30,9 @@ class solver_construction(ABC):
     
     def construct_solver(self):
         if self.solver_type == 'general_constrained_nlp':
-            self.solver = casadi_box_eq_nlp_solver(self.logging, self.cfg, self.objective_func, self.constraints_func, self.bounds)
+            self.solver = casadi_box_eq_nlp_solver(self.cfg, self.objective_func, self.constraints_func, self.bounds)
         elif self.solver_type == 'box_constrained_nlp':
-            self.solver = jax_box_nlp_solver(self.logging, self.cfg, self.objective_func, self.bounds)
+            self.solver = jax_box_nlp_solver(self.cfg, self.objective_func, self.bounds)
         else: 
             raise NotImplementedError(f'Solver type {self.solver_type} not implemented')
         

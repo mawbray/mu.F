@@ -9,7 +9,7 @@ from gpjax import Dataset
 
 from surrogate.data_utils import binary_classifier_data_preparation, regression_node_data_preparation, forward_evaluation_data_preparation
 from surrogate.gp_utils import train as train_gp
-from surrogate.nn_utils import train as train_ann
+from surrogate.nn_utils import hyperparameter_selection as train_ann
 from surrogate.svm_utils import train as train_svm
 
 
@@ -76,7 +76,7 @@ class trainer(trainer_base):
     def train(self, node=None) -> jnp.ndarray:
         dataset = self.get_data(successor_node=node)
         self.load_trainer_methods()
-        model, args = self.trainer(self.cfg, dataset, num_folds=self.cfg.num_folds) 
+        model, args = self.trainer(self.cfg, dataset, self.cfg.surrogate.num_folds) 
 
         if self.model_class == 'regression':
             assert len(args) == 4, "Regression model training should return 4 arguments; standardised model (i.e. model mapping from and into a standardised space), unstandardised model (i.e. model mapping from and into original data space), standardisation metrics for input and output"

@@ -3,7 +3,9 @@ from unit_evaluators.constructor import unit_evaluation
 from constraints.functions import CS_holder
 from graph.graph_assembly import graph_constructor
 from graph.methods import CS_edge_holder, vmap_CS_edge_holder
+from solvers.constructor import solver_construction
 
+import logging
 
 def case_study_constructor(cfg):
     """
@@ -25,13 +27,13 @@ def case_study_constructor(cfg):
     G = graph_constructor(cfg, cfg.case_study.adjacency_matrix)
 
     # Call the case_study_allocation function
-    G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary)
+    G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers=solver_constructor(cfg, G))
 
     return G.get_graph()
 
 
 
-def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary):
+def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers):
     """
     Add miscellaneous information to the graph
     :param G: The graph constructor
@@ -53,6 +55,8 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary):
     G.add_arg_to_nodes('unit_params_fn', cfg.case_study.unit_params_fn)
     G.add_arg_to_nodes('extendedDS_bounds', cfg.case_study.extendedDS_bounds)
     G.add_arg_to_nodes('constraints', constraint_dictionary)
+    G.add_arg_to_nodes('forward_coupling_solver', solvers['forward_coupling_solver'])
+    G.add_arg_to_nodes('backward_coupling_solver', solvers['backward_coupling_solver'])
 
 
     # add miscellaneous information to the graph
@@ -69,3 +73,9 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary):
 
 
     return G
+
+
+def solver_constructor(cfg, G):
+
+    return  {'forward_coupling_solver': {node: solver_construction(cfg.solvers.forward_coupling, cfg.solvers.forward_coupling_solver) for node in G.G.nodes },  # if G.G.in_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 
+            'backward_coupling_solver': {node: solver_construction(cfg.solvers.backward_coupling, cfg.solvers.backward_coupling_solver) for node in G.G.nodes}}# if G.G.out_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 

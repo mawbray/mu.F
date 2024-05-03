@@ -23,8 +23,14 @@ probability_map: false
 
 subsample_size: 25000
 num_folds: 2
-svm:
-  kernel: 'rbf'
-  C: [2.5, 1, 0.1]
-  gamma: [0.2, 1, 0.5]
-  probability: true
+
+classifier_args: 
+  standardised: true
+  svm:
+    kernel: 'rbf'
+    C: [2.5, 1, 0.1]
+    gamma: [0.2, 1, 0.5]
+    probability: true
+
+
+forward_evaluation_surrogate: true

@@ -55,8 +55,8 @@ class construct_deus_problem(construct_base):
 
     def get_solution(self):
         pd = self.problem_description
-        output = load_study(pd)
-        feasible_samples, infeasible_samples = return_solution(pd, output)
+        output = self.load_study(pd)
+        feasible_samples, infeasible_samples = self.return_solution(pd, output)
         return feasible_samples, infeasible_samples
 
     @staticmethod

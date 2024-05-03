@@ -10,3 +10,4 @@ defaults:
   - graph: serial_batch_reactor
 
 max_devices: 10
+formulation: deterministic

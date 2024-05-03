@@ -1,9 +1,11 @@
 
-target_reliability: 0.99
+target_reliability: 0.1
 deus: 
   activity_type: 'dsc'
 
 notion_of_feasibility: 'positive'
+ku_approximation: 'box'
+vol_scale: 0.05
 
 ns:
   n_live: 50

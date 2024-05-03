@@ -5,7 +5,7 @@ from scipy.stats import qmc
 from jax.experimental import jax2tf
 import tensorflow.compat.v1 as tf # .compat.v1
 
-tf.disable_v2_behavior()
+#tf.disable_v2_behavior()
 
 
 """
@@ -28,7 +28,7 @@ def generate_initial_guess(n_starts, n_d, bounds):
     return np.array(lower_bound) + (np.array(upper_bound) - np.array(lower_bound)) * sobol_samples
 
 
-def nlp_multi_start_casadi_eq_cons(initial_guess, objective_func, equality_constraints, bounds, cfg):
+def nlp_multi_start_casadi_eq_cons(initial_guess, objective_func, equality_constraints, bounds, solver):
     """
     objective_func: function
     equality_constraints: function
@@ -49,7 +49,7 @@ def nlp_multi_start_casadi_eq_cons(initial_guess, objective_func, equality_const
 
     for i in range(n_starts):
         init_guess = [initial_guess[i,j] for j in range(n_d)]
-        solver, solution = casadi_nlp_optimizer_eq_cons(objective, constraints, bnds, init_guess)
+        solver, solution = casadi_nlp_optimizer_eq_cons(objective, constraints, bnds, init_guess, solver)
         if solver.stats()['success']:
             solutions_store.append((solver,solution))
             if np.array(solution['f']) <= 0: break
@@ -62,7 +62,8 @@ def nlp_multi_start_casadi_eq_cons(initial_guess, objective_func, equality_const
     except: 
        return None, None
 
-    
+
+
 
 
 def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initial_guess):
@@ -101,12 +102,13 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         nlp = {'x':x , 'f':F(x), 'g': G(x)}
 
         # Define the IPOPT solver
-        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':0, 'print_time':0}
+        options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
+      
         solver = nlpsol('solver', 'ipopt', nlp, options)
-        
+            
         # Solve the NLP
         solution = solver(x0=initial_guess, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
-    
+      
     return solver, solution
 
 

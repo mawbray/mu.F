@@ -36,7 +36,10 @@ def train(cfg, dataset, num_folds, unit_index, iterate):
         data_points, labels, unit_index=unit_index, iterate=iterate, cfg=cfg, num_folds=num_folds
     )
 
-    args = convert_svm_to_jax(classifier)
+    if classifier is not None:
+        args = convert_svm_to_jax(classifier)
+    else:
+        args = (lambda x: jnp.array([-1]), lambda x: jnp.array([-1]), None)
 
     return classifier, args
 
@@ -50,10 +53,10 @@ def compute_best_svm_classifier(
     clf = Pipeline([("scaler", StandardScaler()), ("svc", svm.SVC())])
     parameters = [
         {
-            "svc__kernel": cfg.kernel,
-            "svc__C": cfg.margin_penalty,
-            "svc__gamma": cfg.kernel_shape_parameter,
-            "svc__probability": cfg.probability_estimation,
+            "svc__kernel": cfg.surrogate.classifier_args.svm.kernel,
+            "svc__C": cfg.surrogate.classifier_args.svm.C,
+            "svc__gamma": cfg.surrogate.classifier_args.svm.gamma,
+            "svc__probability": cfg.surrogate.classifier_args.svm.probability,
         }
     ]
     # grid search over parameters

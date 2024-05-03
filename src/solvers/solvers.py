@@ -2,13 +2,13 @@ from abc import ABC
 from functools import partial
 import jax.numpy as jnp
 from jax import vmap, jit, pmap
+import logging
 
-from functions import generate_initial_guess, nlp_multi_start_casadi_eq_cons, multi_start_solve_bounds_nonlinear_program
+from solvers.functions import generate_initial_guess, nlp_multi_start_casadi_eq_cons, multi_start_solve_bounds_nonlinear_program
 
 class solver_base(ABC):
     """ This is a base class used to construct local solvers for the feasibility problem """
-    def __init__(self, logging, cfg):
-        self.logging = logging
+    def __init__(self, cfg):
         self.cfg = cfg
 
     def __call__(self, initial_guesses):
@@ -31,8 +31,8 @@ class solver_base(ABC):
     
 
 class casadi_box_eq_nlp_solver(solver_base):
-    def __init__(self, logging, cfg, objective_func, equality_constraints, bounds):
-        super().__init__(logging, cfg)
+    def __init__(self, cfg, objective_func, equality_constraints, bounds):
+        super().__init__(cfg)
         self.construct_solver(objective_func, equality_constraints, bounds)
     
     def construct_solver(self, objective_func, equality_constraints, bounds):
@@ -52,10 +52,10 @@ class casadi_box_eq_nlp_solver(solver_base):
         constraints = self.get_constraints(solution)
 
         if not status:
-            self.logging.info('--- Solver did not converge ---')
-            self.logging.info(f'Objective: {objective}')
-            self.logging.info(f'Constraints: {constraints}')
-            self.logging.info(f'Time: wall - {time[0]}, process - {time[1]}')
+            logging.info('--- Solver did not converge ---')
+            logging.info(f'Objective: {objective}')
+            logging.info(f'Constraints: {constraints}')
+            logging.info(f'Time: wall - {time[0]}, process - {time[1]}')
 
         return {'success': status, 'time': time, 'objective': objective, 'constraints': constraints}
     
@@ -90,7 +90,7 @@ class jax_box_nlp_solver(solver_base):
         return {'objective': objective, 'ojective_grad': objective_grad, 'error': error}
     
     def get_status(self, error):
-        return error <= self.cfg.box_constrained.tol 
+        return error <= self.cfg.jax_opt_options.error_tol 
 
     def get_objective(self, objective):
         return objective

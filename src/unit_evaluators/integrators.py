@@ -31,7 +31,7 @@ def unit_dynamics(params, u, uncertainty_params, cfg, node):
         params = jnp.expand_dims(params, axis=0)
 
     # defining the params to pass to the vector field
-    params = jnp.hstack([params, uncertainty_params]).squeeze()
+    params = jnp.hstack([params, uncertainty_params.reshape(1,-1)]).squeeze()
 
     # defining the dynamics
     term = ODETerm(case_studies[cfg.case_study.case_study][node])
@@ -44,14 +44,29 @@ def unit_dynamics(params, u, uncertainty_params, cfg, node):
 
     # define step size controller for solver
     step_size_controller = dispatcher[cfg.model.integration.step_size_controller]
-    
-    return diffeqsolve(
+    try:
+        return diffeqsolve(
         term,
         solver,
         cfg.model.integration.t0,
         cfg.model.integration.tf,
         cfg.model.integration.dt0,
         y0=u,
+        args=params,
+        max_steps=cfg.model.integration.max_steps,
+        stepsize_controller=step_size_controller,
+        saveat=saveat,
+    ).ys[
+        :, :
+    ][-1,:]  # t x n_components
+    except: # case study specific splodge
+        return diffeqsolve(
+        term,
+        solver,
+        cfg.model.integration.t0,
+        cfg.model.integration.tf,
+        cfg.model.integration.dt0,
+        y0=jnp.hstack([u.reshape(1,-1), jnp.zeros(1).reshape(1,1)]).squeeze(),
         args=params,
         max_steps=cfg.model.integration.max_steps,
         stepsize_controller=step_size_controller,

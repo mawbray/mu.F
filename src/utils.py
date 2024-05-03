@@ -41,6 +41,14 @@ class dataset_object(ABC):
         self.y.append(y_in if self.output_rank >=2 else y_in.expand_dims(axis=-1))
         return 
     
+
+class dataset(ABC):
+    def __init__(self, X, y):
+        self.input_rank = len(X.shape)
+        self.output_rank = len(y.shape)
+        self.X = X if self.input_rank >= 2 else X.expand_dims(axis=-1)
+        self.y = y if self.output_rank >=2 else y.expand_dims(axis=-1)
+            
         
     
 
@@ -66,11 +74,12 @@ class data_processing(ABC):
          - This is useful for training neural networks
         """
         data = self.get_data()
-        data_store_X, data_store_Y = []
+        data_store_X, data_store_Y = [], []
         for d, p, y in data:
             X, Y = [], []
+            if p.ndim<2: p=p.reshape(1,-1)
             for i in range(p.shape[0]):
-                X.append(jnp.hstack([d, jnp.repeat(p[i],d.shape[0], axis=0)]))
+                X.append(jnp.hstack([d, jnp.repeat(p[i].reshape(1,-1),d.shape[0], axis=0)]))
                 y_edge = edge_fn(y)
                 Y.append(y_edge[:,i,:].reshape(d.shape[0],-1))
             X = jnp.vstack(X)
@@ -110,21 +119,24 @@ class apply_feasibility(feasibility_base):
     def __init__(self, dataset_X, dataset_Y, cfg):
         super().__init__(dataset_X, dataset_Y, cfg)
 
-    def get_feasible(self):
-        return self.feasible_function(self.dataset_X, self.dataset_Y)
+    def get_feasible(self, return_indices=True):
+        return self.feasible_function(self.dataset_X, self.dataset_Y, return_indices)
 
     def probabilistic_feasibility(self, X, Y, return_indices=True):
         """
         Method to evaluate the probabilistic feasibility of the data
         """
         select_cond = jnp.where(Y >= self.cfg.probability_level, 1, 0)
-        return X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :]
+        if not return_indices:
+            return X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :]
+        else:
+            return  X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :], select_cond.squeeze()
 
     def deterministic_feasibility(self, X, Y, return_indices=True):
         """
         Method to evaluate the deterministic feasibility of the data
         """
-        if self.cfg.notion_of_feasibility == 'positive':
+        if self.cfg.samplers.notion_of_feasibility == 'positive':
             select_cond = jnp.max(Y, axis=-1)  >= 0 
         else:
             select_cond = jnp.max(Y, axis=-1)  <= 0  

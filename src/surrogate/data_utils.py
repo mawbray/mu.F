@@ -45,14 +45,13 @@ def binary_classifier_data_preparation(
     data = graph.nodes[unit_index]["classifier_training"]
     support = data.X
     labels = data.y
-    if cfg.model == 'binary classifier': # TODO update live_set_surrogate to model
-        if cfg.notion_of_feasibility == 'positive':
-            select_cond = jnp.min(labels, axis=1)  >= 0 # 
-        else:
-            select_cond = jnp.max(labels, axis=1)  <= 0  
-        labels = jnp.where(select_cond, -1, 1) # binary classifier (feasible label is always negative because we are always minimizing in problem coupling, just depends on which data we label)
+    
+    if cfg.samplers.notion_of_feasibility == 'positive':
+        select_cond = jnp.min(labels, axis=1)  >= 0 # 
     else:
-        raise NotImplementedError('Only binary classifier is supported for now')
+        select_cond = jnp.max(labels, axis=1)  <= 0  
+    labels = jnp.where(select_cond, -1, 1) # binary classifier (feasible label is always negative because we are always minimizing in problem coupling, just depends on which data we label)
+
 
     support, labels = return_subsample_of_data(support, labels, cfg.surrogate.subsample_size)
 

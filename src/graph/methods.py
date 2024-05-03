@@ -20,20 +20,20 @@ def data_IO_2(steady_state_outputs):
     # get porosity
     return steady_state_outputs[-1].reshape(1, -1)
 
-vmap_data_IO_1 = vmap(vmap(data_IO_1, in_axes=(0, None), out_axes=0), in_axes=(1, None), out_axes=1)
-vmap_data_IO_2 = vmap(vmap(data_IO_2, in_axes=(0, None), out_axes=0), in_axes=(1, None), out_axes=1)
+vmap_data_IO_1 = vmap(vmap(data_IO_1, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
+vmap_data_IO_2 = vmap(vmap(data_IO_2, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
 
 
 
 """ batch reactor methods """
 @jit
 def data_transform(dynamic_profile):
-    x = jnp.hstack([dynamic_profile[:-1].reshape(1, -1), jnp.zeros((1, 1))]).reshape(
+    x = dynamic_profile[:-1].reshape(
         1, -1
     )
     return x
 
-vmap_data_transform = vmap(vmap(data_transform, in_axes=(0, None), out_axes=0), in_axes=(1, None), out_axes=1)
+vmap_data_transform = vmap(vmap(data_transform, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
 
 
 

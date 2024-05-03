@@ -36,7 +36,7 @@ def identify_neural_network(hidden_units, output_units) -> nn.Module:
 
 def hyperparameter_selection(cfg: DictConfig, D: Dataset, num_folds: int, rng_key: random.PRNGKey=jax.random.PRNGKey(0), model_type='regressor'): 
     # Define the hyperparameters to search over
-    surrogate_cfg = cfg.surrogate_forward
+    surrogate_cfg = cfg.surrogate.surrogate_forward.ann
     hidden_sizes = surrogate_cfg.hidden_size_options
 
     # Initialize the best hyperparameters and the best average validation loss
@@ -278,7 +278,10 @@ def create_minibatches(dataset, batch_size, num_devices=1):
 
     if num_batches > num_devices:
         num_batches = num_devices
-        batch_size = num_examples // (num_devices-1)
+        if num_devices == 1:
+            batch_size = num_examples
+        else:
+            batch_size = num_examples // (num_devices-1)
 
     minibatches = []
     for i in range(num_batches):

@@ -12,9 +12,9 @@ def determine_batches(n_starts, num_workers):
 
 def create_batches(batch_size, object_iterable):
     # Create batches of data for each worker
-    cumsum = np.cumsum(batch_size)
+    cumsum = np.cumsum(batch_size) - batch_size[0]
  
-    return [(object_iterable[cumsum[i] : batch_size[i]]) for i in range(0, len(batch_size))]
+    return [(object_iterable[cumsum[i] : cumsum[i] + batch_size[i]]) for i in range(0, len(batch_size))]
    
     
 
@@ -32,7 +32,7 @@ def parallelise_batch(worker_functions, num_workers, tasks):
       input_queue.put((task,i))
 
   # Signal workers to terminate
-  for _ in range(num_workers):
+  for i in range(num_workers):
       input_queue.put((None,i))
 
   # Wait for all workers to finish
@@ -41,7 +41,7 @@ def parallelise_batch(worker_functions, num_workers, tasks):
 
   # Collect results
   results = [None] * len(tasks)
-  while not output_queue.empty():
+  for i in range(num_workers):
       result, i = output_queue.get()
       results[i] = result
 
@@ -78,8 +78,16 @@ if __name__ == '__main__':
     input_queue = mp.Queue()
     output_queue = mp.Queue()
 
+    def wf(input_queue, output_queue):
+        while True:
+            item, i = input_queue.get()
+            if item is None:
+                break
+            result = objective(item)
+            output_queue.put((result, i))
+
     # Start worker processes
-    workers = [mp.Process(target=worker_function, args=(input_queue, output_queue), name=i) for i in range(num_workers)]
+    workers = [mp.Process(target=wf, args=(input_queue, output_queue), name=i) for i in range(num_workers)]
     for w in workers:
       w.start()
 
