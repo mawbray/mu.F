@@ -36,50 +36,6 @@ class TestCasadiNlpOptimizer(unittest.TestCase):
 
 if __name__ == '__main__':
     jax.config.update('jax_platform_name', 'cpu')
-    #unittest.main()
-
-    import jax
-    import jax.numpy as jnp
-    from casadi import *
-
-    # Define your function
-    def my_func(x):
-        return jnp.dot(x, x)
-
-    # Define the Jacobian-vector product using jvp
-    def my_jvp(x, tangents):
-        return jnp.dot(jax.grad(my_func)(x), tangents)
-
-    # Create a pure callback for the function
-    pure_callback_func = jax.pure_callback(my_func, result_shape_dtypes=[(jnp.float32,)])
-
-    # Define symbolic variables for CasADi
-    x_casadi = MX.sym('x', 2)
-
-    # Create a callback function for CasADi that evaluates the function value and its Jacobian
-    def callback_casadi(x):
-        # Evaluate function value
-        f_val = pure_callback_func(x)
-
-        # Evaluate Jacobian using JVP
-        jac = Function('jac', [x_casadi], [jacobian(my_func(x_casadi), x_casadi)])
-        jac_val = jac(x)
-
-        return f_val, jac_val
-
-    # Create a CasADi optimization problem
-    nlp = {'x': x_casadi, 'f': my_func(x_casadi)}
-    solver_opts = {'print_level': 0}
-    solver = nlpsol('solver', 'ipopt', nlp, solver_opts)
-
-    # Initial guess
-    x_guess = [1.0, 2.0]
-
-    # Solve the optimization problem using the callback function
-    sol = solver(x0=x_guess, lbx=-inf, ubx=inf, lbg=[], ubg=[], p=[], 
-                lambda_=callback_casadi)
-
-    # Extract the solution
-    x_opt = sol['x']
-
-    print("Optimal solution:", x_opt)
+    
+    unittest.main()
+    

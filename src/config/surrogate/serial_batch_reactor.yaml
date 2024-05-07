@@ -26,11 +26,14 @@ num_folds: 2
 
 classifier_args: 
   standardised: true
-  svm:
-    kernel: 'rbf'
+  drop_uncertain_params: true
+  svm: # these parameters must be provided as lists for Sklearn's GridSearchCV
+    kernel: ['rbf']
     C: [2.5, 1, 0.1]
     gamma: [0.2, 1, 0.5]
-    probability: true
+    probability: [False]
 
+probability_map_args:
+  drop_uncertain_params: true
 
 forward_evaluation_surrogate: true

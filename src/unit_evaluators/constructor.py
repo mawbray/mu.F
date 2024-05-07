@@ -66,6 +66,7 @@ class unit_evaluation(base_unit):
         """
 
         dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
+        if dd_params.ndim<2: dd_params = jnp.expand_dims(dd_params, axis=1)
         sys_params = jnp.hstack([dd_params, design_args])
 
 
@@ -145,8 +146,8 @@ class unit_cfg:
 
             # --- set the decision dependent evaluation fn
             if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
-                EA, R, A = cfg.model.arrhenius.EA[node], cfg.model.arrhenius.R, cfg.model.arrhenius.A[node]
-                self.decision_dependent_params = vmap(vmap(partial(arrhenius, Ea=EA, R=R, A=A), in_axes=(0, None), out_axes=0), in_axes=(None, 0), out_axes=1)
+                EA, R, A = jnp.array(cfg.model.arrhenius.EA[node]), jnp.array(cfg.model.arrhenius.R), jnp.array(cfg.model.arrhenius.A[node])
+                self.decision_dependent_params = vmap(partial(arrhenius, Ea=EA, R=R, A=A), in_axes=(0, None), out_axes=0)
             elif graph.nodes[node]['unit_params_fn'] is None: # NOTE this allocation has not been tested
                 self.decision_dependent_params = lambda x, y: jnp.empty(x.shape[0])
             else:
@@ -162,7 +163,7 @@ class unit_cfg:
 
             # --- set the decision dependent evaluation fn
             if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
-                EA, R, A = cfg.model.arrhenius.EA[node], cfg.model.arrhenius.R, cfg.model.arrhenius.A[node]
+                EA, R, A = jnp.array(cfg.model.arrhenius.EA[node]), jnp.array(cfg.model.arrhenius.R), jnp.array(cfg.model.arrhenius.A[node])
                 self.decision_dependent_params = partial(arrhenius, Ea=EA, R=R, A=A)
             elif graph.nodes[node]['unit_params_fn'] is None:
                 self.decision_dependent_params = lambda x, y: jnp.empty(x.shape[0]) # NOTE this allocation has not been testeds
@@ -189,7 +190,7 @@ class network_simulator(ABC):
 
         Args:
             decisions (array): Array of decisions.
-            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
+            uncertain_params (list, optional): Array of uncertain parameters. Defaults to None.
 
         Returns:
             dict: A dictionary where the keys are the nodes and the values are the constraints for each node.
@@ -198,31 +199,31 @@ class network_simulator(ABC):
         The method simulates the network by iterating over each node, evaluating the node, storing the output in the input data store of each successor edge, 
         and storing the constraints of the node in the constraint store of the node.
         """
-        n_theta = 0
         u_p = None
+        n_d = 0
         for node in self.graph.nodes:
             if not (uncertain_params == None) :
-                n_theta_p = n_theta + self.graph.nodes[node]['forward_evaluator'].unit_cfg.n_theta
-                u_p = uncertain_params[:,n_theta:n_theta_p]
+                u_p = uncertain_params[node]
 
-            if self.graph.nodes[node].in_degree == 0:
-                inputs = None
+            if self.graph.in_degree()[node] == 0:
+                inputs = jnp.array([self.cfg.model.root_node_inputs[node]]*decisions.shape[0])
             else:
                 inputs = jnp.hstack([jnp.copy(self.graph.edges[predecessor, node]['input_data_store']) for predecessor in self.graph.predecessors(node)])
 
-            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions, inputs, u_p)
+            unit_nd = self.graph.nodes[node]['n_design_args']
+            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, u_p)
             
             for successor in self.graph.successors(node):
                 self.graph.edges[node, successor]['input_data_store'] = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))
 
             node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
 
-            self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(outputs)
+            self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, outputs)
 
-            n_theta = copy(n_theta_p)
+            n_d += unit_nd
 
         # constraint evaluation, information for extended KS bounds
-        return {node: self.graph[node]['constraint_store'] for node in self.graph.nodes}, {edge: self.graph.edges[edge[0],edge[1]]['input_data_store'] for edge in self.graph.edges}
+        return {node: self.graph.nodes[node]['constraint_store'] for node in self.graph.nodes}, {edge: self.graph.edges[edge[0],edge[1]]['input_data_store'] for edge in self.graph.edges}
     
     def get_constraints(self, decisions, uncertain_params=None):
         """

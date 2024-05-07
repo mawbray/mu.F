@@ -1,5 +1,5 @@
 
-target_reliability: 0.1
+target_reliability: 0.95
 deus: 
   activity_type: 'dsc'
 
@@ -8,7 +8,7 @@ ku_approximation: 'box'
 vol_scale: 0.05
 
 ns:
-  n_live: 50
+  n_live: 4000
   final_sample_live: 4000 
   n_replacements: 500 
   n_iter: 15000 

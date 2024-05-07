@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import numpy as np
+import ray 
 
 def determine_batches(n_starts, num_workers):
   
@@ -16,7 +17,14 @@ def create_batches(batch_size, object_iterable):
  
     return [(object_iterable[cumsum[i] : cumsum[i] + batch_size[i]]) for i in range(0, len(batch_size))]
    
+
+def parallelise_ray_batch(actors, init_guess):
+    # Parallelise the batch processing
+    res = [actor(init_g) for actor, init_g in zip(actors, init_guess)]
+    results = ray.get(res)
     
+    return [results[i] for i in range(results.shape[0])]
+
 
 def parallelise_batch(worker_functions, num_workers, tasks):
   input_queue = mp.Queue()

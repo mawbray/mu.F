@@ -17,6 +17,15 @@ from surrogate.data_utils import binary_classifier_data_preparation, standardisa
 
 import logging
 
+@jit
+def all_feasible(x):
+    return jnp.linalg.norm(x*jnp.array([1e-7]), ord='fro') + jnp.array([-5])
+
+@jit
+def no_feasible(x):
+    return jnp.linalg.norm(x*jnp.array([1e-7]), ord='fro') + jnp.array([5])
+
+
 
 def train(cfg, dataset, num_folds, unit_index, iterate):
     """
@@ -37,9 +46,13 @@ def train(cfg, dataset, num_folds, unit_index, iterate):
     )
 
     if classifier is not None:
-        args = convert_svm_to_jax(classifier)
+        args = convert_svm_to_jax(classifier.best_estimator_)
     else:
-        args = (lambda x: jnp.array([-1]), lambda x: jnp.array([-1]), None)
+        if jnp.all(labels == -1):
+            classifier = all_feasible
+        elif jnp.all(labels == 1):
+            classifier = no_feasible
+        args = (classifier, classifier, None)
 
     return classifier, args
 
@@ -64,8 +77,8 @@ def compute_best_svm_classifier(
     try:
         model.fit(data_points, labels)
     except: 
-        print("error in fitting model")
-        return None, None, None, None
+        logging.info("error in fitting classification model")
+        return None, None, None, labels
     # get support vectors
     support_vectors = model.best_estimator_["svc"].support_vectors_
     # get classifier performance
@@ -118,14 +131,17 @@ def convert_svm_to_jax(pipeline):
     def svm_unstandardised(x):
         # Compute the decision function
         x_ = (x - x_mean) / x_std
+        x_ = x_.reshape(1, -1)
         decision = jnp.dot(coefficients, rbf_kernel(support_vectors, x_,epsilon=kernel_param)) + intercept
         # Apply the sign function to get the predicted class
-        return decision
+        return decision.squeeze()
 
     @jit
     def svm_standardised(x):
+        # defining multivariate -> univariate fn (no batching support )
+        x = x.reshape(1, -1)
         decision = jnp.dot(coefficients, rbf_kernel(support_vectors, x,epsilon=kernel_param)) + intercept
-        return decision
+        return decision.squeeze()
 
     return (svm_standardised, svm_unstandardised, standardisation_metrics(mean=x_mean, std=x_std))
 

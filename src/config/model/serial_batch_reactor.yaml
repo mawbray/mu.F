@@ -2,18 +2,22 @@
 
 arrhenius:
   EA: 
-    - 2500.2 # AE R1
-    - 5000.1 # AE R2
+    - - 2500.2 # AE R1
+      - 5000.1 # AE R2
+    - - 2500.2 # AE R1
+      - 5000.1 # AE R2
   A:
-    - 6.66e-06 # pre-exponent. factor R1
-    - 0.0010335 # pre-exponent. factor R2
+    - - 6.66e-06 # pre-exponent. factor R1
+      - 0.0010335 # pre-exponent. factor R2
+    - - 6.66e-06 # pre-exponent. factor R1
+      - 0.0010335 # pre-exponent. factor R2
   R: 8.314 # ideal gas constant
 
 
 root_node_inputs:
-  - - 2000 # component 1
-    - 0 # component 2
-    - 0 # component 3
+  - - 2000. # component 1
+    - 0. # component 2
+    - 0. # component 3
 
 uncertain_parameters:
   n_theta: [0, 0]
@@ -28,9 +32,5 @@ integration:
   step_size_controller: pid
   t0: 0
   tf: 1
-  dt0: 1.0e-05
-  x0:
-  - 2000
-  - 0
-  - 0
-  max_steps: 1000000
+  dt0: 1.0e-1
+  max_steps: 10000

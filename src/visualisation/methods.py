@@ -32,7 +32,7 @@ def initializer_cp(df):
 def get_ds_bounds(cfg, G):
     DS_bounds = [np.array(G.nodes[unit_index]['KS_bounds']) for unit_index in G.nodes]
     DS_bounds = np.vstack(DS_bounds)
-    DS_bounds = pd.DataFrame(DS_bounds.T, columns=cfg.design_space_dimensions)
+    DS_bounds = pd.DataFrame(DS_bounds.T, columns=cfg.case_study.design_space_dimensions)
     return DS_bounds
 
 def init_plot(cfg, G, pp= None, init=True, save=True):

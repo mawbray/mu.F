@@ -10,7 +10,7 @@ class visualiser(ABC):
         self.data = data
         self.cfg, self.G = cfg, G
         self.path = path
-        assert string in ['initialisastion', 'design_space', 'reconstruction', 'decomposition'], 'string must be one of "initialisastion", "design_space", "reconstruction", "decomposition" '
+        assert string in ['initialisation', 'design_space', 'reconstruction', 'decomposition'], 'string must be one of "initialisastion", "design_space", "reconstruction", "decomposition" '
         if string == 'initialisation':
             self.visualiser =partial(init_plot, init=True, save=True)
         elif string == 'design_space':

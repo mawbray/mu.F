@@ -64,8 +64,8 @@ process_space_names:
 
 
 mode:
-  - 'forward'
-  - 'forward-backward'
+  - 'backward' #'forward'
+  #- 'forward-backward'
 
 
 evaluation_mode: 'jax-pmap' #serial

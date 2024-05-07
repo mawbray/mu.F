@@ -1,3 +1,4 @@
 
 
 sobol_samples: 4096
+max_uncertain_samples: 1

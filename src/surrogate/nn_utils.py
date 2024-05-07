@@ -1,5 +1,5 @@
 from typing import Dict, Any
-
+from abc import ABC
 import numpy as np
 import pandas as pd
 import jax
@@ -16,7 +16,6 @@ from flax.training.common_utils import get_metrics, onehot
 from flax.training.early_stopping import EarlyStopping
 from flax import jax_utils
 import optax
-from gpjax import Dataset
 
 import unittest
 from unittest.mock import Mock
@@ -28,13 +27,22 @@ from functools import partial
 from surrogate.data_utils import standardisation_metrics
 
 
+
+class Dataset(ABC):
+    def __init__(self, X, y):
+        self.input_rank = len(X.shape)
+        self.output_rank = len(y.shape)
+        self.X = X if self.input_rank >= 2 else X.expand_dims(axis=-1)
+        self.y = y if self.output_rank >=2 else y.expand_dims(axis=-1)
+
+
 # --- neural network regressor --- #
 
 def identify_neural_network(hidden_units, output_units) -> nn.Module:
     return NeuralNetworkEstimator(hidden_units=hidden_units, output_units=output_units)
 
 
-def hyperparameter_selection(cfg: DictConfig, D: Dataset, num_folds: int, rng_key: random.PRNGKey=jax.random.PRNGKey(0), model_type='regressor'): 
+def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, rng_key: random.PRNGKey=jax.random.PRNGKey(0), model_type='regressor'): 
     # Define the hyperparameters to search over
     surrogate_cfg = cfg.surrogate.surrogate_forward.ann
     hidden_sizes = surrogate_cfg.hidden_size_options
@@ -45,6 +53,7 @@ def hyperparameter_selection(cfg: DictConfig, D: Dataset, num_folds: int, rng_ke
 
     x_scalar = StandardScaler().fit(D.X)
     y_scalar = StandardScaler().fit(D.y)
+
     standard_D = Dataset(x_scalar.transform(D.X), y_scalar.transform(D.y))
 
     # Perform hyperparameter selection using cross-validation
@@ -94,10 +103,11 @@ def hyperparameter_selection(cfg: DictConfig, D: Dataset, num_folds: int, rng_ke
     return opt_model, (query_standardised_model, query_unstandardised_model, standardisation_metrics(x_mean, x_std), standardisation_metrics(y_mean, y_std))
 
 
-def train_nn_surrogate_model(cfg: DictConfig, D: Dataset, model: nn.Module, num_folds: int, rng_key: random.PRNGKey=jax.random.PRNGKey(0), model_type='regressor') -> float:
+def train_nn_surrogate_model(cfg: DictConfig, D, model: nn.Module, num_folds: int, rng_key: random.PRNGKey=jax.random.PRNGKey(0), model_type='regressor') -> float:
     # Split data into folds
     kf = KFold(n_splits=num_folds, shuffle=True, random_state=0)
     fold_indices = kf.split(D.X)
+
 
     # Train and validate the model for each fold
     fold_losses = []
