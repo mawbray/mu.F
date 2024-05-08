@@ -23,8 +23,8 @@ uncertain_parameters:
   n_theta: [0, 0]
 
 constraint:
-  purity_u1: 0.75
-  purity_u2: 0.82
+  purity_u1: 0.65
+  purity_u2: 0.81
 
 
 integration:

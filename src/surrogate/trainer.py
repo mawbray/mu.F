@@ -5,11 +5,12 @@ from functools import partial
 import jax.numpy as jnp 
 import numpy as np
 from omegaconf import DictConfig
-from gpjax import Dataset
+
 
 from surrogate.data_utils import binary_classifier_data_preparation, regression_node_data_preparation, forward_evaluation_data_preparation
 from surrogate.gp_utils import train as train_gp
 from surrogate.nn_utils import hyperparameter_selection as train_ann
+from surrogate.nn_utils import Dataset
 from surrogate.svm_utils import train as train_svm
 
 

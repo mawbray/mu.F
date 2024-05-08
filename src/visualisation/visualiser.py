@@ -22,6 +22,7 @@ class visualiser(ABC):
             self.visualiser = partial(reconstruction_plot, reconstructed_df=data, save=True)
         elif string == 'decomposition':
             self.visualiser = decompose_call
+            
 
 
     def visualise(self):

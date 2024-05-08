@@ -25,7 +25,7 @@ def generate_initial_guess(n_starts, n_d, bounds):
     lower_bound = bounds[0]
     upper_bound = bounds[1]
     sobol_samples = qmc.Sobol(d=n_d, scramble=True).random(n_starts)
-    return np.array(lower_bound) + (np.array(upper_bound) - np.array(lower_bound)) * sobol_samples
+    return jnp.array(lower_bound) + (jnp.array(upper_bound) - jnp.array(lower_bound)) * sobol_samples
 
 
 def nlp_multi_start_casadi_eq_cons(initial_guess, objective_func, equality_constraints, bounds, solver):
@@ -226,7 +226,7 @@ def tf_jaxmodel_wrapper(jax_callable):
 utilities for JaxOpt box-constrained NLP solver
 """
 import jax 
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import grad, jit, vmap, config, jacfwd, jacrev
 from jaxopt import LBFGSB
 from functools import partial 
@@ -246,7 +246,7 @@ def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bo
 
     # iterate over upper level initial guesses
     time_now  = time.time()
-    _, solutions = jax.lax.scan(partial_jax_solver, init=None, xs=(initial_guess, np.array([1e-4] * initial_guess.shape[0])))
+    _, solutions = jax.lax.scan(partial_jax_solver, init=None, xs=(initial_guess))
     now = time.time() - time_now
    
     # iterate over solutions from one of the upper level initial guesses
@@ -254,9 +254,9 @@ def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bo
     _, assessment = jax.lax.scan(assess_subproblem_solution, init=None, xs=solutions.params)
     
     # assessment of solutions
-    arg_min = np.argmin(assessment[0], axis=0) # take the minimum objective val
+    arg_min = jnp.argmin(assessment[0], axis=0) # take the minimum objective val
     min_obj = assessment[0][arg_min]  # take the corresponding objective value
-    min_grad = np.linalg.norm(assessment[1][arg_min])  # take the corresponding l2 norm of objective gradient
+    min_grad = jnp.linalg.norm(assessment[1][arg_min])  # take the corresponding l2 norm of objective gradient
     
 
     return min_obj.squeeze(), min_grad, solutions[1].error[arg_min].squeeze()
@@ -271,7 +271,7 @@ def solve_nonlinear_program_bounds_jax_uncons(init, xs, objective_func, bounds_)
     # carry init is a tuple (index, list of problem solutions) latter is updated at each iteration
     # x defines a pytree of mu and ftol values
     """
-    (x0, ftol) = xs
+    (x0) = xs
 
     # Define the optimization problem
     lbfgsb = LBFGSB(fun=objective_func, maxiter=1000, use_gamma=True, verbose=False, linesearch="backtracking", decrease_factor=0.8)

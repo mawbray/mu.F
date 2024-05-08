@@ -15,18 +15,27 @@ class live_set:
         :param x: The input
         :return: The feasibility
         """
-        if self.notion_of_feasibility:
-            return np.min(x, axis=1).squeeze() >= 0
-        else:
-            return np.max(x, axis=1).squeeze() <= 0
+        n_s = x.shape[1]
 
+        if self.notion_of_feasibility:
+            y = np.min(x, axis=-1).reshape(x.shape[0],x.shape[1])
+            indicator = np.where(y>=0, 1, 0)
+            prob_feasible = np.sum(indicator, axis=1)/n_s
+            return prob_feasible >= self.cfg.samplers.target_reliability
+        else:
+            y = np.max(x, axis=-1).reshape(x.shape[0],x.shape[1])
+            indicator = np.where(y<=0, 1, 0)
+            prob_feasible = np.sum(indicator, axis=1)/n_s
+            return prob_feasible >= self.cfg.samplers.target_reliability
+             
+        
     def check_live_set_membership(self, x, g):
         """
         Check the membership of the live set
         :param x: The input
         :return: The membership
         """
-        feasible = self.evaluate_feasibility(np.vstack(g))
+        feasible = self.evaluate_feasibility(g)
         feasible_points = x[feasible, :]
         return feasible_points
     
@@ -50,11 +59,11 @@ class live_set:
         Get the length of the live set
         :return: The length of the live set
         """
-        return min(np.vstack(self.live_set).shape[0], self.cfg.ns.final_sample_live)
+        return min(np.vstack(self.live_set).shape[0], self.cfg.samplers.ns.final_sample_live)
 
     def check_if_live_set_complete(self):
-        if np.vstack(self.live_set).shape[0] >= self.cfg.ns.final_sample_live:
-            print(np.vstack(self.live_set).shape, self.cfg.ns.final_sample_live)
+        if np.vstack(self.live_set).shape[0] >= self.cfg.samplers.ns.final_sample_live:
+            print(np.vstack(self.live_set).shape, self.cfg.samplers.ns.final_sample_live)
             return True
         else:
             return False

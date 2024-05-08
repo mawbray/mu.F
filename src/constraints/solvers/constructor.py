@@ -1,5 +1,5 @@
 from abc import ABC
-from solvers.solvers import casadi_box_eq_nlp_solver, jax_box_nlp_solver, parallel_casadi_box_eq_nlp_solver
+from constraints.solvers.solvers import casadi_box_eq_nlp_solver, jax_box_nlp_solver, parallel_casadi_box_eq_nlp_solver
 import logging
 
 class solver_construction(ABC):

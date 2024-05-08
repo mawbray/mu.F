@@ -40,6 +40,8 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         solver =  construct_deus_problem(DEUS, problem_sheet, model)
         solver.solve()
         feasible_set, infeasible_set = solver.get_solution()
+        # update the graph with the number of function evaluations
+        graph.nodes[node]["fn_evals"] = model.function_evaluations
         # estimate box for bounds for DS downstream
         process_data_forward(cfg, graph, node, model, feasible_set)
         # train constraints for DS downstream using data now stored in the graph
@@ -220,7 +222,7 @@ def classifier_construction(cfg, graph, node, iterate):
     # train the model
     ls_surrogate = surrogate(graph, node, cfg, ('classification', 'SVM', 'live_set_surrogate'), iterate)
     ls_surrogate.fit(node=None)
-    if cfg.surrogate.classifier_args.standardised:
+    if cfg.solvers.standardised:
         query_model = ls_surrogate.get_model('standardised_model')
     else:
         query_model = ls_surrogate.get_model('unstandardised_model')
@@ -334,12 +336,6 @@ class subproblem_model(ABC):
     def get_constraints(self, d, p):
         return self.s(d, p)
     
-    def SAA(self, constraints):
-        if self.cfg.notion_of_feasibility == 'positive':
-            return jnp.mean(jnp.cond(jnp.max(constraints, axis=-1) >= 0 , 1, 0), axis=1).expand_dims(axis=1).expand_dims(axis=1)
-        else:
-            return jnp.mean(jnp.cond(jnp.max(constraints, axis=-1) <= 0 , 1, 0), axis=1).expand_dims(axis=1).expand_dims(axis=1)
-        
     
 def update_data(data, *args):
     """ Method to update the data holder with new data"""

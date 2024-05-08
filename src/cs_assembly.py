@@ -3,7 +3,7 @@ from unit_evaluators.constructor import unit_evaluation
 from constraints.functions import CS_holder
 from graph.graph_assembly import graph_constructor
 from graph.methods import CS_edge_holder, vmap_CS_edge_holder
-from solvers.constructor import solver_construction
+from constraints.solvers.constructor import solver_construction
 
 import logging
 
@@ -77,5 +77,5 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
 
 def solver_constructor(cfg, G):
 
-    return  {'forward_coupling_solver': {node: solver_construction(cfg.solvers.forward_coupling, cfg.solvers.forward_coupling_solver) for node in G.G.nodes },  # if G.G.in_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 
-            'backward_coupling_solver': {node: solver_construction(cfg.solvers.backward_coupling, cfg.solvers.backward_coupling_solver) for node in G.G.nodes}}# if G.G.out_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 
+    return  {'forward_coupling_solver': {node: solver_construction for node in G.G.nodes },  # if G.G.in_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 
+            'backward_coupling_solver': {node: solver_construction for node in G.G.nodes}}# if G.G.out_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 

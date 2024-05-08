@@ -5,7 +5,7 @@ from jax import vmap, jit, pmap
 import logging
 import ray
 
-from solvers.functions import generate_initial_guess, nlp_multi_start_casadi_eq_cons, multi_start_solve_bounds_nonlinear_program, casadi_nlp_construction, evaluate_casadi_nlp, get_session
+from constraints.solvers.functions import generate_initial_guess, nlp_multi_start_casadi_eq_cons, multi_start_solve_bounds_nonlinear_program, casadi_nlp_construction, evaluate_casadi_nlp, get_session
 
 class solver_base(ABC):
     """ This is a base class used to construct local solvers for the feasibility problem """

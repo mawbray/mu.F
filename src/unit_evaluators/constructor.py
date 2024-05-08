@@ -183,6 +183,7 @@ class network_simulator(ABC):
         self.cfg = cfg
         self.graph = graph.copy()
         self.constraint_evaluator = constraint_evaluator
+        self.function_evaluations = 0
 
     def simulate(self, decisions, uncertain_params=None):
         """
@@ -239,6 +240,8 @@ class network_simulator(ABC):
         The method simulates the network and returns the constraints.
         """
         constraints, _ = self.simulate(decisions, uncertain_params)
+        for g in constraints.copy().values():
+            self.function_evaluations += g.shape[0]*g.shape[1]
         return constraints
     
     def get_extended_ks_info(self, decisions, uncertain_params=None):
@@ -272,5 +275,7 @@ class network_simulator(ABC):
         The method simulates the network and returns the constraints and the input data for each edge.
         """
         constraints, edge_data = self.simulate(decisions, uncertain_params)
+        for g in constraints.values():
+            self.function_evaluations += g.shape[0]*g.shape[1]
         return constraints, edge_data
         

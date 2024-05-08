@@ -21,7 +21,6 @@ backward_coupling_solver: box_constrained_nlp
 
 
 forward_coupling:
-  standardised: true
   parallelised: true
   n_starts: 4
   casadi_ipopt_options:
@@ -44,9 +43,10 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
+standardised: true
+
 
 backward_coupling:
-  standardised: False
   n_starts: 4
   jax_opt_options:
     error_tol: 1e-6

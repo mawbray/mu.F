@@ -8,11 +8,11 @@ from jax import vmap, jit, pmap, devices
 from functools import partial
 from scipy.stats import beta
 import jax.scipy.stats as jscp_stats
-from copy import copy
+from copy import copy, deepcopy
 import ray
 #ray.init()
 
-
+from constraints.solvers.functions import multi_start_solve_bounds_nonlinear_program, generate_initial_guess
 from constraints.utilities import worker_function, parallelise_ray_batch, determine_batches, create_batches
 
 class constraint_evaluator_base(ABC):
@@ -196,7 +196,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         """
         Loads the solver
         """
-        return self.graph.nodes[self.node]['forward_coupling_solver']
+        return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)
     
     def evaluate(self, inputs):
         """
@@ -230,14 +230,14 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
 
         for pred in self.graph.predecessors(self.node):
             # standardisation of inputs if required
-            if self.cfg.solvers.forward_coupling.standardised: pred_inputs = self.standardise_inputs(pred_inputs, pred)
+            if self.cfg.standardised: pred_inputs = self.standardise_inputs(pred_inputs, pred)
             # load the forward surrogate
             surrogate = self.graph.edges[pred, self.node]["forward_surrogate"]
             # create a partial function for the optimizer to evaluate
             forward_constraints[pred] = [jit(partial(lambda x, inputs: surrogate(x).reshape(-1,) - inputs.reshape(-1,), inputs=pred_inputs[pred][i,:])) for i in range(pred_inputs[pred].shape[0])]
             # load the standardised bounds
             decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
-            if self.cfg.solvers.forward_coupling.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
+            if self.cfg.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
             forward_bounds[pred] = [decision_bounds.copy() for i in range(pred_inputs[pred].shape[0])]
             # load the forward objective
             classifier = self.graph.nodes[pred]["classifier"]
@@ -267,199 +267,167 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
             return decisions
     
 
-class backward_surrogate_constraint(coupling_surrogate_constraint_base):
+""" ---- JaxOpt solver evaluation methods (written as pure functions not classes) --- """
+
+def shaping_function(x, cfg):
     """
-    A backward surrogate constraint
-    - solved with JaxOpt solvers
-    - parallelism is provided by jax-pmap
-        : may be extended to other solvers e.g. casADi/IPOPT in the future
-
-    TODO - think about how best to pass uncertain parameters.
+    Shaping function
     """
-    def __init__(self, cfg, graph, node, pool):
-        super().__init__(cfg, graph, node)
-        # pool settings
-        self.pool = pool
-        if self.pool is None: 
-            raise Warning("No multiprocessing pool provided. Forward surrogate constraints will be evaluated sequentially.")
-        if self.pool == 'jax-pmap':
-            self.evaluation_method = self.simple_evaluation
-        if self.pool != 'jax-pmap':
-            raise NotImplementedError("parallelisation via other means than jax-pmap is not supported for this constraint type at the moment.")
-        # shaping function to return to sampler. (depends on the way constraints are defined by the user)
-        if cfg.samplers.notion_of_feasibility == 'positive': # i.e. feasible is g(x)>=0
-            self.shaping_function = lambda x: -x
-        elif cfg.notion_of_feasibility == 'negative': # i.e. feasible is g(x)<=0
-            self.shaping_function = lambda x: x
-        else:
-            raise ValueError("Invalid notion of feasibility.")
+    if cfg.samplers.notion_of_feasibility == 'positive':
+        return -x
+    elif cfg.samplers.notion_of_feasibility == 'negative':
+        return x
+
+def get_successor_inputs(graph, node, outputs):
+    """
+    Gets the inputs from the predecessors
+    """
+    succ_inputs = {}
+    for succ in graph.successors(node):
+        output_indices = graph.edges[node, succ]['edge_fn']
+        if outputs.ndim < 2: outputs = outputs.reshape(-1, 1)
+        if outputs.ndim < 3: outputs = jnp.expand_dims(outputs, axis=0)
+        succ_inputs[succ]= output_indices(outputs).reshape(outputs.shape[1],-1)
+    return succ_inputs
+
+
+def construct_solver(objective_func, bounds):
+    bounds = bounds
+    objective_func = objective_func
+    bounds = bounds
+    solver = partial(multi_start_solve_bounds_nonlinear_program, objective_func=objective_func, bounds_=(bounds[0], bounds[1]))
+    return solver   
+
+def initial_guess(cfg, bounds):
+    n_d = len(bounds[0])
+    return generate_initial_guess(cfg.n_starts, n_d, bounds)
+
+def solve(solver, initial_guesses):
+    obj_r, obj_g, e  = [], [], []
+
+    for solve, init in zip(solver, initial_guesses):
+        objective, objective_grad, error = solve(init)
+        obj_r.append(objective)
+        obj_g.append(objective_grad)
+        e.append(error)
     
-    @staticmethod
-    def from_method(cfg, graph, node, pool):
-        return backward_surrogate_constraint(cfg, graph, node, pool)
+    return {'objective': jnp.array(obj_r), 'objective_grad': jnp.array(obj_g), 'error': jnp.array(e)}
+    
+
+
+def load_solver(objective_func, bounds):
+    """
+    Loads the solver
+    """
+    return construct_solver(objective_func, bounds)
+
+
+def prepare_backward_problem(outputs, graph, node, cfg):
+    """
+    Prepares the forward constraints surrogates and decision variables
+    - ouptuts from a nodes unit functions are inputs to the next unit
+
+    """
+    backward_bounds = {succ: None for succ in graph.successors(node)}
+    backward_objective = {succ: None for succ in graph.successors(node)}
+
+    # get the outputs from the successors of the node
+    succ_inputs = get_successor_inputs(graph, node, outputs)
+
+    for succ in graph.successors(node):
+
+        n_d  = graph.nodes[succ]['n_design_args']
+        input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices'].copy()]))
         
-
-    def get_successor_inputs(self, outputs):
-        """
-        Gets the inputs from the predecessors
-        """
-        succ_inputs = {}
-        for succ in self.graph.successors(self.node):
-            output_indices = self.graph.edges[self.node, succ]['edge_fn']
-            if outputs.ndim < 2: outputs = outputs.reshape(-1, 1)
-            if outputs.ndim < 3: outputs = jnp.expand_dims(outputs, axis=1)
-            succ_inputs[succ]= output_indices(outputs).squeeze()
-        return succ_inputs
-
-
-    def load_solver(self):
-        """
-        Loads the solver
-        """
-        return self.graph.nodes[self.node]['backward_coupling_solver']
-    
-    def evaluate(self, outputs):
-        """
-        Evaluates the constraints
-        """
-        evaluate_method = self.evaluation_method
-        objective, bounds = self.prepare_backward_problem(outputs)
-        solver_object = self.load_solver()
-        succ_fn_evaluations = {}
-        # iterate over successors and evaluate the constraints
-        for succ in self.graph.successors(self.node):
-            backward_solver = [solver_object.from_method(solver_object.cfg, solver_object.solver_type, objective[succ][i], bounds[succ][i]) for i in range(outputs.shape[0])]
-            initial_guesses = [solve.initial_guess() for solve in backward_solver]
-            succ_fn_evaluations[succ] = evaluate_method(backward_solver, initial_guesses)
-
-        # reshape the evaluations
-        fn_evaluations = [succ_fn_evaluations[succ]['objective'].reshape(1,1) for succ in self.graph.successors(self.node)] # TODO make sure this is compatible with format returned by solver
-
-        return self.shaping_function(jnp.hstack(fn_evaluations))
-
-    def return_evaluation_method(self, outputs):
-        """
-        Returns the evaluation method
-        """
-        evaluate_method = self.evaluation_method
-        objective, bounds = self.prepare_backward_problem(outputs)
-        solver_object = self.load_solver()
-
-        return evaluate_method, objective, bounds, solver_object
-    
-    @staticmethod    
-    def simple_evaluation(solver, initial_guesses):
-        """
-        Simple evaluation of the constraints
-        """
-
-        return solver[0].solver.solve, initial_guesses[0]
-    
-    def prepare_backward_problem(self, outputs):
-        """
-        Prepares the forward constraints surrogates and decision variables
-        - ouptuts from a nodes unit functions are inputs to the next unit
-
-        """
-        graph = self.graph
-        backward_bounds = {succ: None for succ in self.graph.successors(self.node)}
-        backward_objective = {succ: None for succ in self.graph.successors(self.node)}
-
-        # get the outputs from the successors of the node
-        succ_inputs = self.get_successor_inputs(outputs)
-
-        for succ in graph.successors(self.node):
-
-            n_d  = graph.nodes[succ]['n_design_args']
-            input_indices = np.copy(np.array([n_d + input_ for input_ in self.graph.edges[self.node, succ]['input_indices'].copy()]))
-            
-            # standardisation of outputs if required
-            if self.cfg.solvers.backward_coupling.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(self.standardise_inputs(succ_inputs[succ], succ, input_indices))
-            
-            # load the standardised bounds
-            decision_bounds = graph.nodes[succ]["extendedDS_bounds"].copy()
-            ndim = graph.nodes[succ]['n_design_args'] + self.graph.nodes[succ]['n_input_args']
-            
-            # get the decision bounds
-            if self.cfg.solvers.backward_coupling.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, succ)
-            
-            decision_bounds = [jnp.delete(bound, input_indices) for bound in decision_bounds]
-            backward_bounds[succ] = [decision_bounds.copy() for i in range(succ_inputs[succ].shape[-1])]
-
-            # load the forward objective
-            classifier = graph.nodes[succ]["classifier"]
-            wrapper_classifier = self.mask_classifier(classifier, n_d, ndim, input_indices)
-            backward_objective[succ] = [jit(partial(lambda x,y: wrapper_classifier(x,y).squeeze(), y=succ_inputs[succ].reshape(-1,))) for i in range(succ_inputs[succ].shape[0])]
-
-        # return the forward surrogates and decision bounds
-        return backward_objective, backward_bounds
-    
-    @staticmethod
-    def mask_classifier(classifier, nd, ndim, fix_ind):
-        """
-        Masks the classifier
-        - y corresponds to those indices that are fixed
-        - x corresponds to those indices that are optimised
-        """
-        total_indices = jnp.arange(ndim)
-        opt_ind = jnp.delete(total_indices, fix_ind)
-
-        @jit
-        def masked_classifier(x, y):
-            input_ = jnp.hstack((x, y))
-            return classifier(input_.reshape(1,-1))
+        # standardisation of outputs if required
+        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ], succ, input_indices))
         
-        return masked_classifier
-    
-    def standardise_inputs(self, succ_inputs, out_node, input_indices):
-        """
-        Standardises the inputs
-        """
-        graph = self.graph
-        mean, std = graph.nodes[out_node]['classifier_x_scalar'].mean, graph.nodes[out_node]['classifier_x_scalar'].std
-        return (succ_inputs.squeeze() - mean[input_indices]) / std[input_indices]
-    
-    def standardise_model_decisions(self, decisions, out_node):
-        """
-        Standardises the decisions
-        """
-        graph = self.graph
-        mean, std = graph.nodes[out_node]['classifier_x_scalar'].mean, graph.nodes[out_node]['classifier_x_scalar'].std
-        return [(decision - mean[:]) / std[:] for decision in decisions]
+        # load the standardised bounds
+        decision_bounds = graph.nodes[succ]["extendedDS_bounds"].copy()
+        ndim = graph.nodes[succ]['n_design_args'] + graph.nodes[succ]['n_input_args']
+        
+        # get the decision bounds
+        if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ)
+        
+        decision_bounds = [jnp.delete(bound, input_indices) for bound in decision_bounds]
+        backward_bounds[succ] = [decision_bounds.copy() for i in range(succ_inputs[succ].shape[-1])]
+
+        # load the forward objective
+        classifier = graph.nodes[succ]["classifier"]
+        wrapper_classifier = mask_classifier(classifier, n_d, ndim, input_indices)
+        backward_objective[succ] = [jit(partial(lambda x,y: wrapper_classifier(x,y).squeeze(), y=succ_inputs[succ][i].reshape(-1,))) for i in range(succ_inputs[succ].shape[0])]
+
+    # return the forward surrogates and decision bounds
+    return backward_objective, backward_bounds
 
 
-def jax_pmap_evaluator(outputs, cfg, graph, node, pool):
+def evaluate(outputs, graph, node, cfg):
+    """
+    Evaluates the constraints
+    """
+    evaluate_method = solve
+    objective, bounds = prepare_backward_problem(outputs, graph, node, cfg)
+    succ_fn_evaluations = {}
+    # iterate over successors and evaluate the constraints
+    for succ in graph.successors(node):
+        backward_solver = [construct_solver(objective[succ][i], bounds[succ][i]) for i in range(outputs.shape[0])]
+        initial_guesses = [initial_guess(cfg.solvers.backward_coupling, bounds[succ][i]) for i in range(outputs.shape[0])]
+        succ_fn_evaluations[succ] = evaluate_method(backward_solver, initial_guesses)
+
+    # reshape the evaluations
+    fn_evaluations = [succ_fn_evaluations[succ]['objective'].reshape(-1,1) for succ in graph.successors(node)] # TODO make sure this is compatible with format returned by solver
+
+    return shaping_function(jnp.hstack(fn_evaluations), cfg)
+
+    
+def mask_classifier(classifier, nd, ndim, fix_ind):
+    """
+    Masks the classifier
+    - y corresponds to those indices that are fixed
+    - x corresponds to those indices that are optimised
+    """
+    total_indices = jnp.arange(ndim)
+    opt_ind = jnp.delete(total_indices, fix_ind)
+
+    def masked_classifier(x, y):
+        input_ = jnp.hstack([x.reshape(1,-1), y.reshape(1,-1)])
+        return classifier(input_.reshape(1,-1)).squeeze()
+    
+    return jit(masked_classifier)
+
+def standardise_inputs(graph, succ_inputs, out_node, input_indices):
+    """
+    Standardises the inputs
+    """
+    mean, std = graph.nodes[out_node]['classifier_x_scalar'].mean, graph.nodes[out_node]['classifier_x_scalar'].std
+    return (succ_inputs.squeeze() - mean[input_indices]) / std[input_indices]
+
+def standardise_model_decisions(graph, decisions, out_node):
+    """
+    Standardises the decisions
+    """
+    mean, std = graph.nodes[out_node]['classifier_x_scalar'].mean, graph.nodes[out_node]['classifier_x_scalar'].std
+    return [(decision - mean[:]) / std[:] for decision in decisions]
+
+
+def jax_pmap_evaluator(outputs, cfg, graph, node):
     """
     p-map constraint evaluation call - called by backward_surrogate_pmap_batch_evaluator
     """
-    constraint_evaluator = backward_surrogate_constraint.from_method(cfg.copy(), graph.copy(), node, pool)
-    evaluate_method, objective, bounds, solver_object = constraint_evaluator.return_evaluation_method(outputs)
-    succ_fn_evaluations = {}
-    for succ in graph.successors(node):
-        backward_solver = [solver_object.from_method(solver_object.cfg, solver_object.solver_type, objective[succ][i], bounds[succ][i]) for i in range(outputs.shape[0])]
-        initial_guesses = [solve.initial_guess() for solve in backward_solver]
-        solver, init_g = evaluate_method(backward_solver, initial_guesses)
-        succ_fn_evaluations[succ] = solver(init_g)
-        # reshape the evaluations
-        fn_evaluations = [succ_fn_evaluations[succ]['objective'].reshape(1,1) for succ in graph.successors(node)] # TODO make sure this is compatible with format returned by solver
+    constraint_evaluator = partial(evaluate, graph=graph, node=node, cfg=cfg)
 
-    return jnp.hstack(fn_evaluations)
+    return constraint_evaluator(outputs)
 
 
 
-def backward_surrogate_pmap_batch_evaluator(outputs, cfg, graph, node, pool):
+def backward_surrogate_pmap_batch_evaluator(outputs, cfg, graph, node):
     """
     Evaluates the constraints on a batch using jax-pmap - called by the backward_constraint_evaluator
     """
-    feasibility_call = partial(jax_pmap_evaluator, cfg=cfg.copy(), graph=graph.copy(), node=node, pool=pool)
-    
-    results=[]
-    for output in outputs:
-        results.append(feasibility_call(output))
+    feasibility_call = partial(jax_pmap_evaluator, cfg=cfg.copy(), graph=graph.copy(), node=node)
+    return pmap(feasibility_call, in_axes=0, out_axes=0, devices=[device for i, device in enumerate(devices('cpu')) if i<outputs.shape[0]])(outputs)  #, axis_name='i'
 
-    return jnp.expand_dims(jnp.vstack(results),axis=1) #  
 
-    """return pmap(feasibility_call, in_axes=0, devices=[device for i, device in enumerate(devices('cpu')) if i<outputs.shape[0]])(outputs)  #, axis_name='i'"""
  
 
 def backward_constraint_evaluator(outputs, cfg, graph, node, pool):
@@ -477,7 +445,7 @@ def backward_constraint_evaluator(outputs, cfg, graph, node, pool):
     # evaluate the constraints
     results = []
     for i, output_batch in enumerate(output_batches):
-        results.append(backward_surrogate_pmap_batch_evaluator(output_batch, cfg, graph, node, pool))
+        results.append(backward_surrogate_pmap_batch_evaluator(output_batch, cfg, graph, node))
     # concatenate the results
     return jnp.vstack(results)
 
