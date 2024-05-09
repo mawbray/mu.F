@@ -77,7 +77,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
             "constraints_func_name": "none",
             "parameters_best_estimate": [el for el in G.nodes[unit_index]['parameters_best_estimate']],
             "parameters_samples": [{key: value for key,value in dict_.items()} for dict_ in G.nodes[unit_index]['parameters_samples']],
-            "target_reliability": cfg.samplers.target_reliability,
+            "target_reliability": cfg.samplers.unit_wise_target_reliability[unit_index],
             "design_variables": [bound for bound in bounds.values()]
         },
 

@@ -1,6 +1,6 @@
 import jax.numpy as jnp 
 
-def calculate_box_outer_approximation(data, config):
+def calculate_box_outer_approximation(data, config, ndim=3):
     """
     Calculate the box outer approximation of the given data.
 
@@ -11,6 +11,13 @@ def calculate_box_outer_approximation(data, config):
     Returns:
     list: The minimum and maximum values of the box outer approximation.
     """
+
+    if ndim == 3: 
+        # reshape data to account for the uncertainty parameters
+        if data.ndim < 3:
+            data = jnp.expand_dims(data, axis=-1)
+        data = jnp.vstack([data[:,i,:].reshape(data.shape[0], data.shape[2]) for i in range(data.shape[1])])
+
 
     # Calculate the range of the input data
     data_range = jnp.max(data, axis=0) - jnp.min(data, axis=0)

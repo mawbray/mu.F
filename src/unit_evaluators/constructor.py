@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from jax import vmap, jit
 
 from unit_evaluators.integrators import unit_dynamics
+from unit_evaluators.steady_state import unit_steady_state
 from unit_evaluators.utils import arrhenius_kinetics_fn as arrhenius
 
 
@@ -100,11 +101,22 @@ class subproblem_unit_wrapper(unit_evaluation):
         The method splits the decisions into design arguments and input arguments based on the number of design arguments in the node, 
         and then evaluates the unit using these arguments and the uncertain parameters.
         """
-        design_args, input_args = self.get_input_decision_split(decisions)
-        if input_args.shape[1] == 0: 
-            input_args = jnp.array([self.cfg.model.root_node_inputs[self.node]]*design_args.shape[0])
         if uncertain_params is None:
             uncertain_params = jnp.empty((1,1))
+        
+        design_args, input_args = self.get_input_decision_split(decisions)
+
+        if input_args.shape[1] == 0: 
+            input_args = jnp.concatenate([jnp.expand_dims(jnp.array([self.cfg.model.root_node_inputs[self.node]]*design_args.shape[0]), axis=1) for _ in range(uncertain_params.shape[0])], axis=1)
+        
+        if input_args.ndim == 1:
+            input_args = jnp.expand_dims(input_args, axis=1)
+        if input_args.ndim == 2:
+            input_args = jnp.expand_dims(input_args, axis=1)
+
+        if input_args.shape[1] != uncertain_params.shape[0]:
+            input_args = jnp.concatenate([input_args for _ in range(uncertain_params.shape[0])], axis=1) # repeat input_args for each uncertain param
+        
         
         return self.evaluate(design_args, input_args, uncertain_params)
     
@@ -134,13 +146,15 @@ class unit_cfg:
         """
 
         self.cfg, self.graph, self.node = cfg, graph, node
-        self.n_theta = cfg.model.uncertain_parameters.n_theta[node]
+
 
         # if vmap is enabled in cfg, set the unit evaluation and decision dependent evaluation functions using vmap
         if cfg.case_study.vmap_evaluations:
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
-                self.evaluator = vmap(vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0,0, None), out_axes=0), in_axes=(None, None, 0), out_axes=1) # inputs are design args, input args, uncertain params
+                self.evaluator = vmap(vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0,0, None), out_axes=0), in_axes=(None, 1, 0), out_axes=1) # inputs are design args, input args, uncertain params
+            elif graph.nodes[node]['unit_op'] == 'steady_state':
+                self.evaluator = vmap(vmap(jit(partial(unit_steady_state, cfg=cfg, node=node)), in_axes=(0,0, None), out_axes=0), in_axes=(None, 1, 0), out_axes=1)
             else:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 
@@ -148,8 +162,8 @@ class unit_cfg:
             if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
                 EA, R, A = jnp.array(cfg.model.arrhenius.EA[node]), jnp.array(cfg.model.arrhenius.R), jnp.array(cfg.model.arrhenius.A[node])
                 self.decision_dependent_params = vmap(partial(arrhenius, Ea=EA, R=R, A=A), in_axes=(0, None), out_axes=0)
-            elif graph.nodes[node]['unit_params_fn'] is None: # NOTE this allocation has not been tested
-                self.decision_dependent_params = lambda x, y: jnp.empty(x.shape[0])
+            elif graph.nodes[node]['unit_params_fn'] == 'None': # NOTE this allocation has not been tested
+                self.decision_dependent_params = lambda x, y: jnp.empty((x.shape[0],0))
             else:
                 raise NotImplementedError('Not implemented error')
 
@@ -158,6 +172,8 @@ class unit_cfg:
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
                 self.evaluator = lambda x, y, z: jit(partial(unit_dynamics, cfg=cfg, node=node))(x.squeeze(), y.squeeze(), z.squeeze())
+            elif graph.nodes[node]['unit_op'] == 'steady_state':
+                self.evaluator = lambda x, y, z: jit(partial(unit_steady_state, cfg=cfg, node=node))(x.squeeze(), y.squeeze(), z.squeeze())
             else:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 
@@ -165,8 +181,8 @@ class unit_cfg:
             if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
                 EA, R, A = jnp.array(cfg.model.arrhenius.EA[node]), jnp.array(cfg.model.arrhenius.R), jnp.array(cfg.model.arrhenius.A[node])
                 self.decision_dependent_params = partial(arrhenius, Ea=EA, R=R, A=A)
-            elif graph.nodes[node]['unit_params_fn'] is None:
-                self.decision_dependent_params = lambda x, y: jnp.empty(x.shape[0]) # NOTE this allocation has not been testeds
+            elif graph.nodes[node]['unit_params_fn'] == 'None':
+                self.decision_dependent_params = lambda x, y: jnp.empty((x.shape[0],0)) # NOTE this allocation has not been testeds
             else:
                 raise NotImplementedError('Not implemented error')
 
@@ -207,7 +223,10 @@ class network_simulator(ABC):
                 u_p = uncertain_params[node]
 
             if self.graph.in_degree()[node] == 0:
-                inputs = jnp.array([self.cfg.model.root_node_inputs[node]]*decisions.shape[0])
+                if not (self.cfg.model.root_node_inputs[node] == 'None'):
+                    inputs = jnp.array([self.cfg.model.root_node_inputs[node]]*decisions.shape[0])
+                else:
+                    inputs = jnp.empty((decisions.shape[0], u_p.shape[0], 0))
             else:
                 inputs = jnp.hstack([jnp.copy(self.graph.edges[predecessor, node]['input_data_store']) for predecessor in self.graph.predecessors(node)])
 

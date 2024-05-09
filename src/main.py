@@ -24,7 +24,8 @@ import networkx as nx
 
 """
 TODO :
-- integration of all code module
+- parallelisation/serialisation of the forward coupling
+- visualisation of probability maps
 - test and debugging
 - documentation
 """

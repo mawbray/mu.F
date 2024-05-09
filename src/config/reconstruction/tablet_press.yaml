@@ -1,7 +1,6 @@
 
-sobol_samples: 4096 #4096 #4096
-n_units: 3
-final_sobol_samples: 8048
-joint_reconstruction: ns
-vol_scale: 0.05
-filter_feasible: False
+reconstruct: 
+  - True 
+
+reconstruction_scheme: uniform #sobol
+max_uncertain_samples: 2  # drawn according to weights provided in the cs config file

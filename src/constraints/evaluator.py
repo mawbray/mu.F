@@ -350,7 +350,7 @@ def prepare_backward_problem(outputs, graph, node, cfg):
         if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ)
         
         decision_bounds = [jnp.delete(bound, input_indices) for bound in decision_bounds]
-        backward_bounds[succ] = [decision_bounds.copy() for i in range(succ_inputs[succ].shape[-1])]
+        backward_bounds[succ] = [decision_bounds.copy() for i in range(succ_inputs[succ].shape[0])]
 
         # load the forward objective
         classifier = graph.nodes[succ]["classifier"]
@@ -400,7 +400,7 @@ def standardise_inputs(graph, succ_inputs, out_node, input_indices):
     Standardises the inputs
     """
     mean, std = graph.nodes[out_node]['classifier_x_scalar'].mean, graph.nodes[out_node]['classifier_x_scalar'].std
-    return (succ_inputs.squeeze() - mean[input_indices]) / std[input_indices]
+    return (succ_inputs - mean[input_indices].reshape(1,-1)) / std[input_indices].reshape(1,-1)
 
 def standardise_model_decisions(graph, decisions, out_node):
     """

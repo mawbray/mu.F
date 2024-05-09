@@ -1,5 +1,6 @@
 from abc import ABC
 from functools import partial
+from copy import deepcopy
 
 import networkx as nx
 import jax.numpy as jnp
@@ -128,22 +129,13 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
     None
     """
     # Select a subset of the data based on the classifier  
-    if cfg.surrogate.classifier:
-        # if the classifier is trained, select the feasible data - in the case of probabistic constraints, this will provide feasible data with P=1
-        x_classifier, y_classifier = data_processor(model.constraint_data).transform_data_to_matrix(lambda x: x) # rename data to constraints
-        if cfg.surrogate.classifier_args.drop_uncertain_params:
-            n_args = graph.nodes[node]['n_design_args'] + graph.nodes[node]['n_input_args']
-            x_classifier, y_classifier = x_classifier[:,:n_args], y_classifier[:,:n_args]
-        _, _, feasible_indices = apply_feasibility(x_classifier, y_classifier, cfg).get_feasible(return_indices = True)
-        graph.nodes[node]["classifier_training"] = dataset(X=x_classifier, y=y_classifier) 
+    x_d , y_d = jnp.vstack([d for i, d in enumerate(model.constraint_data.d) if ((cfg.formulation == 'probabilistic') and (i>0)) or (cfg.formulation == 'deterministic')]), jnp.concatenate([d for i, d in enumerate(model.constraint_data.y) if ((cfg.formulation == 'probabilistic') and (i>0)) or (cfg.formulation == 'deterministic')], axis=0)
+    x_classifier, y_classifier, feasible_indices = apply_feasibility(x_d , y_d , cfg, node, cfg.formulation).get_feasible(return_indices = True)
+    graph.nodes[node]["classifier_training"] = dataset(X=x_classifier, y=y_classifier) 
+
     if cfg.surrogate.probability_map:
         # in the case of probabistic constraints, this will provide feasible data with P level set by the user.
-        x_prob, y_prob = data_processor(model.probability_map_data).transform_data_to_matrix(lambda x: x) # rename data to constraints
-        if cfg.surrogate.probability_map_args.drop_uncertain_params:
-            n_args = graph.nodes[node]['n_design_args'] + graph.nodes[node]['n_input_args']
-            x_classifier, y_classifier = x_classifier[:,:n_args], y_classifier[:,:n_args]
-        _, _, feasible_indices = apply_feasibility(x_prob, y_prob, cfg).get_feasible()
-        graph.nodes[node]["probability_map_training"] = dataset(X=x_prob, y=y_prob) 
+        graph.nodes[node]["probability_map_training"] = dataset(X=x_classifier, y=y_classifier) # saves the whole probability map training data
     
     # add live set to the node    
     graph.nodes[node]["live_set_inner"] = live_set
@@ -158,6 +150,9 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
         if cfg.surrogate.forward_evaluation_surrogate:
             # Extract the input-output and classifier data from the model
             x_io, y_io = data_processor(model.input_output_data).transform_data_to_matrix(io_fn) 
+            if cfg.surrogate.forward_evaluation_surrogate_args.drop_uncertain_params:
+                n_args = graph.nodes[node]['n_design_args'] + graph.nodes[node]['n_input_args']
+                x_io, y_io = x_io[:,:n_args], y_io[:,:n_args]
             selected_y_io = y_io[feasible_indices,:]
         
         # --- apply the function to the selected output data --- #

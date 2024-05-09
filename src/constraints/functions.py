@@ -46,26 +46,26 @@ def purity_unit_1_ub(dynamic_profile, cfg):
 @partial(jit, static_argnums=(1))
 def tablet_hardness(steady_state_outputs, cfg):
     # steady state outputs are in the order: [H, V_pre, V_main]
-    return steady_state_outputs[0, 0]
+    return steady_state_outputs[0]
 
 
 @partial(jit, static_argnums=(1))
 def tablet_composition(steady_state_outputs, cfg):
     # steady state outputs are in the order: [hold up mass, hold_up volume, mass outflow rate, mass fraction of api, mass fraction of excipient, mass fraction of lubricant, porosity]
-    return steady_state_outputs[0, 3]
+    return steady_state_outputs[3]
 
 
 # ----- process constraints ----- #
 @partial(jit, static_argnums=(1))
 def tablet_size(steady_state_outputs, cfg):
     # steady state outputs are in the order: [H, V_pre, V_main]
-    return steady_state_outputs[0, 2] / (cfg.constraint.die_radius**2 * jnp.pi)
+    return steady_state_outputs[2] / (cfg.constraint.die_radius**2 * jnp.pi)
 
 
 @partial(jit, static_argnums=(1))
 def unit_volume(steady_state_outputs, cfg):
     # steady state outputs are in the order: hold up mass, hold_up volume ...
-    return steady_state_outputs[0, 1]
+    return steady_state_outputs[1]
 
 
 # --- constraint indicators --- #

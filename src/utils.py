@@ -29,16 +29,39 @@ def save_graph(G, mode):
 class dataset_object(ABC):
     def __init__(self, d, p, y):
         self.input_rank = len(d.shape)
+        self.p_rank = len(p.shape)
         self.output_rank = len(y.shape)
-        self.d = [d if self.input_rank >= 2 else d.expand_dims(axis=-1)]
-        self.p = [p if self.input_rank >= 2 else p.expand_dims(axis=-1)] 
-        self.y = [y if self.output_rank >=2 else y.expand_dims(axis=-1)]
+
+        d = d if self.input_rank > 1 else jnp.expand_dims(d,axis=-1)
+        p = p if self.p_rank > 1 else jnp.expand_dims(p,axis=-1)
+        y = y if self.output_rank >1 else jnp.expand_dims(y,axis=-1)
+
+        self.input_rank = len(d.shape)
+        self.p_rank = len(p.shape)
+        self.output_rank = len(y.shape)
+
+        self.d = [d if self.input_rank > 2 else jnp.expand_dims(d, axis=-1)]
+        self.p = [p if self.p_rank > 2 else jnp.expand_dims(p,axis=-1)] 
+        self.y = [y if self.output_rank >2 else jnp.expand_dims(y,axis=-1)]
         
 
     def add(self, d_in, p_in, y_in):
-        self.d.append(d_in if self.input_rank >= 2 else d_in.expand_dims(axis=-1))
-        self.p.append(p_in if self.input_rank >= 2 else p_in.expand_dims(axis=-1))
-        self.y.append(y_in if self.output_rank >=2 else y_in.expand_dims(axis=-1))
+        input_rank = len(d_in.shape)
+        p_rank = len(p_in.shape)
+        output_rank = len(y_in.shape)
+
+        d_in = d_in if input_rank > 1 else jnp.expand_dims(d,axis=-1)
+        p_in = p_in if p_rank > 1 else jnp.expand_dims(p,axis=-1)
+        y_in = y_in if output_rank >1 else jnp.expand_dims(y,axis=-1)
+
+        input_rank = len(d_in.shape)
+        p_rank = len(p_in.shape)
+        output_rank = len(y_in.shape)
+        
+
+        self.d.append(d_in if input_rank > 2 else jnp.expand_dims(d_in,axis=-1))
+        self.p.append(p_in if input_rank > 2 else jnp.expand_dims(p_in,axis=-1))
+        self.y.append(y_in if output_rank >2 else jnp.expand_dims(y_in,axis=-1))
         return 
     
 
@@ -46,8 +69,8 @@ class dataset(ABC):
     def __init__(self, X, y):
         self.input_rank = len(X.shape)
         self.output_rank = len(y.shape)
-        self.X = X if self.input_rank >= 2 else X.expand_dims(axis=-1)
-        self.y = y if self.output_rank >=2 else y.expand_dims(axis=-1)
+        self.X = X if self.input_rank >= 2 else jnp.expand_dims(X,axis=-1)
+        self.y = y if self.output_rank >=2 else jnp.expand_dims(y, axis=-1)
             
         
     
@@ -78,10 +101,17 @@ class data_processing(ABC):
         for d, p, y in data:
             X, Y = [], []
             if p.ndim<2: p=p.reshape(1,-1)
+            if d.ndim<2: d=d.reshape(1,-1)
+            if p.ndim < 3: p = jnp.expand_dims(p, axis=1)
+            if d.ndim < 3: d = jnp.expand_dims(d, axis=1)
+
+            y_edge = edge_fn(y)
+            if y_edge.ndim < 3: y_edge = jnp.expand_dims(y_edge, axis=-1)
+
             for i in range(p.shape[0]):
-                X.append(jnp.hstack([d, jnp.repeat(p[i].reshape(1,-1),d.shape[0], axis=0)]))
-                y_edge = edge_fn(y)
+                X.append(jnp.hstack([d.reshape((d.shape[0], d.shape[1])), jnp.repeat(p[i].reshape(1,-1),d.shape[0], axis=0)]))
                 Y.append(y_edge[:,i,:].reshape(d.shape[0],-1))
+                
             X = jnp.vstack(X)
             Y = jnp.vstack(Y)
             data_store_X.append(X)
@@ -91,13 +121,14 @@ class data_processing(ABC):
     
 
 class feasibility_base(ABC):
-    def __init__(self, dataset_X, dataset_Y, cfg):
+    def __init__(self, dataset_X, dataset_Y, cfg, node, feasibility):
         self.dataset_X = dataset_X
         self.dataset_Y = dataset_Y
+        self.node = node
         self.cfg = cfg
-        if self.cfg.formulation == 'probabilistic':
+        if feasibility == 'probabilistic':
             self.feasible_function = self.probabilistic_feasibility
-        elif self.cfg.formulation == 'deterministic':
+        elif feasibility == 'deterministic':
             self.feasible_function = self.deterministic_feasibility
         else:
             raise ValueError(f"Formulation {self.cfg.formulation} not recognised. Please use 'probabilistic' or 'deterministic'.")
@@ -116,8 +147,8 @@ class feasibility_base(ABC):
 
 
 class apply_feasibility(feasibility_base):
-    def __init__(self, dataset_X, dataset_Y, cfg):
-        super().__init__(dataset_X, dataset_Y, cfg)
+    def __init__(self, dataset_X, dataset_Y, cfg, node, feasibility):
+        super().__init__(dataset_X, dataset_Y, cfg, node, feasibility)
 
     def get_feasible(self, return_indices=True):
         return self.feasible_function(self.dataset_X, self.dataset_Y, return_indices)
@@ -125,12 +156,26 @@ class apply_feasibility(feasibility_base):
     def probabilistic_feasibility(self, X, Y, return_indices=True):
         """
         Method to evaluate the probabilistic feasibility of the data
+
+        X : N x n_d + n_u matrix
+        Y : N x n_p x n_g matrix
+
         """
-        select_cond = jnp.where(Y >= self.cfg.probability_level, 1, 0)
-        if not return_indices:
-            return X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :]
+        n_s = Y.shape[1]
+
+        if self.cfg.samplers.notion_of_feasibility:
+            y = jnp.min(Y, axis=-1).reshape(Y.shape[0],Y.shape[1])
+            indicator = jnp.where(y>=0, 1, 0)
         else:
-            return  X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :], select_cond.squeeze()
+            y = jnp.max(Y, axis=-1).reshape(Y.shape[0],Y.shape[1])
+            indicator = jnp.where(y<=0, 1, 0)
+
+        prob_feasible = jnp.sum(indicator, axis=1)/n_s
+
+        if not return_indices:
+            return X, prob_feasible
+        else:
+            return X, prob_feasible, (prob_feasible >= self.cfg.samplers.unit_wise_target_reliability[self.node]).squeeze()
 
     def deterministic_feasibility(self, X, Y, return_indices=True):
         """
@@ -141,6 +186,6 @@ class apply_feasibility(feasibility_base):
         else:
             select_cond = jnp.max(Y, axis=-1)  <= 0  
         if not return_indices:
-            return X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :]
+            return X, Y
         else:
-            return  X[select_cond.squeeze(), :], Y[select_cond.squeeze(), :], select_cond.squeeze()
+            return  X, Y, select_cond.squeeze()

@@ -1,7 +1,19 @@
 
-sobol_samples: 4096 #4096 #4096
-n_units: 3
-final_sobol_samples: 8048
-joint_reconstruction: ns
+target_reliability: 0.90
+unit_wise_target_reliability: [0.99, 0.92, 0.99]
+deus: 
+  activity_type: 'dsc'
+
+notion_of_feasibility: 'positive'
+ku_approximation: 'box'
 vol_scale: 0.05
-filter_feasible: False
+
+ns:
+  n_live: 100
+  final_sample_live: 100  
+  n_replacements: 50 
+  n_iter: 15000 
+  f0: 0.1
+  alpha: 0.2
+  prior: Uniform
+  rejector: suob-ellipsoid

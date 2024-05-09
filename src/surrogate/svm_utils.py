@@ -75,6 +75,7 @@ def compute_best_svm_classifier(
     # grid search over parameters
     model = GridSearchCV(clf, parameters, scoring="accuracy", cv=num_folds)
     try:
+        if data_points.ndim > 2: data_points = data_points.squeeze()
         model.fit(data_points, labels)
     except: 
         logging.info("error in fitting classification model")

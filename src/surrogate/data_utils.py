@@ -46,10 +46,16 @@ def binary_classifier_data_preparation(
     support = data.X
     labels = data.y
     
-    if cfg.samplers.notion_of_feasibility == 'positive':
-        select_cond = jnp.min(labels, axis=1)  >= 0 # 
-    else:
-        select_cond = jnp.max(labels, axis=1)  <= 0  
+    if cfg.formulation == 'deterministic':
+        if cfg.samplers.notion_of_feasibility == 'positive':
+            select_cond = jnp.min(labels, axis=1)  >= 0 # 
+        else:
+            select_cond = jnp.max(labels, axis=1)  <= 0  
+    elif cfg.formulation == 'probabilistic':
+        select_cond = labels >= cfg.samplers.unit_wise_target_reliability[unit_index]
+    else: 
+        raise ValueError(f"Formulation {cfg.formulation} not recognised. Please use 'probabilistic' or 'deterministic'.")
+
     labels = jnp.where(select_cond, -1, 1) # binary classifier (feasible label is always negative because we are always minimizing in problem coupling, just depends on which data we label)
 
 
@@ -60,9 +66,9 @@ def binary_classifier_data_preparation(
 def return_subsample_of_data(data, labels, subsample_size):
     if data.shape[0] > subsample_size:
         select_cond = labels == 1 # 
-        data_pos = data[select_cond]
+        data_pos = data[select_cond.squeeze(),:]
         select_cond = labels == -1 #
-        data_neg = data[select_cond]
+        data_neg = data[select_cond.squeeze(),:]
         assert subsample_size > data_neg.shape[0], f"Negative data size {data_neg.shape[0]} is larger than subsample size {subsample_size}"
 
         data_new = jnp.vstack([data_neg, data_pos[:subsample_size-data_neg.shape[0],:]])
