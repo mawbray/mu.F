@@ -98,7 +98,7 @@ class data_processing(ABC):
         """
         data = self.get_data()
         data_store_X, data_store_Y = [], []
-        for index, d, p, y in enumerate(data):
+        for index, d, p, y in enumerate(data):  # TODO only returning two items here at line 152 fn call in integration.py
             if index_on is not None:
                 if index<index_on:
                     pass
