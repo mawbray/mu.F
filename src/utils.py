@@ -91,14 +91,17 @@ class data_processing(ABC):
         for i in range(len(self.d)):
             yield self.d[i], self.p[i], self.y[i]
 
-    def transform_data_to_matrix(self, edge_fn):
+    def transform_data_to_matrix(self, edge_fn, index_on=None):
         """
         Dealing with the data in a matrix format
          - This is useful for training neural networks
         """
         data = self.get_data()
         data_store_X, data_store_Y = [], []
-        for d, p, y in data:
+        for index, d, p, y in enumerate(data):
+            if index_on is not None:
+                if index<index_on:
+                    pass
             X, Y = [], []
             if p.ndim<2: p=p.reshape(1,-1)
             if d.ndim<2: d=d.reshape(1,-1)
@@ -111,7 +114,7 @@ class data_processing(ABC):
             for i in range(p.shape[0]):
                 X.append(jnp.hstack([d.reshape((d.shape[0], d.shape[1])), jnp.repeat(p[i].reshape(1,-1),d.shape[0], axis=0)]))
                 Y.append(y_edge[:,i,:].reshape(d.shape[0],-1))
-                
+
             X = jnp.vstack(X)
             Y = jnp.vstack(Y)
             data_store_X.append(X)

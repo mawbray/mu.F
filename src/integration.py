@@ -149,8 +149,8 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
         # --- select the approximation method
         if cfg.surrogate.forward_evaluation_surrogate:
             # Extract the input-output and classifier data from the model
-            x_io, y_io = data_processor(model.input_output_data).transform_data_to_matrix(io_fn) 
-            if cfg.surrogate.forward_evaluation_surrogate_args.drop_uncertain_params:
+            x_io, y_io = data_processor(model.input_output_data).transform_data_to_matrix(io_fn, index_on=1) 
+            if cfg.surrogate.surrogate_forward.drop_uncertain_params:
                 n_args = graph.nodes[node]['n_design_args'] + graph.nodes[node]['n_input_args']
                 x_io, y_io = x_io[:,:n_args], y_io[:,:n_args]
             selected_y_io = y_io[feasible_indices,:]
