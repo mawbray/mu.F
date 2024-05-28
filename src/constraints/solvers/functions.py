@@ -3,9 +3,9 @@ import casadi
 import numpy as np
 from scipy.stats import qmc
 from jax.experimental import jax2tf
-import tensorflow as tf # .compat.v1
+import tensorflow as tf 
+import multiprocessing as mp
 
-#tf.disable_v2_behavior()
 
 
 """
@@ -73,6 +73,7 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
     equality_constraints: casadi callback
     bounds: list
     initial_guess: numpy array
+    Operates in a session via the casadi callbacks and tensorflow V1
     """
     n_d = len(bounds[0])
     session = tf.Session()
@@ -86,7 +87,6 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         x = MX.sym('x', n_d,1)
         j = cost_fn(x)
         g = eq_cons(x)
-
 
         F = Function('F', [x], [j])
         G = Function('G', [x], [g])
@@ -134,10 +134,8 @@ def casadi_nlp_construction(objective_func, equality_constraints, bounds):
     j = cost_fn(x)
     g = eq_cons(x)
 
-
     F = Function('F', [x], [j])
     G = Function('G', [x], [g])
-
 
     # Define the box bounds
     lbx = bounds[0] 
@@ -154,9 +152,6 @@ def casadi_nlp_construction(objective_func, equality_constraints, bounds):
     options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
   
     solver = nlpsol('solver', 'ipopt', nlp, options)
-
-    #solver, solution = casadi_solver_call(solver, [lbx, ubx, lbg, ubg], np.array([1.0, 2.0]).squeeze())
-
     
     return solver, [lbx, ubx, lbg, ubg], nlp
 
@@ -173,8 +168,64 @@ def casadi_solver_call(solver, constraints, initial_guess, nlp):
     return solver, solution
 
 
+def casadi_multi_start_solver_call(objective_func, equality_constraints, bounds, initial_guess, device_count):
+    """
+    objective: casadi callback
+    equality_constraints: casadi callback
+    bounds: list
+    initial_guess: numpy array
+    """
+    n_d = len(bounds[0])
+    print(n_d)
 
-def evaluate_casadi_nlp(initial_guess, solver, constraints, n_d):
+    # Get the casadi callbacks required 
+    cost_fn   = casadifyV2(objective_func, n_d)
+    eq_cons   = casadifyV2(equality_constraints, n_d)
+    
+    # casadi work up
+    x = MX.sym('x', n_d, 1)
+    j = cost_fn(x)
+    g = eq_cons(x)
+
+    F = Function('F', [x], [j])
+    G = Function('G', [x], [g])
+
+    # Define the box bounds
+    lbx = bounds[0] 
+    ubx = bounds[1]
+
+    # Define the bounds for the equality constraints
+    lbg = 0
+    ubg = 0
+
+    # Define the NLP
+    nlp = {'x':x , 'f':F(x), 'g': G(x)}
+
+    # Define the IPOPT solver
+    options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
+    solver = nlpsol('solver', 'ipopt', nlp, options)
+
+
+    def optimize(x0):
+        res = solver(x0=[i for i in x0.squeeze()], lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+        if res.stats()["success"]:
+            return float(res["f"]), np.array(res["x"])
+        else:
+            return np.inf, np.zeros(n_d)
+
+    pool = mp.Pool(device_count)
+    results = pool.map(optimize, [initial_guess[i,:] for i in range(initial_guess.shape[0])])
+    pool.close()
+    minima, _ = min(results, key=lambda x: x[0])
+
+    if minima == np.inf:
+       return None, None
+    else:
+       _, optimal_x = results[np.argmin([res[0] for res in results])]
+       return minima, optimal_x
+
+
+def evaluate_casadi_nlp(initial_guess, objective_func, equality_constraints, bounds, ):
     """
     objective_func: function
     equality_constraints: function
@@ -184,15 +235,12 @@ def evaluate_casadi_nlp(initial_guess, solver, constraints, n_d):
     n_starts = initial_guess.shape[0]
 
     # store for solutions
-    solutions_store = []
+    solutions_store = []        
+    result_f = casadi_multi_start_solver_call(objective_func, equality_constraints, bounds, initial_guess, device_count)
 
-    for i in range(n_starts):
-        init_guess = [initial_guess[i,j] for j in range(n_d)]
-        solver_, solution = casadi_solver_call(solver, constraints, init_guess)
-        if solver_.stats()['success']:
-            solutions_store.append((solver_,solution))
-            if np.array(solution['f']) <= 0: break
-
+    if solver_.stats()['success']:
+        solutions_store.append((solver_,solution))
+        if np.array(solution['f']) <= 0: break
     try: 
         min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'].reshape(1,-1) for sol_f in solutions_store]))
         solver_opt, solution_opt = solutions_store[min_obj_idx]   

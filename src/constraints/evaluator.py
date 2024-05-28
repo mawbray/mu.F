@@ -13,7 +13,7 @@ import ray
 #ray.init()
 
 from constraints.solvers.functions import multi_start_solve_bounds_nonlinear_program, generate_initial_guess
-from constraints.utilities import worker_function, parallelise_ray_batch, determine_batches, create_batches
+from constraints.utilities import worker_function, parallelise_ray_batch, determine_batches, create_batches   # TODO move worker fucntions to solvers.
 
 class constraint_evaluator_base(ABC):
     def __init__(self, cfg, graph, node):
