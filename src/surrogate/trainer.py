@@ -25,7 +25,6 @@ class trainer_base(ABC):
         self.unit_index = unit_index
         self.iterate = iterate
 
-
     def get_model(self, path: str, model_object) -> None:
         pass
 
@@ -38,7 +37,6 @@ class trainer_base(ABC):
 class trainer(trainer_base):
     def __init__(self, graph, unit_index, cfg, model_type, iterate):
         super().__init__(graph, unit_index, cfg, model_type, iterate)
-        
 
     def get_model_object(self, string: str) -> None:
         if string == 'standardised_model':

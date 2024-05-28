@@ -5,7 +5,7 @@ root_node_inputs:
 
 
 constraint:
-  unit1_volume: 0.4 # 2 #0.2
+  unit1_volume: 2  #0.5 # 2 #0.2
   unit2_volume: 2. # 2.2 #1.8
   die_radius: 0.017
   tablet_size: [0.014, 0.0175] # [0.014, 0.0169]

@@ -73,14 +73,19 @@ class dataset(ABC):
         self.y = y if self.output_rank >=2 else jnp.expand_dims(y, axis=-1)
             
         
-    
-
 class data_processing(ABC):
-    def __init__(self, dataset_object):
+    def __init__(self, dataset_object, index_on=None):
         self.dataset_object = dataset_object
-        self.d = dataset_object.d
-        self.p = dataset_object.p
-        self.y = dataset_object.y
+        self.index_on = index_on
+        if index_on is None:
+            self.d = dataset_object.d
+            self.p = dataset_object.p
+            self.y = dataset_object.y
+        else: 
+            self.d = dataset_object.d[index_on:]
+            self.p = dataset_object.p[index_on:]
+            self.y = dataset_object.y[index_on:]
+        
         self.check_data()
 
     def check_data(self):
@@ -91,18 +96,27 @@ class data_processing(ABC):
         for i in range(len(self.d)):
             yield self.d[i], self.p[i], self.y[i]
 
-    def transform_data_to_matrix(self, edge_fn, index_on=None):
+    def transform_data_to_matrix(self, edge_fn, feasible_indices=None, index_on=None):
         """
         Dealing with the data in a matrix format
-         - This is useful for training neural networks
+         - This is useful for training neural networks / any other input-output model
         """
         data = self.get_data()
-        data_store_X, data_store_Y = [], []
-        for index, d, p, y in enumerate(data):  # TODO only returning two items here at line 152 fn call in integration.py
+        data_store_X, data_store_Y, data_store_Z = [], [], []
+        if feasible_indices is not None: data = zip(data, feasible_indices)
+        else: data = zip(data)
+        for index, data_zip in enumerate(data): 
+            # skip the data collected in sampling iterations until index_on
             if index_on is not None:
                 if index<index_on:
                     pass
-            X, Y = [], []
+            # if feasible_indices is not None, then we have feasible indices to unpack
+            if feasible_indices is not None:
+                (d, p, y), fe_ind = data_zip
+            else:
+                d, p, y = data_zip
+            # preparation
+            X, Y, Z = [], [], []
             if p.ndim<2: p=p.reshape(1,-1)
             if d.ndim<2: d=d.reshape(1,-1)
             if p.ndim < 3: p = jnp.expand_dims(p, axis=1)
@@ -111,16 +125,25 @@ class data_processing(ABC):
             y_edge = edge_fn(y)
             if y_edge.ndim < 3: y_edge = jnp.expand_dims(y_edge, axis=-1)
 
+            # loop over the number of uncertain parameters to create input-output data (handling vectorization of the model evaluations)
             for i in range(p.shape[0]):
                 X.append(jnp.hstack([d.reshape((d.shape[0], d.shape[1])), jnp.repeat(p[i].reshape(1,-1),d.shape[0], axis=0)]))
                 Y.append(y_edge[:,i,:].reshape(d.shape[0],-1))
+                if feasible_indices is not None:
+                    # This is useful for updating KS or fitting models to feasible region only.
+                    Z.append(y_edge[:,i,:].reshape(d.shape[0],-1)[fe_ind.squeeze()])
 
             X = jnp.vstack(X)
             Y = jnp.vstack(Y)
+            Z = jnp.vstack(Z) if feasible_indices is not None else None
             data_store_X.append(X)
             data_store_Y.append(Y)
+            data_store_Z.append(Z)
 
-        return jnp.vstack(data_store_X), jnp.vstack(data_store_Y)
+        if feasible_indices is not None:
+            return jnp.vstack(data_store_X), jnp.vstack(data_store_Y), jnp.vstack(data_store_Z)
+        else:
+            return jnp.vstack(data_store_X), jnp.vstack(data_store_Y), None
     
 
 class feasibility_base(ABC):
@@ -164,31 +187,45 @@ class apply_feasibility(feasibility_base):
         Y : N x n_p x n_g matrix
 
         """
-        n_s = Y.shape[1]
 
-        if self.cfg.samplers.notion_of_feasibility:
-            y = jnp.min(Y, axis=-1).reshape(Y.shape[0],Y.shape[1])
-            indicator = jnp.where(y>=0, 1, 0)
-        else:
-            y = jnp.max(Y, axis=-1).reshape(Y.shape[0],Y.shape[1])
-            indicator = jnp.where(y<=0, 1, 0)
+        Y_s = []
+        for x, y in zip(X, Y):
 
-        prob_feasible = jnp.sum(indicator, axis=1)/n_s
+            if self.cfg.samplers.notion_of_feasibility == 'positive':
+                y = jnp.min(y, axis=-1).reshape(y.shape[0],y.shape[1])
+                indicator = jnp.where(y>=0, 1, 0)
+            else:
+                y = jnp.max(y, axis=-1).reshape(y.shape[0],y.shape[1])
+                indicator = jnp.where(y<=0, 1, 0)
+
+            n_s = y.shape[1]
+            prob_feasible = jnp.sum(indicator, axis=1)/n_s
+            Y_s.append(prob_feasible.reshape(y.shape[0],1))
 
         if not return_indices:
-            return X, prob_feasible
+            return jnp.vstack(X), jnp.vstack(Y_s)
         else:
-            return X, prob_feasible, (prob_feasible >= self.cfg.samplers.unit_wise_target_reliability[self.node]).squeeze()
+            return jnp.vstack(X), jnp.vstack(Y_s), [ys >= self.cfg.samplers.unit_wise_target_reliability[self.node] for ys in Y_s]
 
     def deterministic_feasibility(self, X, Y, return_indices=True):
         """
         Method to evaluate the deterministic feasibility of the data
         """
-        if self.cfg.samplers.notion_of_feasibility == 'positive':
-            select_cond = jnp.max(Y, axis=-1)  >= 0 
-        else:
-            select_cond = jnp.max(Y, axis=-1)  <= 0  
+        cond = []
+        for x, y in zip(X,Y):
+            if self.cfg.samplers.notion_of_feasibility == 'positive':
+                select_cond = jnp.min(Y, axis=-1)  >= 0 
+            else:
+                select_cond = jnp.max(Y, axis=-1)  <= 0  
+
+            cond.append(select_cond)
+            
+
         if not return_indices:
-            return X, Y
+            return jnp.vstack(X), jnp.vstack(Y)
         else:
-            return  X, Y, select_cond.squeeze()
+            return  jnp.vstack(X), jnp.vstack(Y), select_cond.squeeze()
+        
+
+
+       

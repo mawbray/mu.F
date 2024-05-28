@@ -2,7 +2,7 @@
 from omegaconf import DictConfig
 import networkx as nx
 import hydra
-import numpy as np
+import logging
 
 
 def design_list_constructor(bounds_for_design):
@@ -53,14 +53,8 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
     # This is a problem description generation method specific to DEUS
     bounds = get_unit_bounds(G, unit_index)
 
-    print(f"Unit index: {unit_index}")
-    print(f"Bounds: {bounds}")
-    print(f'EXTENDED DS DIM.: {len(bounds)}')
-
-    print(G.nodes[unit_index]['parameters_best_estimate'])
-    print(G.nodes[unit_index]['parameters_samples'])
-    print(type(G.nodes[unit_index]['parameters_best_estimate']))
-    print(type(G.nodes[unit_index]['parameters_samples']))
+    logging.info(f"Bounds: {bounds}")
+    logging.info(f'EXTENDED DS DIM.: {len(bounds)}')
 
         
     the_activity_form = {

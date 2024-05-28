@@ -43,7 +43,7 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
-standardised: true
+standardised: False #  true
 
 
 backward_coupling:

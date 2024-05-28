@@ -49,9 +49,9 @@ unit_params_fn:
   - None
 
 parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weight in posteiror distribution]}]]
-  - - c: [5, -4]
+  - - c: [.001, -0.00]
       w: .5
-    - c: [10, -8]
+    - c: [0.003, -0.002]
       w: .5
   - - c: [4, -4]
       w: .5

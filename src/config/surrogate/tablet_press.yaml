@@ -26,6 +26,8 @@ probability_map: false
 subsample_size: 25000
 num_folds: 2
 
+index_on: 1
+
 classifier_args: 
   standardised: true
   svm: # these parameters must be provided as lists for Sklearn's GridSearchCV

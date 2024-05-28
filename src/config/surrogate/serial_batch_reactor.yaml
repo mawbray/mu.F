@@ -21,6 +21,7 @@ surrogate_forward:
 classifier: true
 probability_map: false
 
+index_on: 1
 subsample_size: 25000
 num_folds: 2
 

@@ -107,7 +107,11 @@ class subproblem_unit_wrapper(unit_evaluation):
         design_args, input_args = self.get_input_decision_split(decisions)
 
         if input_args.shape[1] == 0: 
-            input_args = jnp.concatenate([jnp.expand_dims(jnp.array([self.cfg.model.root_node_inputs[self.node]]*design_args.shape[0]), axis=1) for _ in range(uncertain_params.shape[0])], axis=1)
+            if not (self.cfg.model.root_node_inputs[self.node] == 'None'):
+                input_args = jnp.array([self.cfg.model.root_node_inputs[self.node]]*design_args.shape[0])
+            else:
+                input_args = jnp.empty((design_args.shape[0], 0))
+            
         
         if input_args.ndim == 1:
             input_args = jnp.expand_dims(input_args, axis=1)
