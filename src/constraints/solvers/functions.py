@@ -6,6 +6,8 @@ from jax.experimental import jax2tf
 import tensorflow as tf 
 import multiprocessing as mp
 
+from constraints.solvers.utilities import determine_batches, create_batches, parallelise_batch, worker_function
+
 
 
 """
@@ -152,6 +154,8 @@ def casadi_nlp_construction(objective_func, equality_constraints, bounds):
     options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
   
     solver = nlpsol('solver', 'ipopt', nlp, options)
+
+
     
     return solver, [lbx, ubx, lbg, ubg], nlp
 
@@ -176,6 +180,7 @@ def casadi_multi_start_solver_call(objective_func, equality_constraints, bounds,
     initial_guess: numpy array
     """
     n_d = len(bounds[0])
+    n_starts = initial_guess.shape[0]
     print(n_d)
 
     # Get the casadi callbacks required 
@@ -212,10 +217,38 @@ def casadi_multi_start_solver_call(objective_func, equality_constraints, bounds,
             return float(res["f"]), np.array(res["x"])
         else:
             return np.inf, np.zeros(n_d)
+    
+    # definition of the worker function
+    wf = partial(worker_function, solver=optimize)
 
-    pool = mp.Pool(device_count)
-    results = pool.map(optimize, [initial_guess[i,:] for i in range(initial_guess.shape[0])])
-    pool.close()
+    # Start worker processes
+    input_queue = mp.Queue()
+    output_queue = mp.Queue()
+    
+    num_workers = min(device_count, n_starts)
+    workers = [mp.Process(target=wf, args=(input_queue, output_queue), name=i) for i in range(num_workers)]
+    for w in workers:
+      w.start()
+
+    # Enqueue tasks
+    tasks = [initial_guess[i,:].squeeze() for i in range(n_starts)]  # List of input data
+    for i, task in enumerate(tasks):
+      input_queue.put((task,i))
+
+    # Signal workers to terminate
+    for _ in range(num_workers):
+      input_queue.put((None,i))
+
+    # Wait for all workers to finish
+    for w in workers:
+      w.join()
+
+    # Collect results
+    results = [None] * len(tasks)
+    while not output_queue.empty():
+      result, i = output_queue.get()
+      results[i] = result
+
     minima, _ = min(results, key=lambda x: x[0])
 
     if minima == np.inf:
@@ -225,29 +258,18 @@ def casadi_multi_start_solver_call(objective_func, equality_constraints, bounds,
        return minima, optimal_x
 
 
-def evaluate_casadi_nlp(initial_guess, objective_func, equality_constraints, bounds, ):
+def evaluate_casadi_nlp_ms(initial_guess, objective_func, equality_constraints, bounds, device_count):
     """
     objective_func: function
     equality_constraints: function
     bounds: list
 
     """
-    n_starts = initial_guess.shape[0]
 
     # store for solutions
-    solutions_store = []        
-    result_f = casadi_multi_start_solver_call(objective_func, equality_constraints, bounds, initial_guess, device_count)
+    result_f, result_x = casadi_multi_start_solver_call(objective_func, equality_constraints, bounds, initial_guess, device_count)
 
-    if solver_.stats()['success']:
-        solutions_store.append((solver_,solution))
-        if np.array(solution['f']) <= 0: break
-    try: 
-        min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'].reshape(1,-1) for sol_f in solutions_store]))
-        solver_opt, solution_opt = solutions_store[min_obj_idx]   
-        return solver_opt, solution_opt
-    
-    except: 
-       return None, None
+    return result_f, result_x
    
 
 def casadifyV2(functn, nd):

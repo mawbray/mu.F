@@ -12,7 +12,7 @@ penalty_method_coupler:
 
 
 evaluation_mode: 
-  forward: pool
+  forward: mp-ms
   backward: jax-pmap #serial 
 
 
@@ -21,6 +21,7 @@ backward_coupling_solver: box_constrained_nlp
 
 
 forward_coupling:
+  max_devices: 20
   parallelised: true
   n_starts: 4
   casadi_ipopt_options:

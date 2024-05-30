@@ -72,7 +72,7 @@ def surrogate_training_forward(cfg, graph, node, iterate:int=0):
         # train the model
         forward_evaluator_surrogate = surrogate(graph, node, cfg, ('regression', 'ANN', 'forward_evaluation_surrogate'), iterate)
         forward_evaluator_surrogate.fit(node=successor)
-        if cfg.solvers.forward_coupling.standardised:
+        if cfg.solvers.standardised:
             query_model = forward_evaluator_surrogate.get_model('standardised_model')
         else:
             query_model = forward_evaluator_surrogate.get_model('unstandardised_model')
@@ -168,7 +168,7 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
         # --- find box bounds on inputs
         graph.edges[node, successor][
             "input_data_bounds"
-        ] = feasible_outer_approx(selected_y_io, cfg)
+        ] = feasible_outer_approx(selected_y_io, cfg, ndim=2)
 
         # store the forward evaluations on the graph for surrogate training
         forward_evals = dataset(X=x_io, y=y_io)

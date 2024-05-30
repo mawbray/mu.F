@@ -5,7 +5,7 @@ from jax import vmap, jit, pmap
 import logging
 import ray
 
-from constraints.solvers.functions import generate_initial_guess, nlp_multi_start_casadi_eq_cons, multi_start_solve_bounds_nonlinear_program, casadi_nlp_construction, evaluate_casadi_nlp, get_session
+from constraints.solvers.functions import generate_initial_guess, nlp_multi_start_casadi_eq_cons, multi_start_solve_bounds_nonlinear_program, casadi_nlp_construction,  evaluate_casadi_nlp_ms
 
 class solver_base(ABC):
     """ This is a base class used to construct local solvers for the feasibility problem """
@@ -75,7 +75,7 @@ class casadi_box_eq_nlp_solver(solver_base):
     
     def get_constraints(self, solution):
         return solution['np']['g']
-    
+"""    
 @ray.remote
 class parallel_casadi_box_eq_nlp_solver(solver_base):
     def __init__(self, cfg, objective_func, equality_constraints, bounds):
@@ -121,7 +121,44 @@ class parallel_casadi_box_eq_nlp_solver(solver_base):
     
     def get_constraints(self, solution):
         return solution['np']['g']
+"""    
+
+
+class parallelms_casadi_box_eq_nlp_solver(solver_base):
+    def __init__(self, cfg, objective_func, equality_constraints, bounds):
+        super().__init__(cfg)
+        self.construct_solver(objective_func, equality_constraints, bounds)
+
+    def __call__(self, initial_guesses):
+        return self.solve(initial_guesses)
+
+    def construct_solver(self, objective_func, equality_constraints, bounds):
+        self.n_d = len(bounds[0])
+        self.bounds = bounds
+        # formatting for casadi
+        self.solver = partial(evaluate_casadi_nlp_ms, objective_func=objective_func, equality_constraints=equality_constraints, bounds=bounds, device_count=self.cfg.device_count)
+        return
     
+    def initial_guess(self):
+        return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
+    
+    def solve(self, initial_guesses):
+        obj_fn, dec_x = self.solver(initial_guesses)
+        status = self.get_status(obj_fn)
+
+        if not status:
+            logging.info('--- Solver did not converge ---')
+
+        return {'success': status, 'objective': obj_fn, 'x': dec_x}
+    
+    def get_status(self, solver):
+        return solver < jnp.inf
+    
+    def get_objective(self, solution):
+        return solution['f']
+    
+    def get_constraints(self, solution):
+        return solution['np']['g']
 
 
 class jax_box_nlp_solver(solver_base):

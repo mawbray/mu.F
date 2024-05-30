@@ -151,7 +151,6 @@ class unit_cfg:
 
         self.cfg, self.graph, self.node = cfg, graph, node
 
-
         # if vmap is enabled in cfg, set the unit evaluation and decision dependent evaluation functions using vmap
         if cfg.case_study.vmap_evaluations:
             # --- set the unit evaluation fn

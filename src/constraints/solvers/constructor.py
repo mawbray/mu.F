@@ -1,5 +1,5 @@
 from abc import ABC
-from constraints.solvers.solvers import casadi_box_eq_nlp_solver, jax_box_nlp_solver, parallel_casadi_box_eq_nlp_solver
+from constraints.solvers.solvers import casadi_box_eq_nlp_solver, jax_box_nlp_solver, parallelms_casadi_box_eq_nlp_solver
 import logging
 
 class solver_construction(ABC):
@@ -25,14 +25,14 @@ class solver_construction(ABC):
 
     def __call__(self, initial_guesses):
         if self.solver_type == 'general_constrained_nlp':
-            return self.solver.__call__.remote(initial_guesses)
+            return self.solver(initial_guesses)
         else:
             return self.solver.solve(initial_guesses)
     
     def construct_solver(self):
         if self.solver_type == 'general_constrained_nlp':
             if self.cfg.parallelised:
-                self.solver = parallel_casadi_box_eq_nlp_solver.remote(self.cfg, self.objective_func, self.constraints_func, self.bounds)
+                self.solver = parallelms_casadi_box_eq_nlp_solver(self.cfg, self.objective_func, self.constraints_func, self.bounds)
             elif not self.cfg.parallelised:
                 raise NotImplementedError('Serialized solvers not implemented')
         elif self.solver_type == 'box_constrained_nlp':
@@ -52,7 +52,7 @@ class solver_construction(ABC):
     def initial_guess(self):
         if self.solver_type == 'general_constrained_nlp':
             if self.cfg.parallelised:
-                return self.solver.initial_guess.remote()
+                return self.solver.initial_guess()
             elif not self.cfg.parallelised:
                 raise NotImplementedError('Serialized forward solvers not implemented')
         elif self.solver_type == 'box_constrained_nlp':
