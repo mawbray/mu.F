@@ -64,17 +64,29 @@ def main(cfg: DictConfig) -> None:
         # reconstruction
         if cfg.reconstruction.reconstruct[i]:
             network_model = network_simulator(cfg, G, constraint_evaluator)
-            joint_live_set = reconstruction(cfg, G, network_model).run() # TODO update uncertainty evaluations
+            joint_live_set, joint_live_set_prob = reconstruction(cfg, G, network_model).run() # TODO update uncertainty evaluations
             
             # update the graph with the function evaluations
             for node in G.nodes():
                 G.nodes[node]["fn_evals"] += network_model.function_evaluations
             
             # visualisation of reconstruction
-            df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
+            if cfg.reconstruction.plot_reconstruction == 'nominal_map':
+                df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
+            elif cfg.reconstruction.plot_reconstruction == 'probability_map':
+                df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
+                df['probability'] = joint_live_set_prob
             visualiser(cfg, G, df, 'reconstruction', path=f'reconstruction_{m}_iterate_{i}').visualise()
             df.to_excel(f'inside_samples_{mode}_iterate_{i}.xlsx')
             save_graph(G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))
+
+        # TODO generalise this to all graphs based on in-degree and out-degree
+        if mode == 'forward':
+            precedence_order.pop(-1)
+        elif mode == 'backward':
+            precedence_order.pop(0)
+        elif mode == 'forward-backward':
+            precedence_order.pop(-1)
 
     # The following loop logs the function evaluations for each node in the graph.
     for node in G.nodes():

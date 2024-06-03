@@ -39,9 +39,9 @@ class reconstruction(reconstruct_base):
         :return: The feasibility
         """
         # evaluate the feasibility and return those feasible candidates
-        feasible_points = self.ls_holder.check_live_set_membership(candidates, constraint_vals)
+        feasible_points, feasible_prob = self.ls_holder.check_live_set_membership(candidates, constraint_vals)
         # append to live set
-        self.ls_holder.append_to_live_set(feasible_points)
+        self.ls_holder.append_to_live_set(feasible_points, feasible_prob)
         # check if live set is complete
         return self.ls_holder.check_if_live_set_complete()    
 
@@ -70,10 +70,10 @@ class reconstruction(reconstruct_base):
             # check feasibility
             feasible = self.update_live_set(candidates, constraint_vals)
 
-        joint_live_set = ls_holder.get_live_set()
+        joint_live_set, joint_live_set_prob = ls_holder.get_live_set()
         
 
-        return joint_live_set
+        return joint_live_set, joint_live_set_prob
     
     def get_uncertain_params(self):
         param_dict = self.cfg.case_study.parameters_samples

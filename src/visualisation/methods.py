@@ -65,13 +65,16 @@ def decompose_call(cfg, G):
 
 
 def decomposition_plot(cfg, G, pp, save=True):
-    # load live sets for each subproblem from the graph
+    # load live sets for each subproblem from the graph 
     inside_samples_decom = [pd.DataFrame({col:G.nodes[node]['live_set_inner'][:,i] for i, col in enumerate(cfg.case_study.process_space_names[node])}) for node in G.nodes]
 
-    # just keep those variables with Ui in the column name
+    # just keep those variables with Ui in the column name # TODO update this to also receive the live set probabilities 
     inside_samples_decom = [in_[[col for col in in_.columns if f"U{i+1}" in col]] for (i,in_) in enumerate(inside_samples_decom)]
+    if cfg.reconstruction.plot_reconstruction == 'probability_map':
+        for i, is_ in enumerate(inside_samples_decom):
+            is_['probability'] = G.nodes[i]['live_set_inner_prob'] # TODO update this to also receive the live set probabilities
 
-     # Get the indices of the lower triangle of the pair grid plot
+    # Get the indices of the lower triangle of the pair grid plot
     indices = zip(*np.tril_indices_from(pp.axes, -1))
 
     for i, j in indices: 

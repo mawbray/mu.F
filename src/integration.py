@@ -339,6 +339,20 @@ class subproblem_model(ABC):
     def get_constraints(self, d, p):
         return self.s(d, p)
     
+    def SAA(self, g):
+        
+        if self.cfg.samplers.notion_of_feasibility == 'positive':
+            g_ = jnp.min(g, axis=-1).reshape(g.shape[0],g.shape[1])
+            indicator = jnp.where(g_>=0, 1, 0)
+        else:
+            g_ = jnp.max(g, axis=-1).reshape(g.shape[0],g.shape[1])
+            indicator = jnp.where(g_<=0, 1, 0)
+
+        n_s = g.shape[1]
+        prob_feasible = jnp.sum(indicator, axis=1)/n_s
+            
+        return prob_feasible.reshape(g.shape[0],1)
+    
     
 def update_data(data, *args):
     """ Method to update the data holder with new data"""
