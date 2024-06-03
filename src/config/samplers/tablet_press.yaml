@@ -1,6 +1,6 @@
 
-target_reliability: 0.90
-unit_wise_target_reliability: [0.99, 0.92, 0.99]
+target_reliability: 0.5
+unit_wise_target_reliability: [0.83333, 0.83333, 0.83333]
 deus: 
   activity_type: 'dsc'
 

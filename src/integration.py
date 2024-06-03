@@ -296,6 +296,11 @@ class subproblem_model(ABC):
         # evaluate feasibility upstream
         if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
             forward_constraint_evals = self.forward_constraints.evaluate(unit_inputs) # forward constraints (rank 3 tensor n_d \times n_theta \times n_g)
+            if forward_constraint_evals.ndim == 1:
+                forward_constraint_evals = forward_constraint_evals.reshape(-1,1)
+            if forward_constraint_evals.ndim == 2:
+                forward_constraint_evals = np.expand_dims(forward_constraint_evals, axis=1)
+                forward_constraint_evals = np.repeat(forward_constraint_evals, outputs.shape[1], axis=1)
         else:
             forward_constraint_evals = None
         

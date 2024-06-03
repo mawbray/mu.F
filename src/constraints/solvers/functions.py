@@ -3,12 +3,15 @@ import casadi
 import numpy as np
 from scipy.stats import qmc
 from jax.experimental import jax2tf
-import tensorflow as tf 
 import multiprocessing as mp
+import tensorflow.compat.v1 as tf # .compat.v1
 
-from constraints.solvers.utilities import determine_batches, create_batches, parallelise_batch, worker_function
+tf.disable_v2_behavior()
 
 
+import logging 
+logger = mp.log_to_stderr()
+logger.setLevel(mp.SUBDEBUG)
 
 """
 utilities for Casadi NLP solver with equality constraints
@@ -77,7 +80,9 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
     initial_guess: numpy array
     Operates in a session via the casadi callbacks and tensorflow V1
     """
-    n_d = len(bounds[0])
+    n_d = len(bounds[0].squeeze())
+    lb = [bounds[0].squeeze()[i] for i in range(n_d)]
+    ub = [bounds[1].squeeze()[i] for i in range(n_d)]
     session = tf.Session()
 
     with session: 
@@ -95,8 +100,8 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
 
 
         # Define the box bounds
-        lbx = bounds[0] 
-        ubx = bounds[1]
+        lbx = lb
+        ubx = ub
 
         # Define the bounds for the equality constraints
         lbg = 0
@@ -106,73 +111,22 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         nlp = {'x':x , 'f':F(x), 'g': G(x)}
 
         # Define the IPOPT solver
-        options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
+        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':0, 'print_time':0}
       
         solver = nlpsol('solver', 'ipopt', nlp, options)
 
-    with session:
         # Solve the NLP
         solution = solver(x0=initial_guess, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+  
+    session.close()
+    
       
     return solver, solution
 
 
-def casadi_nlp_construction(objective_func, equality_constraints, bounds):
-    """
-    objective: casadi callback
-    equality_constraints: casadi callback
-    bounds: list
-    initial_guess: numpy array
-    """
-    n_d = len(bounds[0])
-    print(n_d)
-
-    # Get the casadi callbacks required 
-    cost_fn   = casadifyV2(objective_func, n_d)
-    eq_cons   = casadifyV2(equality_constraints, n_d)
-    
-    # casadi work up
-    x = MX.sym('x', n_d, 1)
-    j = cost_fn(x)
-    g = eq_cons(x)
-
-    F = Function('F', [x], [j])
-    G = Function('G', [x], [g])
-
-    # Define the box bounds
-    lbx = bounds[0] 
-    ubx = bounds[1]
-
-    # Define the bounds for the equality constraints
-    lbg = 0
-    ubg = 0
-
-    # Define the NLP
-    nlp = {'x':x , 'f':F(x), 'g': G(x)}
-
-    # Define the IPOPT solver
-    options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
-  
-    solver = nlpsol('solver', 'ipopt', nlp, options)
 
 
-    
-    return solver, [lbx, ubx, lbg, ubg], nlp
-
-def casadi_solver_call(solver, constraints, initial_guess, nlp):
-    """
-    solver: casadi solver
-    bounds: generator
-    initial_guess: numpy array
-    """
-    [lbx, ubx, lbg, ubg] = constraints
-
-    solution = solver(x0=initial_guess, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
-
-    return solver, solution
-
-
-def casadi_multi_start_solver_call(objective_func, equality_constraints, bounds, initial_guess, device_count):
+def casadi_multi_start(initial_guess, objective_func, equality_constraints, bounds):
     """
     objective: casadi callback
     equality_constraints: casadi callback
@@ -181,112 +135,88 @@ def casadi_multi_start_solver_call(objective_func, equality_constraints, bounds,
     """
     n_d = len(bounds[0])
     n_starts = initial_guess.shape[0]
-    print(n_d)
-
-    # Get the casadi callbacks required 
-    cost_fn   = casadifyV2(objective_func, n_d)
-    eq_cons   = casadifyV2(equality_constraints, n_d)
-    
-    # casadi work up
-    x = MX.sym('x', n_d, 1)
-    j = cost_fn(x)
-    g = eq_cons(x)
-
-    F = Function('F', [x], [j])
-    G = Function('G', [x], [g])
-
-    # Define the box bounds
-    lbx = bounds[0] 
-    ubx = bounds[1]
-
-    # Define the bounds for the equality constraints
-    lbg = 0
-    ubg = 0
-
-    # Define the NLP
-    nlp = {'x':x , 'f':F(x), 'g': G(x)}
-
-    # Define the IPOPT solver
-    options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
-    solver = nlpsol('solver', 'ipopt', nlp, options)
-
-
-    def optimize(x0):
-        res = solver(x0=[i for i in x0.squeeze()], lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
-        if res.stats()["success"]:
-            return float(res["f"]), np.array(res["x"])
-        else:
-            return np.inf, np.zeros(n_d)
-    
-    # definition of the worker function
-    wf = partial(worker_function, solver=optimize)
-
-    # Start worker processes
-    input_queue = mp.Queue()
-    output_queue = mp.Queue()
-    
-    num_workers = min(device_count, n_starts)
-    workers = [mp.Process(target=wf, args=(input_queue, output_queue), name=i) for i in range(num_workers)]
-    for w in workers:
-      w.start()
-
-    # Enqueue tasks
-    tasks = [initial_guess[i,:].squeeze() for i in range(n_starts)]  # List of input data
-    for i, task in enumerate(tasks):
-      input_queue.put((task,i))
-
-    # Signal workers to terminate
-    for _ in range(num_workers):
-      input_queue.put((None,i))
-
-    # Wait for all workers to finish
-    for w in workers:
-      w.join()
-
-    # Collect results
-    results = [None] * len(tasks)
-    while not output_queue.empty():
-      result, i = output_queue.get()
-      results[i] = result
-
-    minima, _ = min(results, key=lambda x: x[0])
-
-    if minima == np.inf:
-       return None, None
-    else:
-       _, optimal_x = results[np.argmin([res[0] for res in results])]
-       return minima, optimal_x
-
-
-def evaluate_casadi_nlp_ms(initial_guess, objective_func, equality_constraints, bounds, device_count):
-    """
-    objective_func: function
-    equality_constraints: function
-    bounds: list
-
-    """
+    n_g = equality_constraints(initial_guess[0,:].squeeze()).squeeze().shape[0]
 
     # store for solutions
-    result_f, result_x = casadi_multi_start_solver_call(objective_func, equality_constraints, bounds, initial_guess, device_count)
+    solutions = []
+    for i in range(n_starts):
+        solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, equality_constraints, bounds, np.array(initial_guess[i,:]).squeeze())
+        if solver.stats()['success']:
+          solutions.append((solver, solution))
+          if np.array(solution['f']) <= 0: break
 
-    return result_f, result_x
-   
+    try:
+        min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'] for sol_f in solutions]))
+        solver_opt, solution_opt = solutions[min_obj_idx]
+        return solver_opt, solution_opt
+    except: 
+        return solver, solution
+    
 
-def casadifyV2(functn, nd):
+def casadify(functn, nd, session):
   """
   # casadify a jax function via jax-tf-casadi wrappers
   functn: a jax function 
   nd: the number of input dimensions to the function 
+  session: a tf session object
   """
-  opts = {}
-  opts["output_dim"] = [1, 1]
-  opts["grad_dim"] = [1, nd]
-  fn = tf.function(tf_jaxmodel_wrapper(functn), jit_compile=True, autograph=False)
-
-  fn_callback = casadi_model(nd, fn, opts=opts)
+  x = tf.placeholder(shape=(nd,1),dtype=tf.float64)
+  fn = tf_jaxmodel_wrapper(functn)
+  y = fn(x)
+  fn_callback = TensorFlowEvaluator([x], [y], session)
 
   return fn_callback
 
+
+class TensorFlowEvaluator(casadi.Callback):
+  def __init__(self,t_in,t_out,session, opts={}):
+    """
+      t_in: list of inputs (tensorflow placeholders)
+      t_out: list of outputs (tensors dependeant on those placeholders)
+      session: a tensorflow session
+    """
+    casadi.Callback.__init__(self)
+    assert isinstance(t_in,list)
+    self.t_in = t_in
+    assert isinstance(t_out,list)
+    self.t_out = t_out
+    self.construct("TensorFlowEvaluator", opts)
+    self.session = session
+    self.refs = []
+
+  def get_n_in(self): return len(self.t_in)
+  def get_n_out(self): return len(self.t_out)
+
+  def get_sparsity_in(self,i):
+      return casadi.Sparsity.dense(*self.t_in[i].get_shape().as_list())
+
+  def get_sparsity_out(self,i):
+      return casadi.Sparsity.dense(*self.t_out[i].get_shape().as_list())
+
+  def eval(self,arg):
+    # Associate each tensorflow input with the numerical argument passed by CasADi
+    d = dict((v,arg[i].toarray()) for i,v in enumerate(self.t_in))
+    # Evaluate the tensorflow expressions
+    ret = self.session.run(self.t_out,feed_dict=d)
+    return ret
+
+  # Vanilla tensorflow offers just the reverse mode AD
+  def has_reverse(self,nadj): return nadj==1
+  def get_reverse(self,nadj,name,inames,onames,opts):
+    # Construct tensorflow placeholders for the reverse seeds
+    adj_seed = [tf.placeholder(shape=self.sparsity_out(i).shape,dtype=tf.float64) for i in range(self.n_out())]
+    # Construct the reverse tensorflow graph through 'gradients'
+    grad = tf.gradients(self.t_out, self.t_in,grad_ys=adj_seed)
+    # Create another TensorFlowEvaluator object
+    callback = TensorFlowEvaluator(self.t_in+adj_seed,grad,self.session)
+    # Make sure you keep a reference to it
+    self.refs.append(callback)
+
+    # Package it in the nominal_in+nominal_out+adj_seed form that CasADi expects
+    nominal_in = self.mx_in()
+    nominal_out = self.mx_out()
+    adj_seed = self.mx_out()
+    return casadi.Function(name,nominal_in+nominal_out+adj_seed,callback.call(nominal_in+adj_seed),inames,onames)
 
 
 def tf_jaxmodel_wrapper(jax_callable):
@@ -357,6 +287,170 @@ def return_most_feasible_penalty_subproblem_uncons(init, xs, objective_func):
     # get gradients of solutions, value of objective and value of constraints
     return None, (objective_func(solution), jacfwd(objective_func)(solution))
 
+
+
+
+# code graveyard 
+
+
+'''
+def casadi_ms_solver_call(objective_func, equality_constraints, bounds, initial_guess, n_g):
+    """
+    objective: casadi callback
+    equality_constraints: casadi callback
+    bounds: list
+    initial_guess: numpy array
+    """
+    # Define the box bounds
+    lbx = [bounds[0][i] for i in range(bounds[0].shape[0])] 
+    ubx = [bounds[1][i] for i in range(bounds[1].shape[0])] 
+
+    n_d = len(lbx)
+    n_starts = initial_guess.shape[0]
+
+    # Get the casadi callbacks required 
+    cost_fn   = casadifyV2(objective_func, n_d, 1)
+    eq_cons   = casadifyV2(equality_constraints, n_d, n_g)
+    
+    # casadi work up
+    x = MX.sym('x', n_d, 1)
+    j = cost_fn(x)
+    g = eq_cons(x)
+
+    F = Function('F', [x], [j])
+    G = Function('G', [x], [g])
+
+    # Define the bounds for the equality constraints
+    lbg = 0
+    ubg = 0
+
+    # Define the NLP
+    nlp = {'x':x , 'f':F(x), 'g': G(x)}
+
+    # Define the IPOPT solver
+    options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
+    nlpsolver = nlpsol('solver', 'ipopt', nlp, options)
+
+    result = nlpsolver(x0 =[initial_guess.squeeze()[i] for i in range(n_d)], lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+
+    return nlpsolver, result
+
+
+def casadi_multi_start_solver_call(objective_func, equality_constraints, bounds, initial_guess, device_count,):
+    """
+    objective: casadi callback
+    equality_constraints: casadi callback
+    bounds: list
+    initial_guess: numpy array
+    """
+    n_d = len(bounds[0])
+    n_starts = initial_guess.shape[0]
+    print(n_d)
+
+    # Get the casadi callbacks required 
+    cost_fn   = casadifyV2(objective_func, n_d)
+    eq_cons   = casadifyV2(equality_constraints, n_d)
+    
+    # casadi work up
+    x = MX.sym('x', n_d, 1)
+    j = cost_fn(x)
+    g = eq_cons(x)
+
+    F = Function('F', [x], [j])
+    G = Function('G', [x], [g])
+
+    # Define the box bounds
+    lbx = bounds[0] 
+    ubx = bounds[1]
+
+    # Define the bounds for the equality constraints
+    lbg = 0
+    ubg = 0
+
+    # Define the NLP
+    nlp = {'x':x , 'f':F(x), 'g': G(x)}
+
+    # Define the IPOPT solver
+    options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
+    nlpsolver = nlpsol('solver', 'ipopt', nlp, options)
+
+    class Solver(object):
+      def __init__(self, x0):
+          self.x0 = x0
+          self.nlpsolver = nlpsolver
+
+      def solve(self):
+          self.sol = self.nlpsolver(x0 = self.x0)
+
+    def solve(obj, q):
+      obj.solve()
+      q.put(obj)
+      
+
+    # Start worker processes    
+    num_workers = min(1,min(device_count, n_starts))
+    # definition of the worker function
+    tasks = [initial_guess[i,:].squeeze() for i in range(num_workers)]  # List of input data
+    q = mp.Queue()
+    solver_i = [Solver(task) for task in tasks]
+    workers = [mp.Process(target = solve, args = (solver_i[i], q)) for i in range(num_workers)]
+    
+    for w in workers:
+      w.start()
+
+    # Enqueue tasks
+    
+    q.empty() # returns False
+
+    result = q.get() # Fails with the error given below
+
+    """# Wait for all workers to finish
+    for w in workers:
+      w.join()
+
+    # Collect results
+    results = [None] * len(tasks)
+    while not q.empty():
+      result, i = q.get()
+      results[i] = result
+    """
+    minima, _ = min(results, key=lambda x: x[0])
+
+    if minima == np.inf:
+       return None, None
+    else:
+       _, optimal_x = results[np.argmin([res[0] for res in results])]
+       return minima, optimal_x
+
+
+def evaluate_casadi_nlp_ms(initial_guess, objective_func, equality_constraints, bounds, device_count):
+    """
+    objective_func: function
+    equality_constraints: function
+    bounds: list
+
+    """
+
+    # store for solutions
+    result_f, result_x = casadi_multi_start_solver_call(objective_func, equality_constraints, bounds, initial_guess, device_count)
+
+    return result_f, result_x
+   
+
+def casadifyV2(functn, nd, ng):
+  """
+  # casadify a jax function via jax-tf-casadi wrappers
+  functn: a jax function 
+  nd: the number of input dimensions to the function 
+  """
+  opts = {}
+  opts["output_dim"] = [1, ng]
+  opts["grad_dim"] = [ng, nd]
+  fn = tf.function(tf_jaxmodel_wrapper(functn), jit_compile=True, autograph=False)
+
+  fn_callback = casadi_model(nd, fn, opts=opts)
+
+  return fn_callback
 
 
 class TensorFlowEvaluator(casadi.Callback):
@@ -446,3 +540,61 @@ class casadi_model(TensorFlowEvaluator):
   def eval(self,arg):
     ret = TensorFlowEvaluator.eval(self, arg)
     return [ret]
+  
+
+
+def casadi_nlp_construction(objective_func, equality_constraints, bounds):
+    
+    objective: casadi callback
+    equality_constraints: casadi callback
+    bounds: list
+    initial_guess: numpy array
+    
+    n_d = len(bounds[0])
+    print(n_d)
+
+    # Get the casadi callbacks required 
+    cost_fn   = casadifyV2(objective_func, n_d)
+    eq_cons   = casadifyV2(equality_constraints, n_d)
+    
+    # casadi work up
+    x = MX.sym('x', n_d, 1)
+    j = cost_fn(x)
+    g = eq_cons(x)
+
+    F = Function('F', [x], [j])
+    G = Function('G', [x], [g])
+
+    # Define the box bounds
+    lbx = bounds[0] 
+    ubx = bounds[1]
+
+    # Define the bounds for the equality constraints
+    lbg = 0
+    ubg = 0
+
+    # Define the NLP
+    nlp = {'x':x , 'f':F(x), 'g': G(x)}
+
+    # Define the IPOPT solver
+    options = {"ipopt": {"hessian_approximation": "limited-memory"}} #'ipopt.print_level':0, 'print_time':0}
+  
+    solver = nlpsol('solver', 'ipopt', nlp, options)
+
+
+    
+    return solver, [lbx, ubx, lbg, ubg], nlp
+
+def casadi_solver_call(solver, constraints, initial_guess, nlp):
+    
+    solver: casadi solver
+    bounds: generator
+    initial_guess: numpy array
+    
+    [lbx, ubx, lbg, ubg] = constraints
+
+    solution = solver(x0=initial_guess, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+
+    return solver, solution
+
+'''

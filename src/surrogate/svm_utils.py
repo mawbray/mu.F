@@ -131,7 +131,7 @@ def convert_svm_to_jax(pipeline):
     @jit
     def svm_unstandardised(x):
         # Compute the decision function
-        x_ = (x - x_mean) / x_std
+        x_ = (x.reshape(-1,) - x_mean.reshape(-1,)) / x_std.reshape(-1,)
         x_ = x_.reshape(1, -1)
         decision = jnp.dot(coefficients, rbf_kernel(support_vectors, x_,epsilon=kernel_param)) + intercept
         # Apply the sign function to get the predicted class

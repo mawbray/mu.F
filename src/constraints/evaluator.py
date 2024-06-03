@@ -13,7 +13,8 @@ import ray
 #ray.init()
 
 from constraints.solvers.functions import multi_start_solve_bounds_nonlinear_program, generate_initial_guess
-from constraints.solvers.utilities import worker_function, parallelise_ray_batch, determine_batches, create_batches   # TODO move worker fucntions to solvers.
+from constraints.solvers.utilities import worker_function, parallelise_ray_batch, determine_batches, create_batches   
+from constraints.solvers.constructor import solver_construction
 
 class constraint_evaluator_base(ABC):
     def __init__(self, cfg, graph, node):
@@ -153,7 +154,7 @@ class coupling_surrogate_constraint_base(constraint_evaluator_base):
         return result_dict
     
     def simple_evaluation(self, solver, initial_guess):
-        return [solve(initg) for solve, initg in zip(solver, initial_guess)]
+        return solver(initial_guess)
 
 
 
@@ -207,15 +208,12 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         inputs: samples in the extended design space
         outputs: the constraint evaluations
         """
-        n_theta = inputs.shape[1]
         results = []
-        for i in range(n_theta):
-            objective = self.evaluate_serial(inputs[:,i,:])
-            if objective.ndim < 2: objective = objective.reshape(-1, 1)
-            if objective.ndim < 3: objective = jnp.expand_dims(objective, axis=1)
-            results.append(objective)
+        for i in range(inputs.shape[0]):
+            results.append(self.evaluate_serial(inputs[i,:].reshape(1,-1)))
+        
 
-        return jnp.concatenate(results, axis=1)
+        return jnp.vstack(results)
 
             
     def evaluate_serial(self, inputs):
@@ -224,19 +222,18 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         """
         objective, constraints, bounds = self.prepare_forward_problem(inputs)
         solver_object = self.load_solver()  # solver type has been defined elsewhere in the case study/graph construction. 
-        pred_fn_evaluations = {}
+        pred_fn_evaluations = {pred: {} for pred in self.graph.predecessors(self.node)}
         # iterate over predecessors and evaluate the constraints
         for pred in self.graph.predecessors(self.node):
-            for p in range(len(constraints[pred])): # TODO pick up here tomorrow.
-                forward_solver = solver_object.from_method(self.cfg, solver_object.solver_type, objective[pred][p], bounds[pred][p], constraints[pred][p])
+            for p in range(len(constraints[pred])): 
+                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, objective[pred][p], bounds[pred][p], constraints[pred][p])
                 initial_guess = forward_solver.initial_guess()
-                pred_fn_evaluations[pred] = self.evaluation_method(forward_solver, initial_guess)
-            forward_solver = [solver_object.from_method(solver_object.cfg, solver_object.solver_type, objective[pred][i], bounds[pred][i], constraints[pred][i]) for i in range(inputs.shape[0])]
-            initial_guesses = [solve.initial_guess() for solve in forward_solver]
-            pred_fn_evaluations[pred] = self.evaluation_method(forward_solver, initial_guesses) # TODO make sure this is compatible with format returned by solver
+                pred_fn_evaluations[pred][p] = self.evaluation_method(forward_solver, initial_guess)
+                if np.array(pred_fn_evaluations[pred][p]['objective']) <= 0: break
+                
 
         # reshape the evaluations and just get information about the constraints.
-        fn_evaluations = [pred_fn_evaluations[pred]['objective'] for pred in self.graph.predecessors(self.node)]
+        fn_evaluations = [min([jnp.array(pred_fn_evaluations[pred][p]['objective']) for p in pred_fn_evaluations[pred].keys()]) for pred in self.graph.predecessors(self.node)]
 
         return self.shaping_function(jnp.concatenate(fn_evaluations, axis=-1))
 
@@ -256,7 +253,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
 
         # get the inputs from the predecessors of the node
         pred_inputs = self.get_predecessors_inputs(inputs)
-        pred_uncertain_params = self.get_predecessors_uncertain(inputs)
+        pred_uncertain_params = self.get_predecessors_uncertain()
 
         # prepare the forward surrogates
         forward_constraints = {pred: {p: None for p in range(len(pred_uncertain_params[pred]))} for pred in self.graph.predecessors(self.node)}
@@ -269,14 +266,14 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                 # load the forward surrogate
                 surrogate = self.graph.edges[pred, self.node]["forward_surrogate"]
                 # create a partial function for the optimizer to evaluate
-                forward_constraints[pred][p] = jit(partial(lambda x, up, inputs: surrogate(x).reshape(-1,) - inputs.reshape(-1,), inputs=pred_inputs[pred][p]))
+                forward_constraints[pred][p] = partial(lambda x, up, inputs: surrogate(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_inputs[pred], up=jnp.array(pred_uncertain_params[pred][p]['c']))
                 # load the standardised bounds
                 decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
-                if self.cfg.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
+                if self.cfg.solvers.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
                 forward_bounds[pred][p] = decision_bounds.copy()
                 # load the forward objective
                 classifier = self.graph.nodes[pred]["classifier"]
-                forward_objective[pred][p] = jit(lambda x: classifier(x).squeeze())
+                forward_objective[pred][p] = lambda x: classifier(x).reshape(-1,1)
                
         # return the forward surrogates and decision bounds
         return forward_objective, forward_constraints, forward_bounds
@@ -300,6 +297,17 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
             return [(decision - mean) / std for decision in decisions]
         except:
             return decisions
+        
+def assess_feasibility(feasibility, input):
+    """
+    Assesses the feasibility of the input
+    """
+    if feasibility == 'positive':
+        return input >= 0
+    elif feasibility == 'negative':
+        return input <= 0
+    else:
+        raise ValueError("Invalid notion of feasibility.")
     
 
 """ ---- JaxOpt solver evaluation methods (written as pure functions not classes) --- """

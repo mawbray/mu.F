@@ -53,9 +53,9 @@ parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weigh
       w: .5
     - c: [0.003, -0.002]
       w: .5
-  - - c: [4, -4]
+  - - c: [0.0004, -0.0004]
       w: .5
-    - c: [3, -3]
+    - c: [0.0003, -0.0003]
       w: .5
   - - c: [0.002, -0.001]
       w: .5
@@ -88,8 +88,8 @@ process_space_names: # create unit wise list
 
 
 mode:
-  - 'forward' # 'backward' #
-  #- 'forward-backward'
+  - 'backward' #
+  - 'forward' #'forward-backward'
 
 
 evaluation_mode: 'jax-pmap' #serial
