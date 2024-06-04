@@ -40,7 +40,8 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         # solve extended DS using NS
         solver =  construct_deus_problem(DEUS, problem_sheet, model)
         solver.solve()
-        feasible_set, infeasible_set = solver.get_solution()
+        feasible, infeasible = solver.get_solution()
+        feasible_set, feasible_set_prob = feasible[0], feasible[1]
         # update the graph with the number of function evaluations
         graph.nodes[node]["fn_evals"] = model.function_evaluations
         # estimate box for bounds for DS downstream
@@ -233,9 +234,7 @@ def classifier_construction(cfg, graph, node, iterate):
 class subproblem_model(ABC):
     def __init__(self, unit_index, cfg, G, mode, max_devices):     
         """
-         TODO 
-            1 - validate data storage and retrieval
-            2 - validate constraint evaluations under uncertainty
+        Class to construct the subproblem model for the DEUS solver.
         """
           
         # function evaluations, graph and unit-index intiialisation

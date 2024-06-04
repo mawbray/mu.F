@@ -12,6 +12,7 @@ from unit_evaluators.constructor import network_simulator
 from constraints.constructor import constraint_evaluator
 from samplers.space_filling import sobol_sampler
 from samplers.appproximators import calculate_box_outer_approximation as approximator 
+from direct import apply_direct_method
 
 from cs_assembly import case_study_constructor
 from utils import *
@@ -41,52 +42,72 @@ def main(cfg: DictConfig) -> None:
     # Save the graph to a file
     save_graph(G.copy(), "initial")
 
-    # iterate over the modes defined in the config file
-    mode = cfg.case_study.mode
 
-    # getting precedence order
-    precedence_order = list(nx.topological_sort(G))
+    if cfg.method == 'decomposition':
 
-    for i, m in enumerate(mode):
-        # initialisation
-        if (i == 0) and not (m == 'forward'):
-            G = initialisation(cfg, G, network_simulator, constraint_evaluator, sobol_sampler(), approximator).run() # TODO update uncertainty evaluations
-            # visualisation of initialisation
-            visualiser(cfg, G, string='initialisation', path=f'initialisation_{m}_iterate_{i}').visualise()
+        # iterate over the modes defined in the config file
+        mode = cfg.case_study.mode
+
+        # getting precedence order
+        precedence_order = list(nx.topological_sort(G))
+
+        for i, m in enumerate(mode):
+            # initialisation
+            if (i == 0) and not (m == 'forward'):
+                G = initialisation(cfg, G, network_simulator, constraint_evaluator, sobol_sampler(), approximator).run() # TODO update uncertainty evaluations
+                # visualisation of initialisation
+                visualiser(cfg, G, string='initialisation', path=f'initialisation_{m}_iterate_{i}').visualise()
+            
+            # decomposition
+            G = apply_decomposition(cfg, G, precedence_order, mode=m, max_devices=max_devices)
+
+            # visualisation of decomposition
+            visualiser(cfg, G, string='decomposition', path=f'decomposition_{m}_iterate_{i}').visualise()
+            save_graph(G.copy(), m + '_iterate_' + str(i))
+
+            # reconstruction
+            if cfg.reconstruction.reconstruct[i]:
+                network_model = network_simulator(cfg, G, constraint_evaluator)
+                joint_live_set, joint_live_set_prob = reconstruction(cfg, G, network_model).run() # TODO update uncertainty evaluations
+                
+                # update the graph with the function evaluations
+                for node in G.nodes():
+                    G.nodes[node]["fn_evals"] += network_model.function_evaluations
+                
+                # visualisation of reconstruction
+                if cfg.reconstruction.plot_reconstruction == 'nominal_map':
+                    df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
+                elif cfg.reconstruction.plot_reconstruction == 'probability_map':
+                    df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
+                    df['probability'] = joint_live_set_prob
+                visualiser(cfg, G, df, 'reconstruction', path=f'reconstruction_{m}_iterate_{i}').visualise()
+                df.to_excel(f'inside_samples_{mode}_iterate_{i}.xlsx')
+                save_graph(G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))
+
+            # TODO generalise this to all graphs based on in-degree and out-degree
+            """if mode == 'forward':
+                precedence_order.pop(-1)
+            elif mode == 'backward':
+                precedence_order.pop(0)
+            elif mode == 'forward-backward':
+                precedence_order.pop(-1)"""
         
-        # decomposition
-        G = apply_decomposition(cfg, G, precedence_order, mode=m, max_devices=max_devices)
+    elif cfg.method == 'direct':
 
-        # visualisation of decomposition
-        visualiser(cfg, G, string='decomposition', path=f'decomposition_{m}_iterate_{i}').visualise()
-        save_graph(G.copy(), m + '_iterate_' + str(i))
+        feasible, infeaible = apply_direct_method(cfg, G)
+        (joint_live_set, joint_live_set_prob) = feasible
+         # visualisation of reconstruction
+        if cfg.reconstruction.plot_reconstruction == 'nominal_map':
+            df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
+        elif cfg.reconstruction.plot_reconstruction == 'probability_map':
+            df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
+            df['probability'] = joint_live_set_prob
+        visualiser(cfg, G, data=df, string='design_space', path=f'design_space_direct').visualise()
+        save_graph(G.copy(), 'direct_complete')
 
-        # reconstruction
-        if cfg.reconstruction.reconstruct[i]:
-            network_model = network_simulator(cfg, G, constraint_evaluator)
-            joint_live_set, joint_live_set_prob = reconstruction(cfg, G, network_model).run() # TODO update uncertainty evaluations
-            
-            # update the graph with the function evaluations
-            for node in G.nodes():
-                G.nodes[node]["fn_evals"] += network_model.function_evaluations
-            
-            # visualisation of reconstruction
-            if cfg.reconstruction.plot_reconstruction == 'nominal_map':
-                df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
-            elif cfg.reconstruction.plot_reconstruction == 'probability_map':
-                df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
-                df['probability'] = joint_live_set_prob
-            visualiser(cfg, G, df, 'reconstruction', path=f'reconstruction_{m}_iterate_{i}').visualise()
-            df.to_excel(f'inside_samples_{mode}_iterate_{i}.xlsx')
-            save_graph(G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))
 
-        # TODO generalise this to all graphs based on in-degree and out-degree
-        if mode == 'forward':
-            precedence_order.pop(-1)
-        elif mode == 'backward':
-            precedence_order.pop(0)
-        elif mode == 'forward-backward':
-            precedence_order.pop(-1)
+
+
 
     # The following loop logs the function evaluations for each node in the graph.
     for node in G.nodes():

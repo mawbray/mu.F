@@ -48,6 +48,11 @@ unit_params_fn:
   - None
   - None
 
+n_theta:
+  - 2
+  - 2
+  - 2
+
 parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weight in posteiror distribution]}]]
   - - c: [.001, -0.00]
       w: .5
@@ -76,8 +81,8 @@ design_space_dimensions:
 - 'U1: Blade speed (RPM)'
 - 'U2: Lubricant (kg/h)'
 - 'U2: Blade speed (RPM)'
-- 'U3: P.C. Pressure (MPa)'
-- 'U3: M.C. Pressure (MPa)'
+- 'U3: P.C.P. (MPa)'
+- 'U3: M.C.P. (MPa)'
 
 
 process_space_names: # create unit wise list
@@ -88,8 +93,7 @@ process_space_names: # create unit wise list
 
 
 mode:
-  - 'backward' #
-  - 'forward' #'forward-backward'
+  - 'backward' # #- 'forward' #'forward-backward'
 
 
 evaluation_mode: 'jax-pmap' #serial

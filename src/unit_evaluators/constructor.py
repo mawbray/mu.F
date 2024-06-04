@@ -301,3 +301,79 @@ class network_simulator(ABC):
             self.function_evaluations += g.shape[0]*g.shape[1]
         return constraints, edge_data
         
+    
+    def evaluate_direct(self, decisions, uncertain_params):
+        """
+        Evaluates the network for the given decisions and uncertain parameters.
+
+        Args:
+            decisions (array): Array of decisions.
+            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
+
+        Returns:
+            dict: A dictionary where the keys are the nodes and the values are the constraints for each node.
+            dict: A dictionary where the keys are the edges and the values are the input data for each edge.
+
+        The method simulates the network and returns the constraints and the input data for each edge.
+        """
+        n_theta = [self.graph.nodes[node]['n_theta'] for node in self.graph.nodes]
+        nu_pk = 0
+        nu_pk_1 = 0
+        n_d = 0
+        for node in self.graph.nodes:
+            if not (uncertain_params.all() == None) :
+                nu_pk = nu_pk_1 + n_theta[node]
+                u_p = uncertain_params[:,nu_pk_1:nu_pk]
+                if u_p.ndim == 1:
+                    u_p = jnp.expand_dims(u_p, axis=1)
+
+                nu_pk_1 = nu_pk
+
+
+            if self.graph.in_degree()[node] == 0:
+                if not (self.cfg.model.root_node_inputs[node] == 'None'):
+                    inputs = jnp.array([self.cfg.model.root_node_inputs[node]]*decisions.shape[0])
+                else:
+                    inputs = jnp.empty((decisions.shape[0], u_p.shape[0], 0))
+            else:
+                inputs = jnp.hstack([jnp.copy(self.graph.edges[predecessor, node]['input_data_store']) for predecessor in self.graph.predecessors(node)])
+
+            unit_nd = self.graph.nodes[node]['n_design_args']
+            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, u_p)
+            
+            for successor in self.graph.successors(node):
+                self.graph.edges[node, successor]['input_data_store'] = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))
+
+            node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
+
+            self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, outputs)
+
+
+            n_d += unit_nd
+
+        # constraint evaluation, information for extended KS bounds
+        return {node: self.graph.nodes[node]['constraint_store'] for node in self.graph.nodes}, {edge: self.graph.edges[edge[0],edge[1]]['input_data_store'] for edge in self.graph.edges}
+    
+
+    def direct_evaluate(self, decisions, uncertain_params):
+        """
+        Evaluates the network for the given decisions and uncertain parameters.
+
+        Args:
+            decisions (array): Array of decisions.
+            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
+
+        Returns:
+            dict: A dictionary where the keys are the nodes and the values are the constraints for each node.
+            dict: A dictionary where the keys are the edges and the values are the input data for each edge.
+
+        The method simulates the network and returns the constraints and the input data for each edge.
+        """
+        constraints, _ = self.evaluate_direct(decisions, uncertain_params)
+        for g in constraints.values():
+            self.function_evaluations += g.shape[0]*g.shape[1]
+
+        cons_ = jnp.concatenate([cons for cons in constraints.values()], axis=-1)
+
+        return [cons_[i,:,:] for i in range(cons_.shape[0])]
+ 

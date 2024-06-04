@@ -9,5 +9,6 @@ defaults:
   - init: tablet_press #serial_batch_reactor
   - graph: tablet_press #serial_batch_reactor
 
-max_devices: 20
+max_devices: 10
 formulation: probabilistic # deterministic
+method: direct # decomposition # #

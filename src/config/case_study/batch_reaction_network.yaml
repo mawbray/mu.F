@@ -1,0 +1,71 @@
+case_study: batch_reaction_network
+
+vmap_evaluations: True
+
+adjacency_matrix:
+  - [0, 1]
+  - [0, 0]
+
+n_design_args:
+  - 2
+  - 2
+
+n_input_args:
+  (0,1): 1
+
+KS_bounds:  # unit, arg, b
+  - - - 900
+      - 1500
+    - - 250
+      - 1000
+  - - - 900
+      - 1500
+    - - 250
+      - 1000
+
+fn_evals: 
+  - 0
+  - 0
+
+unit_op:
+  - 'dynamic'
+  - 'dynamic'
+
+unit_params_fn:
+  - Arrhenius
+  - Arrhenius
+
+parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weight in posteiror distribution]}]]
+  - - c: [1,2] # replace with realisations of pre-exponential constants for each reaction
+      w: .5
+    - c: [1,2]
+      w: .5
+  - - c: [1,2]
+      w: .5
+    - c: [1,2]
+      w: .5
+
+parameters_best_estimate: # list of lists [node][[param1]] most likely estimate
+  - [1, 2] # replace with nominal values of pre-exponential constants for each reaction
+  - [1, 2]
+
+extendedDS_bounds: [None, None]
+
+
+design_space_dimensions:
+- 'U1: Batch time (mins)'
+- 'U1: Temp. (K)'
+- 'U2: Batch time (mins)'
+- 'U2: Temp. (K)'
+
+process_space_names:
+  - ['U1: Batch time (mins)','U1: Temp. (K)']
+  - ['U2: Batch time (mins)','U2: Temp. (K)', 'Conc. A (mol/L)','Conc. B (mol/L)']
+
+
+mode:
+  - 'backward' #'forward'
+  #- 'forward-backward'
+
+
+evaluation_mode: 'jax-pmap' #serial

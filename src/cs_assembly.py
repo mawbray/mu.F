@@ -47,6 +47,7 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
 
     # add nodes properties to the graph
     G.add_arg_to_nodes('n_design_args', cfg.case_study.n_design_args)
+    G.add_arg_to_nodes('n_theta', cfg.case_study.n_theta)
     G.add_arg_to_nodes('KS_bounds', cfg.case_study.KS_bounds)
     G.add_arg_to_nodes('parameters_best_estimate', cfg.case_study.parameters_best_estimate)
     G.add_arg_to_nodes('parameters_samples', cfg.case_study.parameters_samples)

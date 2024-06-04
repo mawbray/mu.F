@@ -77,16 +77,31 @@ class construct_deus_problem(construct_base):
             samples = output["solution"]["deterministic_phase"]["samples"]
         n_d = len(samples["coordinates"][0])
         inside_samples_coords = np.empty((0, n_d))
+        inside_samples_prob = []
         outside_samples_coords = np.empty((0, n_d))
+        outside_sample_prob = []
         for i, phi in enumerate(samples["phi"]):
             if phi >= problem_description["problem"]["target_reliability"]:
                 inside_samples_coords = np.append(inside_samples_coords,
                                                 [samples["coordinates"][i]], axis=0)
+                inside_samples_prob.append(samples["phi"][i])
             else:
                 outside_samples_coords = np.append(outside_samples_coords,
                                                 [samples["coordinates"][i]], axis=0)
+                outside_sample_prob.append(samples["phi"][i])
                 
-        return inside_samples_coords, outside_samples_coords
+        return (inside_samples_coords, np.array(inside_samples_prob)), (outside_samples_coords, np.array(outside_sample_prob))
 
+
+    
+class construct_deus_problem_network(construct_deus_problem):
+    def __init__(self, sampler_class, problem_description: dict, model):
+        super().__init__(sampler_class, problem_description, model)
+
+    def load_model_to_sampler(self):
+        self.problem_description['solver']['settings']['score_evaluation']['constraints_func_ptr'] = self.model.direct_evaluate
+        self.problem_description['solver']['settings']['efp_evaluation']['constraints_func_ptr'] = self.model.direct_evaluate
+        return
+    
 
     
