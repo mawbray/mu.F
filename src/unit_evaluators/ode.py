@@ -124,8 +124,6 @@ def reactor_network_5(t: float, state: jnp.ndarray, parameters: jnp.ndarray):
 
 
 
-
-
 # define a dictionary that contains unit wise dynamics for each of the nodes in the graph in the case study
 case_studies = {'serial_mechanism_batch': {0: serial_mechanism_vc_batch_dynamics_u1, 1: serial_mechanism_vc_batch_dynamics_u2},
                 'batch_reaction_network': {0: reactor_network_4, 1: reactor_network_5}}

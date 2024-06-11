@@ -212,19 +212,23 @@ class apply_feasibility(feasibility_base):
         Method to evaluate the deterministic feasibility of the data
         """
         cond = []
+        labels = []
         for x, y in zip(X,Y):
             if self.cfg.samplers.notion_of_feasibility == 'positive':
-                select_cond = jnp.min(Y, axis=-1)  >= 0 
+                lab = jnp.min(y, axis=-1)
+                select_cond = lab  >= 0 
             else:
-                select_cond = jnp.max(Y, axis=-1)  <= 0  
+                lab = jnp.max(y, axis=-1) 
+                select_cond = lab  <= 0  
 
             cond.append(select_cond)
+            labels.append(lab)
             
 
         if not return_indices:
-            return jnp.vstack(X), jnp.vstack(Y)
+            return jnp.vstack(X), jnp.vstack(labels)
         else:
-            return  jnp.vstack(X), jnp.vstack(Y), select_cond.squeeze()
+            return  jnp.vstack(X), jnp.vstack(labels), cond
         
 
 

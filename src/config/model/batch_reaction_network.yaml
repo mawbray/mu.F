@@ -2,11 +2,12 @@
 
 arrhenius:
   EA: 
-    - - 2500.2 # AE R1
-      - 5000.1 # AE R2
-    - - 2500.2 # AE R1
-      - 5000.1 # AE R2
-
+    - - 158992.00000000003 # AE R1
+      - 158992.00000000003 # AE R2
+      - 158992.00000000003 # AE R3
+      - 158992.00000000003 # AE R4
+    - - 80073.392 # AE R1
+      - 40036.696 # AE R2
   R: 8.314 # ideal gas constant
 
 
@@ -14,9 +15,9 @@ root_node_inputs:
   - - 2000. # component 1
     - 0. # component 2
     - 0. # component 3
+    - 0. # component 4
+    - 0. # component 5
 
-uncertain_parameters:
-  n_theta: [0, 0]
 
 constraint:
   purity_u1: 0.65

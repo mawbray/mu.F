@@ -68,6 +68,13 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
     logging.info(f"Bounds: {bounds}")
     logging.info(f'EXTENDED DS DIM.: {len(bounds)}')
 
+    if cfg.formulation == 'deterministic': 
+        parameter_samples = [{'c': jnp.array(G.nodes[unit_index]['parameters_best_estimate']).squeeze(), 'w': 1.0}]
+    elif cfg.formulation == 'probabilistic':
+        parameter_samples = [{key: value for key,value in dict_.items()} for dict_ in G.nodes[unit_index]['parameters_samples']]
+    else: 
+        raise ValueError('Formulation not recognised')
+
         
     the_activity_form = {
         "activity_type": cfg.samplers.deus.activity_type,
@@ -78,11 +85,12 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
             "save_period": 1
         },
 
+        
         "problem": {
             "user_script_filename": "none",
             "constraints_func_name": "none",
             "parameters_best_estimate": [el for el in G.nodes[unit_index]['parameters_best_estimate']],
-            "parameters_samples": [{key: value for key,value in dict_.items()} for dict_ in G.nodes[unit_index]['parameters_samples']],
+            "parameters_samples": parameter_samples,
             "target_reliability": cfg.samplers.unit_wise_target_reliability[unit_index],
             "design_variables": [bound for bound in bounds.values()]
         },
@@ -180,6 +188,8 @@ def get_network_uncertain_params(cfg):
 
     concat_params = [jnp.hstack([jnp.array(list_of_params[i][k]).reshape(1,-1) for i in range(len(param_dict))]) for k in range(max_parameter_samples)]
     prod_weights = [jnp.prod(jnp.hstack([jnp.array(list_of_weights[i][k]).reshape(1,1) for i in range(len(param_dict))])) for k in range(max_parameter_samples)]
+    sum_prod_weights = jnp.sum(jnp.array(prod_weights))
+    prod_weights = [prod_weights[i]/sum_prod_weights for i in range(max_parameter_samples)]
     
     list_ = []
 
@@ -189,7 +199,9 @@ def get_network_uncertain_params(cfg):
     # getting nominal parameters
     nom_params = jnp.hstack([jnp.array(p).reshape(1,-1) for p in cfg.case_study.parameters_best_estimate]).squeeze()
 
-    return list_, nom_params
+    nom_p = [{'c': nom_params.squeeze(), 'w': 1.0}]
+
+    return list_, nom_params, nom_p
 
 
 def create_problem_description_deus_direct(cfg: DictConfig, G:nx.DiGraph):
@@ -197,8 +209,15 @@ def create_problem_description_deus_direct(cfg: DictConfig, G:nx.DiGraph):
 
     # This is a problem description generation method specific to DEUS
     bounds = get_network_bounds(G)
-    uncertain_params, nom_params = get_network_uncertain_params(cfg)
-    
+    uncertain_params, nom_params, n_p_samples = get_network_uncertain_params(cfg)
+
+
+    if cfg.formulation == 'deterministic': 
+        parameter_samples = n_p_samples
+    elif cfg.formulation == 'probabilistic':
+        parameter_samples = uncertain_params
+    else:
+        raise ValueError('Formulation not recognised')
 
     logging.info(f"Bounds: {bounds}")
     logging.info(f'DS DIM.: {len(bounds)}')
@@ -217,7 +236,7 @@ def create_problem_description_deus_direct(cfg: DictConfig, G:nx.DiGraph):
             "user_script_filename": "none",
             "constraints_func_name": "none",
             "parameters_best_estimate": [nom_params[i] for i in range(len(nom_params))],
-            "parameters_samples": uncertain_params,
+            "parameters_samples": parameter_samples,
             "target_reliability": cfg.samplers.target_reliability,
             "design_variables": [bound for bound in bounds.values()]
         },

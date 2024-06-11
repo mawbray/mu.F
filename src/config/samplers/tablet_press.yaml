@@ -1,6 +1,6 @@
 
-target_reliability: 0.5
-unit_wise_target_reliability: [0.833, 0.833, 0.833]
+target_reliability: 1.0
+unit_wise_target_reliability: [1.0, 1.0, 1.0]
 deus: 
   activity_type: 'dsc'
 
@@ -9,9 +9,9 @@ ku_approximation: 'box'
 vol_scale: 0.05
 
 ns:
-  n_live: 100
-  final_sample_live: 100  
-  n_replacements: 100
+  n_live: 100 # 4000
+  final_sample_live: 100  #1000 #4000  
+  n_replacements: 50
   n_iter: 15000 
   f0: 0.1
   alpha: 0.2

@@ -10,5 +10,5 @@ defaults:
   - graph: tablet_press #serial_batch_reactor
 
 max_devices: 10
-formulation: probabilistic # deterministic
-method: direct # decomposition # #
+formulation: deterministic # probabilistic 
+method: decomposition # direct #
