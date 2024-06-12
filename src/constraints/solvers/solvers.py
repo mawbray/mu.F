@@ -34,51 +34,6 @@ class solver_base(ABC):
     
 
 
-"""
-class casadi_box_eq_nlp_solver(solver_base):
-    def __init__(self, cfg, objective_func, equality_constraints, bounds):
-        super().__init__(cfg)
-        self.construct_solver(objective_func, equality_constraints, bounds)
-    
-    def __call__(self, initial_guesses):
-        return self.solve(initial_guesses)
-
-    def construct_solver(self, objective_func, equality_constraints, bounds):
-        self.n_d = len(bounds[0])
-        self.bounds = bounds
-        self.solver = partial(nlp_multi_start_casadi_eq_cons, objective_func=objective_func, equality_constraints=equality_constraints, bounds=bounds)
-        return
-    
-    def initial_guess(self):
-        return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
-    
-    def solve(self, initial_guesses):
-        solver, solution = self.solver(initial_guesses)
-        status = self.get_status(solver)
-        time = self.get_time(solver)
-        objective = self.get_objective(solution)
-        constraints = self.get_constraints(solution)
-
-        if not status:
-            logging.info('--- Solver did not converge ---')
-            logging.info(f'Objective: {objective}')
-            logging.info(f'Constraints: {constraints}')
-            logging.info(f'Time: wall - {time[0]}, process - {time[1]}')
-
-        return {'success': status, 'time': time, 'objective': objective, 'constraints': constraints}
-    
-    
-    def get_status(self, solver):
-        return solver.stats()['success']
-    
-    def get_objective(self, solution):
-        return solution['f']
-    
-    def get_constraints(self, solution):
-        return solution['np']['g']
-"""
-
-
 class serialms_casadi_box_eq_nlp_solver(solver_base):
     def __init__(self, cfg, objective_func, equality_constraints, bounds):
         super().__init__(cfg)
@@ -125,7 +80,81 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         return solution['g']
 
 
-"""    
+
+class jax_box_nlp_solver(solver_base):
+    def __init__(self, cfg, objective_func, bounds):
+        super().__init__(cfg)
+        self.construct_solver(objective_func, bounds)
+
+    def __call__(self, initial_guesses):
+        return self.solve(initial_guesses)
+
+    def construct_solver(self, objective_func, bounds):
+        self.n_d = len(bounds[0])
+        self.bounds = bounds
+        self.objective_func = objective_func
+        self.bounds = bounds
+        return    
+
+    def initial_guess(self):
+        return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
+    
+    def solve(self, initial_guesses):
+        solver = partial(multi_start_solve_bounds_nonlinear_program, objective_func=self.objective_func, bounds_=(self.bounds[0], self.bounds[1]))
+        objective, objective_grad, error = solver(initial_guesses)
+        return {'objective': objective, 'ojective_grad': objective_grad, 'error': error}
+    
+    def get_status(self, error):
+        return error <= self.cfg.jax_opt_options.error_tol 
+
+    def get_objective(self, objective):
+        return objective
+    
+
+
+"""
+class casadi_box_eq_nlp_solver(solver_base):
+    def __init__(self, cfg, objective_func, equality_constraints, bounds):
+        super().__init__(cfg)
+        self.construct_solver(objective_func, equality_constraints, bounds)
+    
+    def __call__(self, initial_guesses):
+        return self.solve(initial_guesses)
+
+    def construct_solver(self, objective_func, equality_constraints, bounds):
+        self.n_d = len(bounds[0])
+        self.bounds = bounds
+        self.solver = partial(nlp_multi_start_casadi_eq_cons, objective_func=objective_func, equality_constraints=equality_constraints, bounds=bounds)
+        return
+    
+    def initial_guess(self):
+        return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
+    
+    def solve(self, initial_guesses):
+        solver, solution = self.solver(initial_guesses)
+        status = self.get_status(solver)
+        time = self.get_time(solver)
+        objective = self.get_objective(solution)
+        constraints = self.get_constraints(solution)
+
+        if not status:
+            logging.info('--- Solver did not converge ---')
+            logging.info(f'Objective: {objective}')
+            logging.info(f'Constraints: {constraints}')
+            logging.info(f'Time: wall - {time[0]}, process - {time[1]}')
+
+        return {'success': status, 'time': time, 'objective': objective, 'constraints': constraints}
+    
+    
+    def get_status(self, solver):
+        return solver.stats()['success']
+    
+    def get_objective(self, solution):
+        return solution['f']
+    
+    def get_constraints(self, solution):
+        return solution['np']['g']
+
 @ray.remote
 class parallel_casadi_box_eq_nlp_solver(solver_base):
     def __init__(self, cfg, objective_func, equality_constraints, bounds):
@@ -210,33 +239,3 @@ class parallelms_casadi_box_eq_nlp_solver(solver_base):
     def get_constraints(self, solution):
         return solution['np']['g']
 """
-
-class jax_box_nlp_solver(solver_base):
-    def __init__(self, cfg, objective_func, bounds):
-        super().__init__(cfg)
-        self.construct_solver(objective_func, bounds)
-
-    def __call__(self, initial_guesses):
-        return self.solve(initial_guesses)
-
-    def construct_solver(self, objective_func, bounds):
-        self.n_d = len(bounds[0])
-        self.bounds = bounds
-        self.objective_func = objective_func
-        self.bounds = bounds
-        return    
-
-    def initial_guess(self):
-        return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
-    
-    def solve(self, initial_guesses):
-        solver = partial(multi_start_solve_bounds_nonlinear_program, objective_func=self.objective_func, bounds_=(self.bounds[0], self.bounds[1]))
-        objective, objective_grad, error = solver(initial_guesses)
-        return {'objective': objective, 'ojective_grad': objective_grad, 'error': error}
-    
-    def get_status(self, error):
-        return error <= self.cfg.jax_opt_options.error_tol 
-
-    def get_objective(self, objective):
-        return objective
-    
