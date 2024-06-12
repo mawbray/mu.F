@@ -99,28 +99,41 @@ def reactor_network_4(t: float, state: jnp.ndarray, parameters: jnp.ndarray):
 def reactor_network_5(t: float, state: jnp.ndarray, parameters: jnp.ndarray):
 
     # component_concentrations
-    Cb = state[0]
+    Ci = state[0]
     Cj = state[1]
-    Cm = state[2]
-    Cn = state[3]
+    Ck = state[2]
+    Cl = state[3]
+    Cb = state[4]
+    Cm = state[5]
+    Cn = state[6]
 
     # parameters
-    k1, k2, tf1 = parameters[0], parameters[1], parameters[2]
+    k1, k2, k3, k4, k5, k6, tf1 = parameters[0], parameters[1], parameters[2]
     
     # normalised rates
-    dCb = -(k1 + k2) * Cj * Cb
-    dCj =  -(k1 + k2) * Cj * Cb
-    dCm = k1 * Cj * Cb
-    dCn = k2 * Cj * Cb
+    # reaction_network4
+    dCi = -(k1 + k2) * Ci
+    dCj = k1 * Ci - k3 * Cj
+    dCk = k2 * Ci + k3 * Cj - k4 * Ck
+    dCl = - k4 * Ck 
+
+    # reaction_network5
+    dCb = -(k5 + k6) * Cj * Cb
+    dCj +=  -(k5 + k6) * Cj * Cb
+    dCm = k5 * Cj * Cb
+    dCn = k6 * Cj * Cb
 
     # differential equations
     dCb = dCb * tf1
     dCj = dCj * tf1
     dCm = dCm * tf1
     dCn = dCn * tf1
+    dCi = dCi * tf1
+    dCk = dCk * tf1 
+    dCl = dCl * tf1
 
 
-    return jnp.array([dCb, dCj, dCm, dCn])
+    return jnp.array([dCi, dCj, dCk, dCl, dCb, dCm, dCn])
 
 
 

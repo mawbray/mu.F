@@ -4,8 +4,11 @@ from constraints.functions import CS_holder
 from graph.graph_assembly import graph_constructor
 from graph.methods import CS_edge_holder, vmap_CS_edge_holder
 from constraints.solvers.constructor import solver_construction
+from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
 
+from functools import partial
 import logging
+import jax.numpy as jnp
 
 def case_study_constructor(cfg):
     """
@@ -33,7 +36,7 @@ def case_study_constructor(cfg):
 
 
 
-def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers):
+def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers, unit_params_fn):
     """
     Add miscellaneous information to the graph
     :param G: The graph constructor
@@ -53,7 +56,7 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     G.add_arg_to_nodes('parameters_samples', cfg.case_study.parameters_samples)
     G.add_arg_to_nodes('fn_evals', cfg.case_study.fn_evals)
     G.add_arg_to_nodes('unit_op', cfg.case_study.unit_op)
-    G.add_arg_to_nodes('unit_params_fn', cfg.case_study.unit_params_fn)
+    G.add_arg_to_nodes('unit_params_fn', unit_params_fn)
     G.add_arg_to_nodes('extendedDS_bounds', cfg.case_study.extendedDS_bounds)
     G.add_arg_to_nodes('constraints', constraint_dictionary)
     G.add_arg_to_nodes('forward_coupling_solver', solvers['forward_coupling_solver'])
@@ -75,6 +78,15 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
 
     return G
 
+
+def unit_params_fn(cfg, G):
+
+    if cfg.case_study.case_study == 'batch_reaction_network':
+        return {node: partial(arrhenius_kinetics_fn(Ea=cfg.model.arrhenius.Ea, R=cfg.model.arrhenius.R)) for node in G.G.nodes}
+    elif cfg.case_study.case_study == 'serial_mechanism_batch':
+        return {node: partial(arrhenius_kinetics_fn_2(Ea=cfg.model.arrhenius.Ea, A=cfg.model.arrhenius.A, R=cfg.model.arrhenius.R)) for node in G.G.nodes}
+    elif cfg.case_study.case_study == 'tablet_press':
+        return {node: lambda x, y: jnp.empty((x.shape[0],0)) for node in G.G.nodes}
 
 def solver_constructor(cfg, G):
 

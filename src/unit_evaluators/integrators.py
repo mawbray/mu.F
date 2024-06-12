@@ -25,13 +25,21 @@ from diffrax import Tsit5
 from unit_evaluators.ode import case_studies
 
 
-def unit_dynamics(params, u, uncertainty_params, cfg, node):   
+def unit_dynamics(design_params, u, decision_dependent, uncertainty_params, cfg, node):   
+    """
+    Here we assume that the dynamics are defined by a system of ODEs.
+    This is a general function that assumes initial conditions are defined by input parameters within the extended design space 
+    The design parameters, decision dependent parameters and uncertainty parameters are passed as arguments to the ODE function.
+    As of yet I am not sure how to handle the case where input args provide arguments to the ODE function in a general way. 
+    - NOTE to user, this is a single function which should be relatively easy to redefine to your case if the assumptions above do not hold for your system. 
+
+    """
 
     if params.ndim < 2:
-        params = jnp.expand_dims(params, axis=0)
+        params = jnp.expand_dims(design_params, axis=0)
 
     # defining the params to pass to the vector field
-    params = jnp.hstack([params, uncertainty_params.reshape(1,-1)]).squeeze()
+    params = jnp.hstack([params, decision_dependent, uncertainty_params.reshape(1,-1)]).squeeze()
 
     # defining the dynamics
     term = ODETerm(case_studies[cfg.case_study.case_study][node])

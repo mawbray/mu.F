@@ -68,10 +68,9 @@ class unit_evaluation(base_unit):
 
         dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
         if dd_params.ndim<2: dd_params = jnp.expand_dims(dd_params, axis=1)
-        sys_params = jnp.hstack([dd_params, design_args])
+        
 
-
-        return self.unit_cfg.evaluator(sys_params, input_args, uncertain_params)
+        return self.unit_cfg.evaluator(design_args, input_args, dd_params, uncertain_params)
 
 class subproblem_unit_wrapper(unit_evaluation):
     def __init__(self, cfg, graph, node):
@@ -155,20 +154,15 @@ class unit_cfg:
         if cfg.case_study.vmap_evaluations:
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
-                self.evaluator = vmap(vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0,0, None), out_axes=0), in_axes=(None, 1, 0), out_axes=1) # inputs are design args, input args, uncertain params
+                self.evaluator = vmap(vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0, 0, 0, None), out_axes=0), in_axes=(None, 1, 1, 0), out_axes=1) # inputs are design args, input args, deicsion_and_uncertainty_dependent_params, uncertain params
             elif graph.nodes[node]['unit_op'] == 'steady_state':
-                self.evaluator = vmap(vmap(jit(partial(unit_steady_state, cfg=cfg, node=node)), in_axes=(0,0, None), out_axes=0), in_axes=(None, 1, 0), out_axes=1)
+                self.evaluator = vmap(vmap(jit(partial(unit_steady_state, cfg=cfg, node=node)), in_axes=(0, 0, 0 None), out_axes=0), in_axes=(None, 1, 1, 0), out_axes=1)   
             else:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 
-            # --- set the decision dependent evaluation fn
-            if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
-                EA, R, A = jnp.array(cfg.model.arrhenius.EA[node]), jnp.array(cfg.model.arrhenius.R), jnp.array(cfg.model.arrhenius.A[node])
-                self.decision_dependent_params = vmap(partial(arrhenius, Ea=EA, R=R, A=A), in_axes=(0, None), out_axes=0)
-            elif graph.nodes[node]['unit_params_fn'] == 'None': # NOTE this allocation has not been tested
-                self.decision_dependent_params = lambda x, y: jnp.empty((x.shape[0],0))
-            else:
-                raise NotImplementedError('Not implemented error')
+            # --- set the decision dependent evaluation 
+            fn = graph.nodes[node]['unit_params_fn']
+            self.decision_dependent_params = vmap(vmap(fn, in_axes=(0, None), out_axes=0), in_axes=(None, 0), out_axes=1)
 
         # if vmap is not enabled in cfg, set the unit evaluation and decision dependent evaluation functions without using vmap
         else: 
@@ -181,13 +175,8 @@ class unit_cfg:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 
             # --- set the decision dependent evaluation fn
-            if graph.nodes[node]['unit_params_fn'] == 'Arrhenius':
-                EA, R, A = jnp.array(cfg.model.arrhenius.EA[node]), jnp.array(cfg.model.arrhenius.R), jnp.array(cfg.model.arrhenius.A[node])
-                self.decision_dependent_params = partial(arrhenius, Ea=EA, R=R, A=A)
-            elif graph.nodes[node]['unit_params_fn'] == 'None':
-                self.decision_dependent_params = lambda x, y: jnp.empty((x.shape[0],0)) # NOTE this allocation has not been testeds
-            else:
-                raise NotImplementedError('Not implemented error')
+            fn = graph.nodes[node]['unit_params_fn']
+            self.decision_dependent_params = fn
 
         return
     

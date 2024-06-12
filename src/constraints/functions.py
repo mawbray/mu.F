@@ -102,6 +102,35 @@ def unit2_volume_ub(steady_state_outputs, cfg):
     return cfg.constraint.unit2_volume - unit_volume(steady_state_outputs, cfg)
 
 
+
+# -------------------------------------------------------------------------------- #
+# ---------------------------- batch_reaction_network ---------------------------- #
+# -------------------------------------------------------------------------------- #
+
+
+@partial(jit, static_argnums=(1))
+def purity_b(dynamic_profile, cfg):
+    pb = dynamic_profile[1] / jnp.sum(dynamic_profile[:])
+    # jax.debug.print('pb {x}', x=pb)
+    return pb
+
+
+@partial(jit, static_argnums=(1))
+def purity_c(dynamic_profile, cfg):
+    return dynamic_profile[2] / jnp.sum(dynamic_profile[:])
+
+@partial(jit, static_argnums=(1))
+def purity_unit_2_brn_lb(dynamic_profile, cfg):
+    return purity_b(dynamic_profile, cfg) - cfg.constraint.purity_u2
+
+
+@partial(jit, static_argnums=(1))
+def purity_unit_1_brn_ub(dynamic_profile, cfg):
+    return cfg.constraint.purity_u2 - purity_c(dynamic_profile, cfg)
+
+
+
+
 """ insert case study specific functions for constraints here"""
 CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_composition_lb, tablet_composition_ub], 2: [tablet_hardness_lb, tablet_hardness_ub, tablet_size_lb, tablet_size_ub]}, 
              'serial_mechanism_batch': {0: [purity_unit_1_ub], 1: [purity_unit_2_lb]}}
