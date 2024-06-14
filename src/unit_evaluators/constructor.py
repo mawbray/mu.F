@@ -67,7 +67,12 @@ class unit_evaluation(base_unit):
         """
 
         dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
-        if dd_params.ndim<2: dd_params = jnp.expand_dims(dd_params, axis=1)
+        
+        if dd_params.ndim<2: 
+            dd_params = jnp.expand_dims(dd_params, axis=1)
+
+        if input_args.ndim < 3:
+            input_args = jnp.expand_dims(input_args, axis=1)    
         
 
         return self.unit_cfg.evaluator(design_args, input_args, dd_params, uncertain_params)
@@ -111,7 +116,6 @@ class subproblem_unit_wrapper(unit_evaluation):
             else:
                 input_args = jnp.empty((design_args.shape[0], 0))
             
-        
         if input_args.ndim == 1:
             input_args = jnp.expand_dims(input_args, axis=1)
         if input_args.ndim == 2:
@@ -156,7 +160,7 @@ class unit_cfg:
             if graph.nodes[node]['unit_op'] == 'dynamic':
                 self.evaluator = vmap(vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0, 0, 0, None), out_axes=0), in_axes=(None, 1, 1, 0), out_axes=1) # inputs are design args, input args, deicsion_and_uncertainty_dependent_params, uncertain params
             elif graph.nodes[node]['unit_op'] == 'steady_state':
-                self.evaluator = vmap(vmap(jit(partial(unit_steady_state, cfg=cfg, node=node)), in_axes=(0, 0, 0 None), out_axes=0), in_axes=(None, 1, 1, 0), out_axes=1)   
+                self.evaluator = vmap(vmap(jit(partial(unit_steady_state, cfg=cfg, node=node)), in_axes=(0, 0, 0, None), out_axes=0), in_axes=(None, 1, 1, 0), out_axes=1)   
             else:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 

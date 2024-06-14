@@ -12,13 +12,13 @@ from jax import vmap, jit
 def data_IO_1(steady_state_outputs):
     # get mass flowrate of api and exipient
     return (steady_state_outputs[-2:].reshape(1, -1) * steady_state_outputs[-3
-    ].reshape(1, -1)).squeeze()
+    ].reshape(1, -1)).reshape(-1,)
 
 
 @jit
 def data_IO_2(steady_state_outputs):
     # get porosity
-    return steady_state_outputs[-1]
+    return steady_state_outputs[-1].squeeze()
 
 vmap_data_IO_1 = vmap(vmap(data_IO_1, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
 vmap_data_IO_2 = vmap(vmap(data_IO_2, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
@@ -31,7 +31,7 @@ def data_transform(dynamic_profile):
     x = dynamic_profile[:-1].reshape(
         1, -1
     )
-    return x
+    return x.squeeze()
 
 vmap_data_transform = vmap(vmap(data_transform, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
 

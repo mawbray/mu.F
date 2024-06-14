@@ -21,7 +21,7 @@ def serial_mechanism_vc_batch_dynamics_u1(
     Cc = state[2]
 
     # parameters
-    k1, k2, tf1 = parameters[0], parameters[1], parameters[3]
+    k1, k2, tf1 = parameters[2], parameters[3], parameters[1]
 
     # normalised rates
     dCa = -2 * k1 * Ca**2
@@ -55,7 +55,7 @@ def serial_mechanism_vc_batch_dynamics_u2(
     Cc = state[2]
 
     # parameters
-    k1, k2, tf1 = parameters[0], parameters[1], parameters[2]
+    k1, k2, tf1 = parameters[2], parameters[3], parameters[1]
 
     # normalised rates
     dCa = -2 * k1 * Ca**2

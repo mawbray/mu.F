@@ -30,7 +30,7 @@ def case_study_constructor(cfg):
     G = graph_constructor(cfg, cfg.case_study.adjacency_matrix)
 
     # Call the case_study_allocation function
-    G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers=solver_constructor(cfg, G))
+    G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers=solver_constructor(cfg, G), unit_params_fn=unit_params_fn(cfg, G))
 
     return G.get_graph()
 
@@ -82,11 +82,11 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
 def unit_params_fn(cfg, G):
 
     if cfg.case_study.case_study == 'batch_reaction_network':
-        return {node: partial(arrhenius_kinetics_fn(Ea=cfg.model.arrhenius.Ea, R=cfg.model.arrhenius.R)) for node in G.G.nodes}
+        return {node: partial(arrhenius_kinetics_fn_2,Ea=jnp.array(cfg.model.arrhenius.EA[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
     elif cfg.case_study.case_study == 'serial_mechanism_batch':
-        return {node: partial(arrhenius_kinetics_fn_2(Ea=cfg.model.arrhenius.Ea, A=cfg.model.arrhenius.A, R=cfg.model.arrhenius.R)) for node in G.G.nodes}
+        return {node: partial(arrhenius_kinetics_fn,Ea=jnp.array(cfg.model.arrhenius.EA[node]), A=jnp.array(cfg.model.arrhenius.A[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
     elif cfg.case_study.case_study == 'tablet_press':
-        return {node: lambda x, y: jnp.empty((x.shape[0],0)) for node in G.G.nodes}
+        return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
 
 def solver_constructor(cfg, G):
 

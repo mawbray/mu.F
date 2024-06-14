@@ -35,6 +35,10 @@ unit_params_fn:
   - Arrhenius
   - Arrhenius
 
+n_theta:
+  - 2
+  - 2
+
 parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weight in posteiror distribution]}]]
   - - c: [1,2]
       w: .5

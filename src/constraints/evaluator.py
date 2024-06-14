@@ -441,15 +441,21 @@ def standardise_inputs(graph, succ_inputs, out_node, input_indices):
     """
     Standardises the inputs
     """
-    mean, std = graph.nodes[out_node]['classifier_x_scalar'].mean, graph.nodes[out_node]['classifier_x_scalar'].std
-    return (succ_inputs - mean[input_indices].reshape(1,-1)) / std[input_indices].reshape(1,-1)
+    standardiser = graph.nodes[out_node]['classifier_x_scalar']
+    if standardiser is None: return succ_inputs
+    else:
+        mean, std = standardiser.mean, standardiser.std
+        return (succ_inputs - mean[input_indices].reshape(1,-1)) / std[input_indices].reshape(1,-1)
 
 def standardise_model_decisions(graph, decisions, out_node):
     """
     Standardises the decisions
     """
-    mean, std = graph.nodes[out_node]['classifier_x_scalar'].mean, graph.nodes[out_node]['classifier_x_scalar'].std
-    return [(decision - mean[:]) / std[:] for decision in decisions]
+    standardiser = graph.nodes[out_node]['classifier_x_scalar']
+    if standardiser is None: return decisions
+    else:
+        mean, std = standardiser.mean, standardiser.std
+        return [(decision - mean[:]) / std[:] for decision in decisions]
 
 
 def jax_pmap_evaluator(outputs, cfg, graph, node):

@@ -3,5 +3,9 @@
 reconstruct: 
   - True 
 
+
+plot_reconstruction: nominal_map # probability_map #
+
+
 reconstruction_scheme: uniform #sobol
-max_uncertain_samples: 1
+max_uncertain_samples: 1   # TODO move this to integration (currently set multiple times across the code base)

@@ -18,6 +18,7 @@ def save_graph(G, mode):
             G.edges[predec, node]["forward_surrogate"] = None # drop forward surrogates
         G.nodes[node]["constraints"] = None   # drop constraint functions (all of these are non-serializable.)
         G.nodes[node]['classifier'] = None 
+        G.nodes[node]['unit_params_fn'] = None
 
     # Save the graph to a file
     filename = f"graph_{mode}.pickle"

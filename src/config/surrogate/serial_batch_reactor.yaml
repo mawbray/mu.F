@@ -1,4 +1,5 @@
 surrogate_forward:
+  drop_uncertain_params: False
   ann:
     hidden_size_options: 
       - [50, 50]
