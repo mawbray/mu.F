@@ -10,5 +10,6 @@ defaults:
   - graph: serial_batch_reactor # tablet_press #serial_batch_reactor
 
 max_devices: 10
-formulation: deterministic # probabilistic 
+formulation: probabilistic # deterministic # 
 method: decomposition # direct #
+max_uncertain_samples: 50

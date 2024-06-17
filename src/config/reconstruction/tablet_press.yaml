@@ -5,4 +5,3 @@ reconstruct:
 plot_reconstruction: nominal_map # probability_map # 
 
 reconstruction_scheme: uniform #sobol
-max_uncertain_samples: 2  # drawn according to weights provided in the cs config file

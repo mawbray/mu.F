@@ -71,7 +71,10 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
     if cfg.formulation == 'deterministic': 
         parameter_samples = [{'c': jnp.array(G.nodes[unit_index]['parameters_best_estimate']).squeeze(), 'w': 1.0}]
     elif cfg.formulation == 'probabilistic':
-        parameter_samples = [{key: value for key,value in dict_.items()} for dict_ in G.nodes[unit_index]['parameters_samples']]
+        parameter_samples = [{key: value for key,value in dict_.items()} for i,dict_ in enumerate(G.nodes[unit_index]['parameters_samples']) if i < cfg.max_uncertain_samples]
+        sum_weights = jnp.sum(jnp.array([param['w'] for param in parameter_samples ])) # normalise weights to sum to 1
+        for param in parameter_samples:
+            param['w'] = param['w']/sum_weights
     else: 
         raise ValueError('Formulation not recognised')
 
@@ -178,7 +181,7 @@ def get_network_uncertain_params(cfg):
     param_dict = cfg.case_study.parameters_samples
 
     # getting uncertain parameters
-    max_parameter_samples = min(cfg.init.max_uncertain_samples, min([len(param) for param in param_dict]))
+    max_parameter_samples = min(cfg.max_uncertain_samples, min([len(param) for param in param_dict]))
     list_of_params, list_of_weights = {i: {} for i in range(len(param_dict)) }, {i: {} for i in range(len(param_dict)) }
     
     for i, param in enumerate(param_dict):

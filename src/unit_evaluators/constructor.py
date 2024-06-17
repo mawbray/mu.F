@@ -220,7 +220,7 @@ class network_simulator(ABC):
 
             if self.graph.in_degree()[node] == 0:
                 if not (self.cfg.model.root_node_inputs[node] == 'None'):
-                    inputs = jnp.array([self.cfg.model.root_node_inputs[node]]*decisions.shape[0])
+                    inputs = jnp.tile(jnp.expand_dims(jnp.array([self.cfg.model.root_node_inputs[node]]).reshape(1,-1), axis=1), (decisions.shape[0], u_p.shape[0], 1))
                 else:
                     inputs = jnp.empty((decisions.shape[0], u_p.shape[0], 0))
             else:

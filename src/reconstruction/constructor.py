@@ -80,7 +80,7 @@ class reconstruction(reconstruct_base):
         list_of_params = [jnp.array([p['c'] for p in param]) for param in param_dict]
         list_of_weights = [jnp.array([p['w'] for p in param]).reshape(-1) for param in param_dict]
 
-        max_parameter_samples = self.cfg.reconstruction.max_uncertain_samples
+        max_parameter_samples = self.cfg.max_uncertain_samples
         selected_params = [choice(PRNGKey(0), a, shape=(max_parameter_samples,), replace=True, p=weight, axis=0) for a, weight in zip(list_of_params, list_of_weights)]
 
         return selected_params # sample selected parameters from the list of parameters according to probability mass specificed by the user
