@@ -85,13 +85,16 @@ def main(cfg: DictConfig) -> None:
                 save_graph(G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))
 
             # TODO generalise this to all graphs based on in-degree and out-degree
-            """if mode == 'forward':
-                precedence_order.pop(-1)
-            elif mode == 'backward':
-                precedence_order.pop(0)
-            elif mode == 'forward-backward':
-                precedence_order.pop(-1)"""
-        
+            # update precedence order, note this should only be done for acyclic graphs
+            if m == 'backward':
+                for node in G.nodes():
+                    if G.in_degree(node) == 0:
+                        precedence_order.remove(node)
+            elif m == 'forward':
+                for node in G.nodes():
+                    if G.out_degree(node) == 0:
+                        precedence_order.remove(node)
+                    
     elif cfg.method == 'direct':
 
         feasible, infeaible = apply_direct_method(cfg, G)

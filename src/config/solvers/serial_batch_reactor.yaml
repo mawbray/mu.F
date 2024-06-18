@@ -12,7 +12,7 @@ penalty_method_coupler:
 
 
 evaluation_mode: 
-  forward: pool
+  forward: mp-ms
   backward: jax-pmap #serial 
 
 
@@ -21,10 +21,10 @@ backward_coupling_solver: box_constrained_nlp
 
 
 forward_coupling:
-  parallelised: true
-  n_starts: 4
+  parallelised: False
+  n_starts: 10
   casadi_ipopt_options:
-    maxiter: 1000
+    maxiter: 500
     verbose: False
     tol: 1e-6
     options:
@@ -43,11 +43,11 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
-standardised: true
+standardised: True
 
 
 backward_coupling:
-  n_starts: 4
+  n_starts: 2
   jax_opt_options:
     error_tol: 1e-6
     ftol0: 0.001

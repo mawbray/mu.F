@@ -52,14 +52,18 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
     def initial_guess(self):
         return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
     
+    def get_message(self, solver):
+        return solver.stats()['return_status']
+    
     def solve(self, initial_guesses):
         solver, result = self.solver(initial_guesses)
+        message = self.get_message(solver)
         status = self.get_status(solver)
         objective = self.get_objective(result)
         constraints = self.get_constraints(result)
 
         if not status:
-            logging.info('--- Solver did not converge ---')
+            logging.info(f'--- {message} ---')
             logging.info(f'Objective: {objective}')
             logging.info(f'Constraints: {constraints}')
             objective = np.max(np.absolute(constraints)).reshape(1,1)

@@ -1,4 +1,5 @@
 from typing import Dict, Any
+from itertools import product
 from abc import ABC
 import numpy as np
 import pandas as pd
@@ -38,14 +39,15 @@ class Dataset(ABC):
 
 # --- neural network regressor --- #
 
-def identify_neural_network(hidden_units, output_units) -> nn.Module:
-    return NeuralNetworkEstimator(hidden_units=hidden_units, output_units=output_units)
+def identify_neural_network(hidden_units, output_units, activation_functions) -> nn.Module:
+    return NeuralNetworkEstimator(hidden_units=hidden_units, output_units=output_units, activation_functions=activation_functions)
 
 
 def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, rng_key: random.PRNGKey=jax.random.PRNGKey(0), model_type='regressor'): 
     # Define the hyperparameters to search over
     surrogate_cfg = cfg.surrogate.surrogate_forward.ann
     hidden_sizes = surrogate_cfg.hidden_size_options
+    afs = surrogate_cfg.activation_functions
 
     # Initialize the best hyperparameters and the best average validation loss
     best_hyperparams = {}
@@ -57,10 +59,10 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, rng_key: random
     standard_D = Dataset(x_scalar.transform(D.X), y_scalar.transform(D.y))
 
     # Perform hyperparameter selection using cross-validation
-    for hidden_size in hidden_sizes:
+    for hidden_size, af in product(hidden_sizes, afs):
         # Set the current hyperparameters
         # Train the model using the current hyperparameters
-        model = identify_neural_network(hidden_size, standard_D.y.shape[1])
+        model = identify_neural_network(hidden_size, standard_D.y.shape[1], af)
         avg_loss = train_nn_surrogate_model(surrogate_cfg, standard_D, model, num_folds, rng_key)
 
         # Check if the current hyperparameters are the best so far
@@ -68,10 +70,11 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, rng_key: random
             best_avg_loss = avg_loss
             best_hyperparams = {
                 'hidden_size': hidden_size,
+                'activation_function': af
             }
 
     # Train the model with the best hyperparameters using all the data
-    best_model = identify_neural_network(best_hyperparams['hidden_size'], D.y.shape[1])
+    best_model = identify_neural_network(best_hyperparams['hidden_size'], D.y.shape[1], best_hyperparams['activation_function'])
     best_params, _, _ = train(surrogate_cfg, best_model, standard_D, standard_D) # train on standardised data
 
     opt_model = partial(best_model.apply, best_params)
@@ -138,16 +141,30 @@ def train_nn_surrogate_model(cfg: DictConfig, D, model: nn.Module, num_folds: in
 class NeuralNetworkEstimator(nn.Module):
     hidden_units: list
     output_units: int
+    activation_functions: list
 
     def setup(self):
         self.layers = [nn.Dense(hidden_unit) for hidden_unit in self.hidden_units] + [nn.Dense(self.output_units)]
 
+        self.afs = []
+        for i, af in enumerate(self.activation_functions):
+            if af == 'relu':
+                self.afs += (nn.relu,)
+            elif af == 'sigmoid':
+                self.afs += (nn.sigmoid,)
+            elif af == 'tanh':
+                self.afs += (nn.tanh,)
+
+        self.afs += (lambda x: x,) # currently have no output activation function (feel free to change it)
+        
+
+
     def __call__(self, x):
-        for i, layer in enumerate(self.layers):
+        for i, (layer, af) in enumerate(zip(self.layers, self.afs)):
             x = layer(x)
-            if i != len(self.layers) - 1:  # if not the last layer
-                x = nn.activation.tanh(x)
-        return x
+            x = af(x)
+
+        return x 
 
 
 def train_one_step_regressor(state, model, batch):

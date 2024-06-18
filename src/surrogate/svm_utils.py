@@ -19,11 +19,11 @@ import logging
 
 @jit
 def all_feasible(x):
-    return jnp.linalg.norm(x*jnp.array([1e-7]), ord='fro') + jnp.array([-5])
+    return jnp.linalg.norm(x*jnp.array([1e-4]), ord='fro') + jnp.array([-5])
 
 @jit
 def no_feasible(x):
-    return jnp.linalg.norm(x*jnp.array([1e-7]), ord='fro') + jnp.array([5])
+    return jnp.linalg.norm(x*jnp.array([1e-4]), ord='fro') + jnp.array([5])
 
 
 
@@ -79,6 +79,7 @@ def compute_best_svm_classifier(
         model.fit(data_points, labels)
     except: 
         logging.info("error in fitting classification model")
+
         return None, None, None, labels
     # get support vectors
     support_vectors = model.best_estimator_["svc"].support_vectors_

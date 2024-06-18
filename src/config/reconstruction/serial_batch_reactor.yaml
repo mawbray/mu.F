@@ -1,7 +1,8 @@
 
 
 reconstruct: 
-  - True 
+  - False 
+  - True
 
 
 plot_reconstruction: nominal_map # probability_map #

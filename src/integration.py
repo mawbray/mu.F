@@ -47,7 +47,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         # estimate box for bounds for DS downstream
         process_data_forward(cfg, graph, node, model, feasible_set)
         # train constraints for DS downstream using data now stored in the graph
-        if mode in ['forward', 'forward-backward']: surrogate_training_forward(cfg, graph, node)
+        if (mode in ['forward', 'forward-backward']) or (mode in ['backward'] and graph.in_degree(node) == 0): surrogate_training_forward(cfg, graph, node)
         # classifier construction for current unit
         if cfg.surrogate.classifier: classifier_construction(cfg, graph, node, iterate)
         if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
@@ -151,7 +151,7 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
         if cfg.surrogate.forward_evaluation_surrogate:
             # Extract the input-output and classifier data from the model
             x_io, y_io, selected_y_io = data_processor(model.input_output_data, index_on = cfg.surrogate.index_on).transform_data_to_matrix(io_fn, feasible_indices) 
-            if cfg.surrogate.surrogate_forward.drop_uncertain_params:
+            if cfg.formulation == 'deterministic':
                 n_args = graph.nodes[node]['n_design_args'] + graph.nodes[node]['n_input_args']
                 x_io = x_io[:,:n_args]
            
