@@ -15,13 +15,13 @@ n_input_args:
 
 KS_bounds:  # unit, arg, b
   - - - 250
-      - 800
-    - - 250
       - 1000
+    - - 250
+      - 800
   - - - 250
-      - 800
-    - - 250
       - 1000
+    - - 250
+      - 800
 
 fn_evals: 
   - 0
@@ -150,19 +150,19 @@ extendedDS_bounds: [None, None]
 
 
 design_space_dimensions:
-- 'U1: Batch time (mins)'
 - 'U1: Temp. (K)'
-- 'U2: Batch time (mins)'
+- 'U1: Batch time (mins)'
 - 'U2: Temp. (K)'
+- 'U2: Batch time (mins)'
 
 process_space_names:
-  - ['U1: Batch time (mins)','U1: Temp. (K)']
-  - ['U2: Batch time (mins)','U2: Temp. (K)', 'Conc. A (mol/L)','Conc. B (mol/L)']
+  - ['U1: Temp. (K)', 'U1: Batch time (mins)']
+  - ['U2: Temp. (K)', 'U2: Batch time (mins)', 'Conc. A (mol/L)','Conc. B (mol/L)']
 
 
 mode:
-  - 'backward'
-  - 'forward'
+  - forward
+  - forward-backward
   #- 'forward-backward'
 
 

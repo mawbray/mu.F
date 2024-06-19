@@ -97,7 +97,7 @@ def main(cfg: DictConfig) -> None:
                     
     elif cfg.method == 'direct':
 
-        feasible, infeaible = apply_direct_method(cfg, G)
+        feasible, infeasible = apply_direct_method(cfg, G)
         (joint_live_set, joint_live_set_prob) = feasible
          # visualisation of reconstruction
         if cfg.reconstruction.plot_reconstruction == 'nominal_map':

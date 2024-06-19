@@ -22,7 +22,7 @@ backward_coupling_solver: box_constrained_nlp
 
 forward_coupling:
   parallelised: False
-  n_starts: 10
+  n_starts: 5
   casadi_ipopt_options:
     maxiter: 500
     verbose: False

@@ -14,5 +14,8 @@ def apply_direct_method(cfg, graph):
     solver =  construct_deus_problem_network(DEUS, problem_description, model)
     solver.solve()
     feasible_set, infeasible_set = solver.get_solution()
+    for node in graph.nodes:
+        graph.nodes[node]['fn_evals'] = network_simulator.function_evaluations
+
 
     return feasible_set, infeasible_set

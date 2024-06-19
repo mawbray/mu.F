@@ -2,15 +2,11 @@ surrogate_forward:
   drop_uncertain_params: False
   ann:
     hidden_size_options:
-      - [50, 50, 25] 
       - [50, 50]
-      - [25, 10]
-      - [10, 10]
+      #- [25, 10]
+      #- [10, 10]
     activation_functions:
-      - ['relu', 'relu', 'relu']
-      - ['tanh', tanh, tanh]
-      - ['tanh', 'relu', relu]
-      - ['relu', 'tanh', relu]
+      - ['tanh', tanh]
 
     decaying_lr_and_clip_param: True
     learning_rate: 0.01

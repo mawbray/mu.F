@@ -148,9 +148,9 @@ def casadi_multi_start(initial_guess, objective_func, equality_constraints, boun
     try:
         min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'] for sol_f in solutions]))
         solver_opt, solution_opt = solutions[min_obj_idx]
-        return solver_opt, solution_opt
+        return solver_opt, solution_opt, len(solutions)
     except: 
-        return solver, solution
+        return solver, solution, len(solutions)
     
 
 def casadify(functn, nd, session):

@@ -32,7 +32,7 @@ def purity_unit_2_lb(dynamic_profile, cfg):
 
 @partial(jit, static_argnums=(1))
 def purity_unit_1_ub(dynamic_profile, cfg):
-    return cfg.constraint.purity_u2 - purity_c(dynamic_profile, cfg)
+    return cfg.constraint.purity_u1 - purity_c(dynamic_profile, cfg)
 
 
 
@@ -126,7 +126,7 @@ def purity_unit_2_brn_lb(dynamic_profile, cfg):
 
 @partial(jit, static_argnums=(1))
 def purity_unit_1_brn_ub(dynamic_profile, cfg):
-    return cfg.constraint.purity_u2 - purity_c(dynamic_profile, cfg)
+    return cfg.constraint.purity_u1 - purity_c(dynamic_profile, cfg)
 
 
 

@@ -43,7 +43,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         feasible, infeasible = solver.get_solution()
         feasible_set, feasible_set_prob = feasible[0], feasible[1]
         # update the graph with the number of function evaluations
-        graph.nodes[node]["fn_evals"] = model.function_evaluations
+        graph.nodes[node]["fn_evals"] += model.function_evaluations
         # estimate box for bounds for DS downstream
         process_data_forward(cfg, graph, node, model, feasible_set)
         # train constraints for DS downstream using data now stored in the graph

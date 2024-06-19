@@ -271,8 +271,8 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                     forward_constraints[pred][p] = partial(lambda x, up, inputs: surrogate(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_inputs[pred], up=jnp.array(pred_uncertain_params[pred][p]['c']))
                 elif self.cfg.formulation == 'deterministic':
                     if self.cfg.solvers.standardised:   # TODO find a way to handle the case of no classifier training and request for standardisation.
-                        pred_inputs[pred] = self.standardise_inputs(pred_inputs[pred], pred)
-                    forward_constraints[pred][p] = partial(lambda x, inputs: surrogate(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_inputs[pred])
+                        pred_input = self.standardise_inputs(pred_inputs[pred], pred)
+                    forward_constraints[pred][p] = partial(lambda x, inputs: surrogate(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_input.copy())
                 # load the standardised bounds
                 decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
                 if self.cfg.solvers.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)

@@ -56,19 +56,28 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         return solver.stats()['return_status']
     
     def solve(self, initial_guesses):
-        solver, result = self.solver(initial_guesses)
+        solver, result, len_feasible = self.solver(initial_guesses)
         message = self.get_message(solver)
         status = self.get_status(solver)
         objective = self.get_objective(result)
         constraints = self.get_constraints(result)
 
+        if status:
+            logging.info(f'--- {message} ---')
+            logging.info(f'Objective: {objective}')
+            logging.info(f'Constraints: {constraints}')
+            logging.info(f'Number of feasible points: {len_feasible}/{self.cfg.n_starts}')
+            
+
         if not status:
             logging.info(f'--- {message} ---')
             logging.info(f'Objective: {objective}')
             logging.info(f'Constraints: {constraints}')
+            logging.info(f'Number of feasible points: {len_feasible}/{self.cfg.n_starts}')
             objective = np.max(np.absolute(constraints)).reshape(1,1)
+            logging.info(f'objective returned to sampler: {-objective}')
 
-        return {'success': status, 'objective': objective, 'constraints': constraints}
+        return {'success': status, 'objective': -objective, 'constraints': constraints}
     
     
     def get_status(self, solver):
