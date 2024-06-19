@@ -83,6 +83,8 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
     n_d = len(bounds[0].squeeze())
     lb = [bounds[0].squeeze()[i] for i in range(n_d)]
     ub = [bounds[1].squeeze()[i] for i in range(n_d)]
+    tf.keras.backend.clear_session()
+    tf.reset_default_graph()
     session = tf.Session()
 
     with session: 
@@ -119,6 +121,7 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         solution = solver(x0=initial_guess, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
   
     session.close()
+    del session
     
       
     return solver, solution

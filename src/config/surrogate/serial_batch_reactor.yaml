@@ -2,7 +2,7 @@ surrogate_forward:
   drop_uncertain_params: False
   ann:
     hidden_size_options:
-      - [50, 50]
+      - [25, 10]
       #- [25, 10]
       #- [10, 10]
     activation_functions:

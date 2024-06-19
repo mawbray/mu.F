@@ -61,13 +61,16 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         status = self.get_status(solver)
         objective = self.get_objective(result)
         constraints = self.get_constraints(result)
+        t_wall = self.get_time(solver)
 
         if status:
             logging.info(f'--- {message} ---')
             logging.info(f'Objective: {objective}')
             logging.info(f'Constraints: {constraints}')
             logging.info(f'Number of feasible points: {len_feasible}/{self.cfg.n_starts}')
+            logging.info(f'time to solve: {t_wall}')
             
+
 
         if not status:
             logging.info(f'--- {message} ---')
@@ -91,8 +94,10 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
     
     def get_constraints(self, solution):
         return solution['g']
-
-
+    
+    def get_time(self, solver):
+        return sum([x for k,x in solver.stats().items() if 't_wall_' in k])
+    
 
 class jax_box_nlp_solver(solver_base):
     def __init__(self, cfg, objective_func, bounds):
