@@ -21,6 +21,7 @@ backward_coupling_solver: box_constrained_nlp
 
 
 forward_coupling:
+  max_solution_time: 1. # if forward solution > 1s then raise warning
   max_devices: 20
   parallelised: False
   n_starts: 4
@@ -44,11 +45,11 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
-standardised: False #  true
+standardised: True #  true
 
 
 backward_coupling:
-  n_starts: 4
+  n_starts: 8
   jax_opt_options:
     error_tol: 1e-6
     ftol0: 0.001

@@ -1,6 +1,7 @@
 from abc import ABC
 from typing import Iterable, Callable, List
 from omegaconf import DictConfig
+import logging
 
 import numpy as np
 import jax.numpy as jnp
@@ -223,17 +224,35 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         objective, constraints, bounds = self.prepare_forward_problem(inputs)
         solver_object = self.load_solver()  # solver type has been defined elsewhere in the case study/graph construction. 
         pred_fn_evaluations = {pred: {} for pred in self.graph.predecessors(self.node)}
+
+        solved_successful = 0
+        problems = sum([len(constraints[pred]) for pred in self.graph.predecessors(self.node)])
+
         # iterate over predecessors and evaluate the constraints
         for pred in self.graph.predecessors(self.node):
             for p in range(len(constraints[pred])): 
                 forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, objective[pred][p], bounds[pred][p], constraints[pred][p])
                 initial_guess = forward_solver.initial_guess()
                 pred_fn_evaluations[pred][p] = self.evaluation_method(forward_solver, initial_guess)
-                if np.array(pred_fn_evaluations[pred][p]['objective']) <= 0: break
+
+                # Update the number of NLP SOLVED TO CONVERGENCE
+                solved_successful += pred_fn_evaluations[pred][p]['success']
+                
+
+                del forward_solver, initial_guess
+
+                if (np.array(pred_fn_evaluations[pred][p]['objective']) <= 0) and (pred_fn_evaluations[pred][p]['success']): break
                 
 
         # reshape the evaluations and just get information about the constraints.
         fn_evaluations = [min([jnp.array(pred_fn_evaluations[pred][p]['objective']) for p in pred_fn_evaluations[pred].keys()]) for pred in self.graph.predecessors(self.node)]
+
+
+        del pred_fn_evaluations[pred][p]
+
+        logging.info(f"forward nlp solved to convergence: {solved_successful} out of {problems}")
+
+        
 
         return self.shaping_function(jnp.concatenate(fn_evaluations, axis=-1))
 
@@ -348,11 +367,11 @@ def get_successor_inputs(graph, node, outputs):
     return succ_inputs
 
 
-def construct_solver(objective_func, bounds):
+def construct_solver(objective_func, bounds, tol):
     bounds = bounds
     objective_func = objective_func
     bounds = bounds
-    solver = partial(multi_start_solve_bounds_nonlinear_program, objective_func=objective_func, bounds_=(bounds[0], bounds[1]))
+    solver = partial(multi_start_solve_bounds_nonlinear_program, objective_func=objective_func, bounds_=(bounds[0], bounds[1]), tol=tol)
     return solver   
 
 def initial_guess(cfg, bounds):
@@ -360,15 +379,14 @@ def initial_guess(cfg, bounds):
     return generate_initial_guess(cfg.n_starts, n_d, bounds)
 
 def solve(solver, initial_guesses):
-    obj_r, obj_g, e  = [], [], []
+    obj_r, e  = [], [], []
 
     for solve, init in zip(solver, initial_guesses):
-        objective, objective_grad, error = solve(init)
+        objective, error = solve(init)
         obj_r.append(objective)
-        obj_g.append(objective_grad)
         e.append(error)
     
-    return {'objective': jnp.array(obj_r), 'objective_grad': jnp.array(obj_g), 'error': jnp.array(e)}
+    return {'objective': jnp.array(obj_r), 'error': jnp.array(e)}
     
 
 def load_solver(objective_func, bounds):
@@ -396,7 +414,7 @@ def prepare_backward_problem(outputs, graph, node, cfg):
         input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices'].copy()]))
         
         # standardisation of outputs if required
-        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ], succ, input_indices))
+        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ].copy(), succ, input_indices))
         
         # load the standardised bounds
         decision_bounds = graph.nodes[succ]["extendedDS_bounds"].copy()
@@ -411,7 +429,7 @@ def prepare_backward_problem(outputs, graph, node, cfg):
         # load the forward objective
         classifier = graph.nodes[succ]["classifier"]
         wrapper_classifier = mask_classifier(classifier, n_d, ndim, input_indices)
-        backward_objective[succ] = [jit(partial(lambda x,y: wrapper_classifier(x,y).squeeze(), y=succ_inputs[succ][i].reshape(-1,))) for i in range(succ_inputs[succ].shape[0])]
+        backward_objective[succ] = [jit(partial(lambda x,y: wrapper_classifier(x,y).squeeze(), y=succ_inputs[succ][i].reshape(1,-1))) for i in range(succ_inputs[succ].shape[0])]
 
     # return the forward surrogates and decision bounds
     return backward_objective, backward_bounds
@@ -426,7 +444,7 @@ def evaluate(outputs, graph, node, cfg):
     succ_fn_evaluations = {}
     # iterate over successors and evaluate the constraints
     for succ in graph.successors(node):
-        backward_solver = [construct_solver(objective[succ][i], bounds[succ][i]) for i in range(outputs.shape[0])] # uncertainty realizations evaluated serially
+        backward_solver = [construct_solver(objective[succ][i], bounds[succ][i], tol=cfg.solvers.backward_coupling.jax_opt_options.error_tol) for i in range(outputs.shape[0])] # uncertainty realizations evaluated serially
         initial_guesses = [initial_guess(cfg.solvers.backward_coupling, bounds[succ][i]) for i in range(outputs.shape[0])]
         succ_fn_evaluations[succ] = evaluate_method(backward_solver, initial_guesses)
 
@@ -487,8 +505,13 @@ def backward_surrogate_pmap_batch_evaluator(outputs, cfg, graph, node):
     Evaluates the constraints on a batch using jax-pmap - called by the backward_constraint_evaluator
     """
     feasibility_call = partial(jax_pmap_evaluator, cfg=cfg.copy(), graph=graph.copy(), node=node)
+    
     return pmap(feasibility_call, in_axes=0, out_axes=0, devices=[device for i, device in enumerate(devices('cpu')) if i<outputs.shape[0]])(outputs)  #, axis_name='i'
-
+    #feasible = []
+    #for i in range(outputs.shape[0]):
+    #    feasible.append(feasibility_call(outputs[i].reshape(1,outputs.shape[1],-1)))
+    
+    #return jnp.vstack(feasible)
 
  
 

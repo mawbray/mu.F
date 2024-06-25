@@ -15,7 +15,7 @@ def apply_direct_method(cfg, graph):
     solver.solve()
     feasible_set, infeasible_set = solver.get_solution()
     for node in graph.nodes:
-        graph.nodes[node]['fn_evals'] = network_simulator.function_evaluations
+        graph.nodes[node]['fn_evals'] = model.function_evaluations
 
 
     return feasible_set, infeasible_set

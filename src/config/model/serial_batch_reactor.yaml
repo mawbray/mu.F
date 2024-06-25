@@ -19,12 +19,10 @@ root_node_inputs:
     - 0. # component 2
     - 0. # component 3
 
-uncertain_parameters:
-  n_theta: [0, 0]
 
 constraint:
   purity_u1: 0.2
-  purity_u2: 0.82
+  purity_u2: 0.78
 
 
 integration:

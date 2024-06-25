@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import jax
 import pandas as pd
 from omegaconf import DictConfig
 from dataclasses import dataclass
@@ -58,10 +59,33 @@ def binary_classifier_data_preparation(
 
     labels = jnp.where(select_cond, -1, 1) # binary classifier (feasible label is always negative because we are always minimizing in problem coupling, just depends on which data we label)
 
+    # Data augmentation to equalize the number of negative and positive classes
+    num_pos = jnp.sum(labels == 1)
+    num_neg = jnp.sum(labels == -1)
+    Key = jax.random.PRNGKey(0)
+    # Add 1% Gaussian noise to the datapoints in the support
+    
+    if num_pos > num_neg:
+        # Randomly select negative samples to match the number of positive samples
+        neg_indices = jnp.where(labels == -1)[0]
+        selected_indices = jax.random.choice(Key, neg_indices, shape=(num_pos - num_neg,))
+        noise = jax.random.multivariate_normal(Key, mean=jnp.ones(support.shape[1],), cov=jnp.eye(support.shape[1],)*0.001, shape=(support[selected_indices].shape[0],))
+        support = jnp.concatenate([support.squeeze(), support[selected_indices].squeeze() * noise], axis=0)
+        labels = jnp.concatenate([labels, labels[selected_indices]], axis=0)
+    elif num_neg > num_pos:
+        # Randomly select positive samples to match the number of negative samples
+        pos_indices = jnp.where(labels == 1)[0]
+        selected_indices = jax.random.choice(Key, pos_indices, shape=(num_neg - num_pos,))
+        noise = jax.random.multivariate_normal(Key, mean=jnp.ones(support.shape[1],), cov=jnp.eye(support.shape[1],)*0.001, shape=(support[selected_indices].shape[0],))
+        support = jnp.concatenate([support.squeeze(), support[selected_indices].squeeze()* noise], axis=0)
+        labels = jnp.concatenate([labels, labels[selected_indices]], axis=0)
 
     support, labels = return_subsample_of_data(support, labels, cfg.surrogate.subsample_size)
+    
 
     return support, labels
+
+
 
 def return_subsample_of_data(data, labels, subsample_size):
     if data.shape[0] > subsample_size:

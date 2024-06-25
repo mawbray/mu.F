@@ -6,6 +6,8 @@ surrogate_forward:
       - [50, 50]
       #- [25, 10]
       #- [10, 10]
+    activation_functions:
+      - ['tanh', tanh]
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
@@ -22,8 +24,8 @@ surrogate_forward:
     
 classifier: true
 probability_map: false
-
-subsample_size: 25000
+classifier_selection: ANN #SVM
+subsample_size: 100000
 num_folds: 2
 
 index_on: 1
@@ -32,9 +34,24 @@ classifier_args:
   standardised: true
   svm: # these parameters must be provided as lists for Sklearn's GridSearchCV
     kernel: ['rbf']
-    C: [2.5, 1, 0.1]
-    gamma: [0.2, 1, 0.5]
+    C: [20, 10, 2.5, 1, 0.1]
+    gamma: [0.2, 1, 0.5, 2, 4, 6]
     probability: [False]
+  ann:
+    hidden_size_options:
+      - [50, 50]
+      #- [25, 10]
+      #- [10, 10]
+    activation_functions:
+      - ['tanh', tanh]
+
+    decaying_lr_and_clip_param: True
+    learning_rate: 0.01
+    terminal_lr: 0.00001  
+    num_epochs: 1000 # 10 #50 # 50 # 500
+    min_delta: 0.000001
+    patience: 50
+    batch_size: 264 #64
 
 
 forward_evaluation_surrogate: true

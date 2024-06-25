@@ -68,8 +68,8 @@ class unit_evaluation(base_unit):
 
         dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
         
-        if dd_params.ndim<2: 
-            dd_params = jnp.expand_dims(dd_params, axis=1)
+        if dd_params.ndim<3: 
+            dd_params = jnp.expand_dims(dd_params, axis=-1)
 
         if input_args.ndim < 3:
             input_args = jnp.expand_dims(input_args, axis=1)    
@@ -118,7 +118,7 @@ class subproblem_unit_wrapper(unit_evaluation):
             
         if input_args.ndim == 1:
             input_args = jnp.expand_dims(input_args, axis=1)
-        if input_args.ndim == 2:
+        if input_args.ndim < 3:
             input_args = jnp.expand_dims(input_args, axis=1)
 
         if input_args.shape[1] != uncertain_params.shape[0]:

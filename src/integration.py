@@ -52,6 +52,8 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         if cfg.surrogate.classifier: classifier_construction(cfg, graph, node, iterate)
         if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
 
+        del model, problem_sheet, solver
+
 
     return graph
 
@@ -216,7 +218,7 @@ def classifier_construction(cfg, graph, node, iterate):
     classifier: The trained classifier. (-1 belongs to feasible region, 1 does not belong to feasible region)
     """
     # train the model
-    ls_surrogate = surrogate(graph, node, cfg, ('classification', 'SVM', 'live_set_surrogate'), iterate)
+    ls_surrogate = surrogate(graph, node, cfg, ('classification', cfg.surrogate.classifier_selection, 'live_set_surrogate'), iterate)
     ls_surrogate.fit(node=None)
     if cfg.solvers.standardised:
         query_model = ls_surrogate.get_model('standardised_model')
@@ -310,6 +312,7 @@ class subproblem_model(ABC):
             backward_constraint_evals = None
 
         # update input output data for forward surrogate model
+
         if self.cfg.surrogate.forward_evaluation_surrogate:
             self.input_output_data = update_data(self.input_output_data, d, p, outputs)  # updating dataset for surrogate model of forward unit evaluation
 

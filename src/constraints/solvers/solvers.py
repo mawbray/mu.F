@@ -63,22 +63,12 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         constraints = self.get_constraints(result)
         t_wall = self.get_time(solver)
 
-        if status:
-            logging.info(f'--- {message} ---')
-            logging.info(f'Objective: {objective}')
-            logging.info(f'Constraints: {constraints}')
-            logging.info(f'Number of feasible points: {len_feasible}/{self.cfg.n_starts}')
-            logging.info(f'time to solve: {t_wall}')
-            
-
-
         if not status:
-            logging.info(f'--- {message} ---')
-            logging.info(f'Objective: {objective}')
-            logging.info(f'Constraints: {constraints}')
-            logging.info(f'Number of feasible points: {len_feasible}/{self.cfg.n_starts}')
-            objective = np.max(np.absolute(constraints)).reshape(1,1)
-            logging.info(f'objective returned to sampler: {-objective}')
+            objective = np.max(np.absolute(constraints))
+
+        if t_wall >= self.cfg.max_solution_time:
+            logging.warning(f'--- Forward solver max time exceeded: {t_wall} s ---')
+
 
         return {'success': status, 'objective': -objective, 'constraints': constraints}
     
@@ -118,15 +108,17 @@ class jax_box_nlp_solver(solver_base):
         return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
     
     def solve(self, initial_guesses):
-        solver = partial(multi_start_solve_bounds_nonlinear_program, objective_func=self.objective_func, bounds_=(self.bounds[0], self.bounds[1]))
-        objective, objective_grad, error = solver(initial_guesses)
-        return {'objective': objective, 'ojective_grad': objective_grad, 'error': error}
+        solver = partial(multi_start_solve_bounds_nonlinear_program, objective_func=self.objective_func, bounds_=(self.bounds[0], self.bounds[1]), tol=self.cfg.jax_opt_options.error_tol)
+        objective, error = solver(initial_guesses)
+
+        return {'objective': objective, 'error': error}
     
-    def get_status(self, error):
-        return error <= self.cfg.jax_opt_options.error_tol 
+    def get_status(self, stationary_error):
+        return jnp.norm(stationary_error) <= self.cfg.jax_opt_options.error_tol 
 
     def get_objective(self, objective):
         return objective
+    
     
 
 

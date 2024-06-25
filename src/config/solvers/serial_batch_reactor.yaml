@@ -21,8 +21,9 @@ backward_coupling_solver: box_constrained_nlp
 
 
 forward_coupling:
+  max_solution_time: 1. 
   parallelised: False
-  n_starts: 5
+  n_starts: 4
   casadi_ipopt_options:
     maxiter: 500
     verbose: False
@@ -43,13 +44,13 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
-standardised: True
+standardised: False
 
-
+# TODO: check standardisation is working properly in the backward pass
 backward_coupling:
-  n_starts: 2
+  n_starts: 8
   jax_opt_options:
-    error_tol: 1e-6
+    error_tol: 1e-4
     ftol0: 0.001
     ftol_increment: 0.01
     augmented_grad_tol: 0.01

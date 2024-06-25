@@ -124,10 +124,9 @@ if __name__ == "__main__":
     import jax
     jax.config.update('jax_platform_name', 'cpu')
     platform = jax.lib.xla_bridge.get_backend().platform.casefold()
-    print("Platform: ", platform)
-    print(jax.devices('cpu'))
 
     # Enable 64 bit floating point precision
     jax.config.update("jax_enable_x64", True)
+    # run the program
     main()
     print("Done")

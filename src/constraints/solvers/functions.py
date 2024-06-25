@@ -9,9 +9,6 @@ import tensorflow.compat.v1 as tf # .compat.v1
 tf.disable_v2_behavior()
 
 
-import logging 
-logger = mp.log_to_stderr()
-logger.setLevel(mp.SUBDEBUG)
 
 """
 utilities for Casadi NLP solver with equality constraints
@@ -62,6 +59,7 @@ def nlp_multi_start_casadi_eq_cons(initial_guess, objective_func, equality_const
     try: 
         min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'].reshape(1,-1) for sol_f in solutions_store]))
         solver_opt, solution_opt = solutions_store[min_obj_idx]   
+        del solutions_store
         return solver_opt, solution_opt
     
     except: 
@@ -121,7 +119,8 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         solution = solver(x0=initial_guess, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
   
     session.close()
-    del session
+    
+    del session, cost_fn, eq_cons, nlp
     
       
     return solver, solution
@@ -236,7 +235,7 @@ from functools import partial
 import time
 
 
-def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bounds_):
+def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bounds_, tol=1e-4):
     """
     objective is a partial function which just takes as input the decision variables and returns the objective value
     constraints is a vector valued partial function which just take as input the decision variables and return the constraint value, in the form np.inf \leq g(x) \leq 0
@@ -245,27 +244,36 @@ def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bo
     solutions = []
 
 
-    partial_jax_solver = jit(partial(solve_nonlinear_program_bounds_jax_uncons, objective_func=objective_func, bounds_=bounds_))
+    partial_jax_solver = jit(partial(solve_nonlinear_program_bounds_jax_uncons, objective_func=objective_func, bounds_=bounds_, tol=tol))
 
     # iterate over upper level initial guesses
     time_now  = time.time()
     _, solutions = jax.lax.scan(partial_jax_solver, init=None, xs=(initial_guess))
     now = time.time() - time_now
+
+    
    
     # iterate over solutions from one of the upper level initial guesses
     assess_subproblem_solution = partial(return_most_feasible_penalty_subproblem_uncons, objective_func=objective_func)
     _, assessment = jax.lax.scan(assess_subproblem_solution, init=None, xs=solutions.params)
     
-    # assessment of solutions
-    arg_min = jnp.argmin(assessment[0], axis=0) # take the minimum objective val
-    min_obj = assessment[0][arg_min]  # take the corresponding objective value
-    min_grad = jnp.linalg.norm(assessment[1][arg_min])  # take the corresponding l2 norm of objective gradient
+
+    cond = solutions[1].error <= jnp.array([tol]).squeeze()
+    mask = jnp.asarray(cond)
+    update_assessment = (jnp.where(mask, assessment[0], jnp.minimum(assessment[0],jnp.linalg.norm(assessment[1], axis=1).squeeze())), jnp.where(mask, jnp.linalg.norm(assessment[1], axis=1).squeeze(), jnp.inf))
     
 
-    return min_obj.squeeze(), min_grad, solutions[1].error[arg_min].squeeze()
+    # assessment of solutions
+    arg_min = jnp.argmin(update_assessment[0], axis=0) # take the minimum objective val
+    min_obj = update_assessment[0][arg_min]  # take the corresponding objective value
+    min_grad = update_assessment[1][arg_min]# take the corresponding l2 norm of objective gradient
+
+    
+
+    return min_obj.squeeze(), solutions[1].error[arg_min].squeeze()
 
 
-def solve_nonlinear_program_bounds_jax_uncons(init, xs, objective_func, bounds_):
+def solve_nonlinear_program_bounds_jax_uncons(init, xs, objective_func, bounds_, tol):
     """
     objective is a partial function which just takes as input the decision variables and returns the objective value
     bounds is a list 
@@ -277,9 +285,10 @@ def solve_nonlinear_program_bounds_jax_uncons(init, xs, objective_func, bounds_)
     (x0) = xs
 
     # Define the optimization problem
-    lbfgsb = LBFGSB(fun=objective_func, maxiter=1000, use_gamma=True, verbose=False, linesearch="backtracking", decrease_factor=0.8)
+    lbfgsb = LBFGSB(fun=objective_func, maxiter=200, use_gamma=True, verbose=False, linesearch="backtracking", decrease_factor=0.8, maxls=100, tol=tol)
 
     problem = lbfgsb.run(x0, bounds=bounds_) # 
+
 
     return None, problem
 
