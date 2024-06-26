@@ -80,7 +80,9 @@ def binary_classifier_data_preparation(
         support = jnp.concatenate([support.squeeze(), support[selected_indices].squeeze()* noise], axis=0)
         labels = jnp.concatenate([labels, labels[selected_indices]], axis=0)
 
-    support, labels = return_subsample_of_data(support, labels, cfg.surrogate.subsample_size)
+
+    # TODO think about this
+    #support, labels = return_subsample_of_data(support, labels, cfg.surrogate.subsample_size)
     
 
     return support, labels
@@ -96,7 +98,7 @@ def return_subsample_of_data(data, labels, subsample_size):
         assert subsample_size > data_neg.shape[0], f"Negative data size {data_neg.shape[0]} is larger than subsample size {subsample_size}"
 
         data_new = jnp.vstack([data_neg, data_pos[:subsample_size-data_neg.shape[0],:]])
-        labels_new = jnp.vstack([jnp.ones((data_neg.shape[0],1)), jnp.ones((subsample_size-data_neg.shape[0],1))*-1 ])
+        labels_new = jnp.vstack([-jnp.ones((data_neg.shape[0],1)), jnp.ones((subsample_size-data_neg.shape[0],1))*1 ])
         return data_new, labels_new
     else:
         return data, labels

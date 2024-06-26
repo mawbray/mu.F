@@ -379,7 +379,7 @@ def initial_guess(cfg, bounds):
     return generate_initial_guess(cfg.n_starts, n_d, bounds)
 
 def solve(solver, initial_guesses):
-    obj_r, e  = [], [], []
+    obj_r, e  = [], []
 
     for solve, init in zip(solver, initial_guesses):
         objective, error = solve(init)

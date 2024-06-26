@@ -49,7 +49,7 @@ standardised: True #  true
 
 
 backward_coupling:
-  n_starts: 8
+  n_starts: 4
   jax_opt_options:
     error_tol: 1e-6
     ftol0: 0.001

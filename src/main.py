@@ -66,7 +66,7 @@ def main(cfg: DictConfig) -> None:
             save_graph(G.copy(), m + '_iterate_' + str(i))
 
             # reconstruction
-            if cfg.reconstruction.reconstruct[i]:
+            if cfg.reconstruction.reconstruct[i]: # TODO fix reconstruction vmap
                 network_model = network_simulator(cfg, G, constraint_evaluator)
                 joint_live_set, joint_live_set_prob = reconstruction(cfg, G, network_model).run() # TODO update uncertainty evaluations
                 
