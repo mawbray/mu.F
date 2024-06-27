@@ -146,6 +146,7 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
         @jit
         def query_standardised_classifier(x):
             if x.ndim <2: x = x.reshape(1,-1)
+            if x.shape[0]>= x.shape[1]: x= x.T
             return mapp_(opt_model(x))
         
         

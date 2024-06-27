@@ -250,7 +250,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
 
         del pred_fn_evaluations[pred][p]
 
-        logging.info(f"forward nlp solved to convergence: {solved_successful} out of {problems}")
+        if solved_successful != problems: logging.info(f"forward nlp solved to convergence: {solved_successful} out of {problems}")
 
         
 
@@ -262,7 +262,13 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         """
         pred_uncertain_params = {}
         for pred in self.graph.predecessors(self.node):
-            pred_uncertain_params[pred] = self.graph.nodes[pred]['parameters_samples']
+            if self.cfg.formulation == 'probabilistic':
+                pred_uncertain_params[pred] = self.graph.nodes[pred]['parameters_samples']
+            elif self.cfg.formulation == 'deterministic':
+                pred_uncertain_params[pred] = [{'c': self.graph.nodes[pred]['parameters_best_estimate'], 'w':1.0}]
+            else:
+                raise ValueError("Invalid formulation.")
+            
         return pred_uncertain_params
     
     def prepare_forward_problem(self, inputs):

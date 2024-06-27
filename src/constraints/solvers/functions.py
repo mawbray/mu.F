@@ -135,9 +135,7 @@ def casadi_multi_start(initial_guess, objective_func, equality_constraints, boun
     bounds: list
     initial_guess: numpy array
     """
-    n_d = len(bounds[0])
     n_starts = initial_guess.shape[0]
-    n_g = equality_constraints(initial_guess[0,:].squeeze()).squeeze().shape[0]
 
     # store for solutions
     solutions = []

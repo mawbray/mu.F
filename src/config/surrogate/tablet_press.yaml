@@ -24,7 +24,7 @@ surrogate_forward:
     
 classifier: true
 probability_map: false
-classifier_selection: SVM
+classifier_selection: ANN
 subsample_size: 100000
 num_folds: 2
 
