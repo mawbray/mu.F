@@ -93,8 +93,8 @@ process_space_names: # create unit wise list
 
 
 mode:
-  - 'backward'
-  - 'forward' # #- 'forward' #'forward-backward'
-
+  - backward 
+  - backward-forward
+  
 
 evaluation_mode: 'jax-pmap' #serial

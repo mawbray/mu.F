@@ -19,9 +19,9 @@ class visualiser(ABC):
             self.visualiser = partial(design_space_plot, joint_data_direct=data, path=path)
         elif string == 'reconstruction':
             assert type(data) != type(None), 'reconstruction plot requires data in the form of a dataframe'
-            self.visualiser = partial(reconstruction_plot, reconstructed_df=data, save=True)
+            self.visualiser = partial(reconstruction_plot, reconstructed_df=data, save=True, path=path)
         elif string == 'decomposition':
-            self.visualiser = decompose_call
+            self.visualiser = partial(decompose_call, path=path)
         
 
     def visualise(self):

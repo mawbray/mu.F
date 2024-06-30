@@ -18,13 +18,14 @@ from utils import dataset_object as dataset_holder
 from utils import dataset as dataset
 from utils import data_processing as data_processor
 from utils import apply_feasibility
+import time
 
 
 def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterate=0, max_devices=1):
 
     if mode == "backward" or mode == "forward-backward":
         nodes = reversed(precedence_order.copy())
-    elif mode == "forward":
+    elif mode == "forward" or mode == "backward-forward":
         nodes = precedence_order.copy()
     else:
         raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward' or 'forward-backward'.")
@@ -47,7 +48,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         # estimate box for bounds for DS downstream
         process_data_forward(cfg, graph, node, model, feasible_set)
         # train constraints for DS downstream using data now stored in the graph
-        if (mode in ['forward', 'forward-backward']) or (mode in ['backward'] and graph.in_degree(node) == 0): surrogate_training_forward(cfg, graph, node)
+        if (mode in ['forward', 'forward-backward', 'backward-forward']) or (mode in ['backward'] and graph.in_degree(node) == 0): surrogate_training_forward(cfg, graph, node)
         # classifier construction for current unit
         if cfg.surrogate.classifier: classifier_construction(cfg, graph, node, iterate)
         if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
@@ -252,10 +253,11 @@ class subproblem_model(ABC):
         elif mode == 'backward':
             self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
             self.forward_constraints = None
-        elif mode == 'forward-backward':
+        elif (mode in ['forward-backward','backward-forward']):
             self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
             self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
-
+        else:
+            raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward', 'forward-backward' or 'backward-forward' .")
         # subproblem unit construction
         self.unit_forward_evaluator = subproblem_unit_wrapper(cfg, G, unit_index)
 
@@ -281,6 +283,7 @@ class subproblem_model(ABC):
         for i in range(n_batches):
             batch = data[i*batch_size:(i+1)*batch_size,:]
             constraints.append(self.subproblem_constraint_evals(batch, p))
+            if (data.shape[0]>50) and (n_batches % (i+1) == 0): logging.info(f'Batch {i} of {n_batches} evaluated')
 
         return np.concatenate(constraints, axis=0)
         
@@ -296,20 +299,32 @@ class subproblem_model(ABC):
 
         # evaluate feasibility upstream
         if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
+            start_time = time.time()
             forward_constraint_evals = self.forward_constraints.evaluate(unit_inputs) # forward constraints (rank 3 tensor n_d \times n_theta \times n_g)
+            end_time = time.time()
+            execution_time = end_time - start_time
+            logging.info(f'execution_time_forward_constraints: {execution_time}')
             if forward_constraint_evals.ndim == 1:
                 forward_constraint_evals = forward_constraint_evals.reshape(-1,1)
             if forward_constraint_evals.ndim == 2:
                 forward_constraint_evals = np.expand_dims(forward_constraint_evals, axis=1)
-                forward_constraint_evals = np.repeat(forward_constraint_evals, outputs.shape[1], axis=1)
+            forward_constraint_evals = np.repeat(forward_constraint_evals, outputs.shape[1], axis=1)
         else:
             forward_constraint_evals = None
         
+        
+        
         # evaluate feasibility downstream
         if (self.backward_constraints is not None) and (self.G.out_degree(self.unit_index) > 0):
+            start_time = time.time()
             backward_constraint_evals = self.backward_constraints.evaluate(outputs) # backward constraints (rank 3 tensor, n_d \times n_theta \times n_g)
+            end_time = time.time()
+            execution_time = end_time - start_time
+            logging.info(f'execution_time_backward_constraints: {execution_time}')
         else:
             backward_constraint_evals = None
+
+        
 
         # update input output data for forward surrogate model
 

@@ -24,7 +24,7 @@ forward_coupling:
   max_solution_time: 1. # if forward solution > 1s then raise warning
   max_devices: 20
   parallelised: False
-  n_starts: 4
+  n_starts: 3
   casadi_ipopt_options:
     maxiter: 1000
     verbose: False

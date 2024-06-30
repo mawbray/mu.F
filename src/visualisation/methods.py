@@ -58,13 +58,13 @@ def init_plot(cfg, G, pp= None, init=True, save=True):
 
     return pp
 
-def decompose_call(cfg, G):
+def decompose_call(cfg, G, path):
     pp = init_plot(cfg, G, init=True, save=False)
-    pp = decomposition_plot(cfg, G, pp, save=True)
+    pp = decomposition_plot(cfg, G, pp, save=True, path=path)
     return pp
 
 
-def decomposition_plot(cfg, G, pp, save=True):
+def decomposition_plot(cfg, G, pp, save=True, path='decomposed_pair_grid_plot'):
     # load live sets for each subproblem from the graph 
     inside_samples_decom = [pd.DataFrame({col:G.nodes[node]['live_set_inner'][:,i] for i, col in enumerate(cfg.case_study.process_space_names[node])}) for node in G.nodes]
 
@@ -85,18 +85,18 @@ def decomposition_plot(cfg, G, pp, save=True):
             if x_var in is_.columns and y_var in is_.columns:
                 sns.scatterplot(x=x_var, y=y_var, data=is_, edgecolor="k", c='r', alpha=0.8, ax=ax)
         
-    if save: pp.savefig("decomposed_pair_grid_plot.svg", dpi=300)
+    if save: pp.savefig(path +'.svg', dpi=300)
 
     return pp
     
-def reconstruction_plot(cfg, G, reconstructed_df, save=True):
+def reconstruction_plot(cfg, G, reconstructed_df, save=True, path='reconstructed_pair_grid_plot'):
 
     pp = initializer_cp(reconstructed_df)
     pp = init_plot(cfg, G, pp, init=False, save=False)
     pp = decomposition_plot(cfg, G, pp, save =False)
     pp.map_lower(sns.scatterplot, data=reconstructed_df, edgecolor="k", c="b", linewidth=0.5)
 
-    if save: pp.savefig("reconstructed_pair_grid_plot.svg", dpi=300)
+    if save: pp.savefig(path + ".svg", dpi=300)
 
     return pp
 
