@@ -69,6 +69,7 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         if t_wall >= self.cfg.max_solution_time:
             logging.warning(f'--- Forward solver max time exceeded: {t_wall} s ---')
 
+        del solver, result, t_wall, len_feasible
 
         return {'success': status, 'objective': -objective, 'constraints': constraints}
     
@@ -110,6 +111,8 @@ class jax_box_nlp_solver(solver_base):
     def solve(self, initial_guesses):
         solver = partial(multi_start_solve_bounds_nonlinear_program, objective_func=self.objective_func, bounds_=(self.bounds[0], self.bounds[1]), tol=self.cfg.jax_opt_options.error_tol)
         objective, error = solver(initial_guesses)
+
+        del solver
 
         return {'objective': objective, 'error': error}
     

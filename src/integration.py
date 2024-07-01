@@ -54,9 +54,26 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
 
         del model, problem_sheet, solver
+        
+        graph = del_data(graph, node)
+
+
 
 
     return graph
+
+def del_data(graph, node):
+
+
+    del graph.nodes[node]["classifier_training"]
+    graph.nodes[node]["classifier_training"] = None
+
+    for successor in graph.successors(node):
+        del graph.edges[node, successor]["surrogate_training"]
+        graph.edges[node, successor]["surrogate_training"] = None
+    
+    return graph
+
 
 
 def surrogate_training_forward(cfg, graph, node, iterate:int=0):
@@ -283,6 +300,7 @@ class subproblem_model(ABC):
         for i in range(n_batches):
             batch = data[i*batch_size:(i+1)*batch_size,:]
             constraints.append(self.subproblem_constraint_evals(batch, p))
+            del batch
             if (data.shape[0]>50) and (n_batches % (i+1) == 0): logging.info(f'Batch {i} of {n_batches} evaluated')
 
         return np.concatenate(constraints, axis=0)
@@ -304,6 +322,7 @@ class subproblem_model(ABC):
             end_time = time.time()
             execution_time = end_time - start_time
             logging.info(f'execution_time_forward_constraints: {execution_time}')
+            del start_time, end_time, execution_time
             if forward_constraint_evals.ndim == 1:
                 forward_constraint_evals = forward_constraint_evals.reshape(-1,1)
             if forward_constraint_evals.ndim == 2:
@@ -340,6 +359,8 @@ class subproblem_model(ABC):
             self.constraint_data = update_data(self.constraint_data, d, p, cons_g)  # updating dataset for surrogate model of forward unit evaluation
         if self.cfg.surrogate.probability_map:
             self.probability_map_data = update_data(self.probability_map_data, d, p, self.SAA(cons_g))  # updating dataset for surrogate model of forward unit evaluation
+
+        del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs
 
         return cons_g
 

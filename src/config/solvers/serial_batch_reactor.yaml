@@ -44,7 +44,7 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
-standardised: False
+standardised: True
 
 # TODO: check standardisation is working properly in the backward pass
 backward_coupling:

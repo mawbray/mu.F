@@ -120,7 +120,7 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
   
     session.close()
     
-    del session, cost_fn, eq_cons, nlp
+    del session, cost_fn, eq_cons, nlp, F, G, x, j, g, lbx, ubx, lbg, ubg, options
     
       
     return solver, solution
@@ -148,7 +148,9 @@ def casadi_multi_start(initial_guess, objective_func, equality_constraints, boun
     try:
         min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'] for sol_f in solutions]))
         solver_opt, solution_opt = solutions[min_obj_idx]
-        return solver_opt, solution_opt, len(solutions)
+        n_s = len(solutions)
+        del solutions
+        return solver_opt, solution_opt, n_s
     except: 
         return solver, solution, len(solutions)
     

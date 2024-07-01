@@ -247,8 +247,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         # reshape the evaluations and just get information about the constraints.
         fn_evaluations = [min([jnp.array(pred_fn_evaluations[pred][p]['objective']) for p in pred_fn_evaluations[pred].keys()]) for pred in self.graph.predecessors(self.node)]
 
-
-        del pred_fn_evaluations[pred][p]
+        del pred_fn_evaluations, objective, constraints, bounds
 
         if solved_successful != problems: logging.info(f"forward nlp solved to convergence: {solved_successful} out of {problems}")
 
@@ -297,6 +296,8 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                 elif self.cfg.formulation == 'deterministic':
                     if self.cfg.solvers.standardised:   # TODO find a way to handle the case of no classifier training and request for standardisation.
                         pred_input = self.standardise_inputs(pred_inputs[pred], pred)
+                    else:
+                        pred_input = pred_inputs[pred]
                     forward_constraints[pred][p] = partial(lambda x, inputs: surrogate(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_input.copy())
                 # load the standardised bounds
                 decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
