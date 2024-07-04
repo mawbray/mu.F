@@ -2,15 +2,15 @@
 
 arrhenius:
   EA: 
-    - - 2500.2 # AE R1
+    - - 1500.2 # AE R1
       - 5000.1 # AE R2
     - - 2500.2 # AE R1
       - 5000.1 # AE R2
   A:
-    - - 6.66e-06 # pre-exponent. factor R1
-      - 0.0010335 # pre-exponent. factor R2
-    - - 6.66e-06 # pre-exponent. factor R1
-      - 0.0010335 # pre-exponent. factor R2
+    - - 1.66e-07 # pre-exponent. factor R1
+      - 0.00050335 # pre-exponent. factor R2
+    - - 9.66e-06 # pre-exponent. factor R1
+      - 0.0050335 # pre-exponent. factor R2
   R: 8.314 # ideal gas constant
 
 
@@ -21,8 +21,8 @@ root_node_inputs:
 
 
 constraint:
-  purity_u1: 0.2
-  purity_u2: 0.78
+  purity_u1: 0.25
+  purity_u2: 0.82
 
 
 integration:

@@ -6,7 +6,7 @@ import logging
 import ray
 import numpy as np
 
-from constraints.solvers.functions import generate_initial_guess, casadi_multi_start, multi_start_solve_bounds_nonlinear_program
+from constraints.solvers.functions import generate_initial_guess, casadi_multi_start, multi_start_solve_bounds_nonlinear_program, ray_casadi_multi_start
 
 class solver_base(ABC):
     """ This is a base class used to construct local solvers for the feasibility problem """
@@ -123,8 +123,6 @@ class jax_box_nlp_solver(solver_base):
         return objective
     
     
-
-
 """
 class casadi_box_eq_nlp_solver(solver_base):
     def __init__(self, cfg, objective_func, equality_constraints, bounds):
@@ -167,55 +165,66 @@ class casadi_box_eq_nlp_solver(solver_base):
     
     def get_constraints(self, solution):
         return solution['np']['g']
+"""
 
-@ray.remote
 class parallel_casadi_box_eq_nlp_solver(solver_base):
     def __init__(self, cfg, objective_func, equality_constraints, bounds):
         super().__init__(cfg)
-        self.construct_solver(objective_func, equality_constraints, bounds)
+        self.solver, self.problem_data = self.construct_solver(objective_func, equality_constraints, bounds)
 
     def __call__(self, initial_guesses):
         return self.solve(initial_guesses)
 
-    
     def construct_solver(self, objective_func, equality_constraints, bounds):
+        # formatting for casadi
         self.n_d = len(bounds[0])
         self.bounds = bounds
-        # formatting for casadi
-        self.solver_object, self.constraints = casadi_nlp_construction(objective_func=objective_func, equality_constraints=equality_constraints, bounds=bounds)
-        self.solver = partial(evaluate_casadi_nlp, solver=self.solver_object, constraints=self.constraints, n_d=self.n_d)
-        return
+        solver = ray_casadi_multi_start
+        problem_data = {'objective_func': objective_func, 'equality_constraints': equality_constraints, 'bounds': bounds}
+        problem = {'data': problem_data}
+        return solver, problem
     
     def initial_guess(self):
         return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
     
-    def solve(self, initial_guesses):
-        solver, solution = self.solver(initial_guesses)
+    def get_message(self, solver):
+        return solver['return_status']
+    
+    def solve_digest(self, solver, result, len_feasible):
+        message = self.get_message(solver)
         status = self.get_status(solver)
-        time = self.get_time(solver)
-        objective = self.get_objective(solution)
-        constraints = self.get_constraints(solution)
+        objective = self.get_objective(result)
+        constraints = self.get_constraints(result)
+        t_wall = self.get_time(solver)
 
         if not status:
-            logging.info('--- Solver did not converge ---')
-            logging.info(f'Objective: {objective}')
-            logging.info(f'Constraints: {constraints}')
-            logging.info(f'Time: wall - {time[0]}, process - {time[1]}')
+            objective = np.max(np.absolute(constraints)).reshape(-1,)
 
-        return {'success': status, 'time': time, 'objective': objective, 'constraints': constraints}
+        if t_wall >= self.cfg.max_solution_time:
+            logging.warning(f'--- Forward solver max time exceeded: {t_wall} s ---')
+
+        del solver, result, t_wall, len_feasible
+
+        return {'success': status, 'objective': -objective, 'constraints': constraints}
     
     
     def get_status(self, solver):
-        return solver.stats()['success']
+        try:
+            return solver['success']
+        except:
+            return False
     
     def get_objective(self, solution):
         return solution['f']
     
     def get_constraints(self, solution):
-        return solution['np']['g']
+        return solution['g']
+    
+    def get_time(self, solver):
+        return sum([x for k,x in solver.items() if 't_wall_' in k])
     
 
-
+"""
 class parallelms_casadi_box_eq_nlp_solver(solver_base):
     def __init__(self, cfg, objective_func, equality_constraints, bounds):
         super().__init__(cfg)

@@ -5,7 +5,7 @@ from scipy.stats import qmc
 from jax.experimental import jax2tf
 import multiprocessing as mp
 import tensorflow.compat.v1 as tf # .compat.v1
-
+import ray
 tf.disable_v2_behavior()
 
 
@@ -153,6 +153,36 @@ def casadi_multi_start(initial_guess, objective_func, equality_constraints, boun
         return solver_opt, solution_opt, n_s
     except: 
         return solver, solution, len(solutions)
+    
+
+@ray.remote(num_cpus=1)
+def ray_casadi_multi_start(problem_id, problem_data):
+    """
+    objective: casadi callback
+    equality_constraints: casadi callback
+    bounds: list
+    initial_guess: numpy array
+    """
+    initial_guess, objective_func, equality_constraints, bounds = \
+      problem_data['initial_guess'], problem_data['objective_func'], problem_data['equality_constraints'], problem_data['bounds']
+    n_starts = initial_guess.shape[0]
+
+    # store for solutions
+    solutions = []
+    for i in range(n_starts):
+        solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, equality_constraints, bounds, np.array(initial_guess[i,:]).squeeze())
+        if solver.stats()['success']:
+          solutions.append((solver, solution))
+          if np.array(solution['f']) <= 0: break
+
+    try:
+        min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'] for sol_f in solutions]))
+        solver_opt, solution_opt = solutions[min_obj_idx]
+        n_s = len(solutions)
+        del solutions
+        return solver_opt.stats(), solution_opt, n_s
+    except: 
+        return solver.stats(), solution, len(solutions)
     
 
 def casadify(functn, nd, session):

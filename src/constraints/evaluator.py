@@ -182,9 +182,33 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
             raise NotImplementedError("jax-pmap is not supported for this constraint type at the moment.")
         if self.pool == 'mp-ms':
             self.evaluation_method = self.simple_evaluation 
+        if self.pool == 'ray':
+            self.evaluation_method = self.ray_evaluation
         
     def __call__(self, inputs):
         return self.evaluate(inputs)
+    
+    def ray_evaluation(self, solver, max_devices, solver_processing):
+
+        # determine the batch size
+        workers, remainder = determine_batches(len(solver), max_devices)
+        # split the problems
+        solver_batches = create_batches(workers, solver)
+
+        # parallelise the batch
+        result_dict = {}
+
+        evals = 0
+        for i, solve in enumerate(solver_batches):
+            results = ray.get([sol.remote(d['id'], d['data']) for sol, d in  solve]) # set off and then synchronize before moving on
+            for j, result in enumerate(results):
+                result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
+                evals += 1
+        ray.shutdown()
+
+        return jnp.concatenate([jnp.array([value]).reshape(1,-1) for value, _ in result_dict.items()], axis=0)
+
+
 
     def get_predecessors_inputs(self, inputs):
         """
@@ -209,6 +233,62 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         inputs: samples in the extended design space
         outputs: the constraint evaluations
         """
+        if self.pool == 'mp-ms':
+            return self.serial_wrapper(inputs)
+        elif self.pool == 'ray':
+            return self.ray_wrapper(inputs)
+            
+    def parallel_wrapper(self, inputs):
+        raise NotImplementedError("Method not implemented")
+    
+    def ray_wrapper(self, inputs):
+        """ first prepare the problem set up, 
+        then evaluate the constraints in parallel using ray.
+        """
+
+        solver_inputs = []
+        for i in range(inputs.shape[0]):
+            solver_inputs.append(self.evaluate_parallel(i, inputs[i,:].reshape(1,-1)))
+
+        if len(list(solver_inputs[0].values())) > 1:
+            raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
+        else:
+            results = []
+            for pred in self.graph.predecessors(self.node):
+                solver_reshape = []
+                for p in range(len(solver_inputs[0][pred])):
+                    for s_i in solver_inputs:
+                        solver_reshape.append((s_i[pred][p].solver, s_i[pred][p].problem_data))
+                results.append(self.ray_evaluation(solver_reshape, self.cfg.max_devices, s_i[pred][p]))
+
+            return jnp.concatenate(results, axis=-1)
+
+        
+
+    def evaluate_parallel(self, i, inputs):
+
+        """
+        Evaluates the constraints
+        """
+        objective, constraints, bounds = self.prepare_forward_problem(inputs)
+        solver_object = self.load_solver()  # solver type has been defined elsewhere in the case study/graph construction. 
+        pred_fn_input_i = {pred: {} for pred in self.graph.predecessors(self.node)}
+
+        solved_successful = 0
+        problems = sum([len(constraints[pred]) for pred in self.graph.predecessors(self.node)])
+
+        # iterate over predecessors and evaluate the constraints
+        for pred in self.graph.predecessors(self.node):
+            for p in range(len(constraints[pred])): 
+                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, objective[pred][p], bounds[pred][p], constraints[pred][p])
+                initial_guess = forward_solver.initial_guess()
+                forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
+                forward_solver.solver.problem_data['id'] = i
+                pred_fn_input_i[pred][p] = forward_solver.solver
+
+        return pred_fn_input_i
+
+    def serial_wrapper(self, inputs):
         results = []
         for i in range(inputs.shape[0]):
             results.append(self.evaluate_serial(inputs[i,:].reshape(1,-1)))
@@ -251,8 +331,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
 
         if solved_successful != problems: logging.info(f"forward nlp solved to convergence: {solved_successful} out of {problems}")
 
-        
-
+    
         return self.shaping_function(jnp.concatenate(fn_evaluations, axis=-1))
 
     def get_predecessors_uncertain(self):

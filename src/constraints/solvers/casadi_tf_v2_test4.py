@@ -1,27 +1,54 @@
-import unittest
-import tensorflow as tf # .compat.v1
-import jax.numpy as jnp
-import numpy as np
-from jax import jit
-import casadi
-from functions import casadi_nlp_optimizer_eq_cons
+import ray
+import casadi as ca
+import jax.numpy as jnp 
+ray.init()
+
+# Define a function that solves an NLP problem, specifying it to run in a separate process
+@ray.remote(num_cpus=1)
+def solve_nlp(problem_id, problem_data):
+    # Recreate the necessary non-serializable context here
+    # For example, load data from a file or reinitialize an object
+
+    # Define your NLP problem using CasADi and IPOPT
+    x = ca.MX.sym('x', problem_data['n'])
+    objective = ca.sumsqr(x)
+    # Add your specific non-serializable constraints by recreating them
+    cons_g = problem_data['cons_g']
+    constraints = [cons_g(x)]
+
+    nlp = {'x': x, 'f': objective, 'g': ca.vertcat(*constraints)}
+    opts = {"ipopt.print_level": 0}
+    solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
+    sol = solver(x0 = [10]*problem_data['n'],lbg=0, ubg=0)
+    
+    return (solver.stats(), sol['x'])
 
 
-def test_casadi_ms_solver_call():
-    # Define your inputs here
-    def objective_func(x):
-        return jnp.sum(jnp.array(x)**2).reshape(-1,1)
+if __name__ == "__main__":
 
-    def equality_constraints(x):
-        return jnp.array(x - 1).reshape(-1,1)
+    # Define your problems
+    problems = [
+        {'id': 1, 'data': {'n': 10, 'cons_g': lambda x: x[0] + x[1] - 10}},
+        {'id': 2, 'data': {'n': 20, 'cons_g': lambda x: x[0] + x[1] - 20}},
+        {'id': 3, 'data': {'n': 30, 'cons_g': lambda x: x[0] + x[1] - 20}},
+        {'id': 4, 'data': {'n': 40, 'cons_g': lambda x: x[0] + x[1] - 20}},
+        {'id': 5, 'data': {'n': 50, 'cons_g': lambda x: x[0] + x[1] - 20}},
+        {'id': 6, 'data': {'n': 60, 'cons_g': lambda x: x[0] + x[1] - 20}},
+        {'id': 7, 'data': {'n': 70, 'cons_g': lambda x: x[0] + x[1] - 20}},
+        {'id': 8, 'data': {'n': 80, 'cons_g': lambda x: x[0] + x[1] - 20}},
+        {'id': 9, 'data': {'n': 90, 'cons_g': lambda x: x[0] + x[1] - 20}},
+        {'id': 10, 'data': {'n': 100, 'cons_g': lambda x: x[0] + x[1] - 20}},
+        {'id': 11, 'data': {'n': 110, 'cons_g': lambda x: x[0] + x[1] - 20}},
 
-    bounds = [np.array([-1.0, -1.0]).squeeze(), np.array([1.0, 1.0]).squeeze()]
-    initial_guess = np.array([0.0, 0.0]).reshape(-1)
+        # Add more problems as needed
+    ]
 
-    # Call the function with your inputs
-    nlpsolver, result = casadi_nlp_optimizer_eq_cons(objective_func, equality_constraints, bounds, initial_guess)
+    # Execute the problems in parallel, ensuring each task runs in a separate process
+    results = ray.get([solve_nlp.remote(problem['id'], problem['data']) for problem in problems])
 
-    return nlpsolver, result
+    # Process the results
+    for i, result in enumerate(results):
+        print(f"Result for problem {problems[i]['id']}: {result}")
 
-if __name__ == '__main__':
-    solver, result = test_casadi_ms_solver_call()
+    ray.shutdown()
+

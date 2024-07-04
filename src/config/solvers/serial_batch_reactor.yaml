@@ -12,7 +12,7 @@ penalty_method_coupler:
 
 
 evaluation_mode: 
-  forward: mp-ms
+  forward: ray  #mp-ms
   backward: jax-pmap #serial 
 
 
@@ -22,8 +22,8 @@ backward_coupling_solver: box_constrained_nlp
 
 forward_coupling:
   max_solution_time: 1. 
-  parallelised: False
-  n_starts: 4
+  parallelised: True
+  n_starts: 8
   casadi_ipopt_options:
     maxiter: 500
     verbose: False
@@ -48,9 +48,9 @@ standardised: True
 
 # TODO: check standardisation is working properly in the backward pass
 backward_coupling:
-  n_starts: 8
+  n_starts: 4
   jax_opt_options:
-    error_tol: 1e-4
+    error_tol: 1e-6
     ftol0: 0.001
     ftol_increment: 0.01
     augmented_grad_tol: 0.01

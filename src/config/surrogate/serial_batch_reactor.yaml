@@ -4,14 +4,15 @@ surrogate_forward:
     hidden_size_options:
       - [50, 50]
       #- [25, 10]
-      #- [10, 10]
+      #- [10, 5]
+      #- [100, 25]
     activation_functions:
       - ['tanh', tanh]
 
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
-    num_epochs: 1000 # 10 #50 # 50 # 500
+    num_epochs: 50 #1000 # 10 #50 # 50 # 500
     min_delta: 0.000001
     patience: 50
     batch_size: 264 #64
@@ -46,13 +47,14 @@ classifier_args:
       - [50, 50]
       #- [25, 10]
       #- [10, 10]
+      #- [100, 50, 25]
     activation_functions:
       - ['tanh', tanh]
 
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
-    num_epochs: 1000 # 10 #50 # 50 # 500
+    num_epochs: 50 #1000 # 10 #50 # 50 # 500
     min_delta: 0.000001
     patience: 50
     batch_size: 264 #64

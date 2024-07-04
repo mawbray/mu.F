@@ -14,14 +14,14 @@ n_input_args:
   (0,1): 2
 
 KS_bounds:  # unit, arg, b
-  - - - 250
-      - 1000
-    - - 250
-      - 800
-  - - - 250
-      - 1000
-    - - 250
-      - 800
+  - - - 300
+      - 900
+    - - 300
+      - 700
+  - - - 300
+      - 900
+    - - 300
+      - 700
 
 fn_evals: 
   - 0
@@ -162,6 +162,7 @@ process_space_names:
 
 mode:
   - forward
+  #- backward-forward
   #- forward
   #- forward-backward
   #- 'forward-backward'
