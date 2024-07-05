@@ -161,8 +161,8 @@ process_space_names:
 
 
 mode:
-  - forward
-  - forward-backward
+  - backward
+  - backward-forward
   #- backward-forward
   #- forward
   #- forward-backward

@@ -164,7 +164,7 @@ def build_svm(cfg, model_data):
     intercept = model_data['serialized_params']['intercept']
     kernel_param = model_data['serialized_params']['kernel_param']
 
-    if cfg.solvers.standardised:
+    if cfg['solvers']['standardised']:
         @jit
         def svm_standardised(x):
             # defining multivariate -> univariate fn (no batching support )

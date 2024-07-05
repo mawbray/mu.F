@@ -1,7 +1,9 @@
 from abc import ABC
+import os
 from typing import Iterable, Callable, List
 from omegaconf import DictConfig
 import logging
+
 
 import numpy as np
 import jax.numpy as jnp
@@ -199,13 +201,14 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         result_dict = {}
 
         evals = 0
-        #ray.init()
+       
         for i, solve in enumerate(solver_batches):
-            results = ray.get([sol.remote(d['id'], d['data']) for sol, d in  solve]) # set off and then synchronize before moving on
+            results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
             for j, result in enumerate(results):
                 result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
             evals += j+1
-        #ray.shutdown()
+
+        del solver_batches, results
 
         return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
 
@@ -251,6 +254,8 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         for i in range(inputs.shape[0]):
             solver_inputs.append(self.evaluate_parallel(i, inputs[i,:].reshape(1,-1)))
 
+        
+
         if len(list(solver_inputs[0].values())) > 1:
             raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
         else:
@@ -261,6 +266,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                     for s_i in solver_inputs:
                         solver_reshape.append((s_i[pred][p].solver, s_i[pred][p].problem_data))
                 results.append(self.ray_evaluation(solver_reshape, self.cfg.max_devices, s_i[pred][p]))
+
 
             return jnp.concatenate(results, axis=-1)
 
@@ -285,7 +291,8 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                 initial_guess = forward_solver.initial_guess()
                 forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
                 forward_solver.solver.problem_data['data']['eqc_rhs'] = problem_data[pred][p]['eqc_rhs']
-                forward_solver.solver.problem_data['data']['cfg'] = self.cfg
+                forward_solver.solver.problem_data['data']['cfg'] = dict(self.cfg).copy()
+                forward_solver.solver.problem_data['data']['uncertain_params'] = None
                 forward_solver.solver.problem_data['id'] = i
                 pred_fn_input_i[pred][p] = forward_solver.solver
 

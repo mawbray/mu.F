@@ -200,7 +200,7 @@ class parallel_casadi_box_eq_nlp_solver(solver_base):
         if not status:
             objective = np.max(np.absolute(constraints)).reshape(-1,)
 
-        if t_wall >= self.cfg.max_solution_time:
+        if (t_wall >= self.cfg.max_solution_time) and (not status):
             logging.warning(f'--- Forward solver max time exceeded: {t_wall} s ---')
 
         del solver, result, t_wall, len_feasible

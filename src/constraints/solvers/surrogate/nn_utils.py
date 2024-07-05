@@ -256,6 +256,11 @@ def get_initial_params(key: jax.Array, data:jnp.array, model: nn.Module) -> Dict
   initial_params = model.init(key, init_shape)#['params']
   return initial_params
 
+def get_initial_params_serial(key: jax.Array, data:jnp.array, model: nn.Module) -> Dict:
+  input_dims = tuple(data.shape[1:])  # (minibatch, height, width, stacked frames))
+  init_shape = jnp.ones(input_dims, jnp.float32)
+  initial_params = model.init(key, init_shape)#['params']
+  return initial_params
 
 
 def train(cfg, model, data, valid_data, model_type):
@@ -425,9 +430,9 @@ def build_ann(cfg, model_data, model_class):
 
     # Create the neural network estimator
     model = NeuralNetworkEstimator(hidden_units=model_data['hidden_units'], output_units=model_data['output_units'], activation_functions=model_data['activation_function'])
-    params = get_initial_params(jax.random.PRNGKey(0), x_mean.reshape(1,-1), model)
+    params = get_initial_params_serial(jax.random.PRNGKey(0), x_mean.reshape(1,-1), model)
     params = from_bytes(params, model_data['serialized_params'])
-    opt_model = partial(model.apply, model_data['serialized_params'])
+    opt_model = partial(model.apply, params)
 
     if model_class == 'regressor':
         y_standardisation = model_data['standardisation_metrics_output']
@@ -441,7 +446,7 @@ def build_ann(cfg, model_data, model_class):
         def project(y):
             return y * y_std + y_mean
         
-        if cfg.solvers.standardised:
+        if cfg['solvers']['standardised']:
             @jit
             def query_standardised_model(x):
                 if x.ndim <2: x = x.reshape(1,-1)
@@ -465,7 +470,7 @@ def build_ann(cfg, model_data, model_class):
             if y.ndim <2 : y = y.reshape(1,-1)
             return jnp.array([0.5]) - softmax(y, axis=-1)[0,0]    # if this quantity is less than or equal to zero, then the sample predicts feasibility.
 
-        if cfg.solvers.standardised:
+        if cfg['solvers']['standardised']:
             @jit
             def query_standardised_classifier(x):
                 if x.ndim <2: x = x.reshape(1,-1)

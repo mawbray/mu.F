@@ -114,7 +114,7 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         nlp = {'x':x , 'f':F(x), 'g': G(x)}
 
         # Define the IPOPT solver
-        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':0, 'print_time':0, 'ipopt.max_iter': 150} # , 
+        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':0, 'print_time':0, 'ipopt.max_iter': 100} # , 
       
         solver = nlpsol('solver', 'ipopt', nlp, options)
 
@@ -157,36 +157,39 @@ def casadi_multi_start(initial_guess, objective_func, equality_constraints, boun
     except: 
         return solver, solution, len(solutions)
 
-def construct_model(problem_data):
+def construct_model(problem_data, cfg):
     """
     problem_data : dict    
     """
-    cfg = problem_data['cfg']
-    objective_func = surrogate_reconstruction(cfg, ('classification', cfg.surrogate.classifier_selection, 'live_set_surrogate'), problem_data['objective_func']).rebuild_model()
-    equality_constraints = surrogate_reconstruction(cfg, ('classification', cfg.surrogate.classifier_selection, 'live_set_surrogate'), problem_data['equality_constraints']).rebuild_model()
+
+    objective_func = surrogate_reconstruction(cfg, ('classification', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['objective_func']).rebuild_model()
+    equality_constraints = surrogate_reconstruction(cfg, ('classification', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['equality_constraints']).rebuild_model()
 
 
     return objective_func, equality_constraints
    
 
 @ray.remote(num_cpus=1)
-def ray_casadi_multi_start(problem_id, problem_data):
+def ray_casadi_multi_start(problem_id, problem_data, cfg):
     """
     objective: casadi callback
     equality_constraints: casadi callback
     bounds: list
     initial_guess: numpy array
     """
+    import constraints
+
     initial_guess, bounds = \
       problem_data['initial_guess'], problem_data['bounds']
     n_starts = initial_guess.shape[0]
 
-    objective_func, eqc = construct_model(problem_data)
-    eqc = construct_model(problem_data['equality_constraints'])
+    obf, eqc = construct_model(problem_data, cfg)
     if problem_data['uncertain_params'] == None:
       equality_constraints = partial(lambda x, inputs : eqc(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['eqc_rhs'])
     else: 
        partial(lambda x, up, inputs: eqc(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['eqc_rhs'], up=jnp.array(problem_data['uncertain_params']))
+
+    objective_func = partial(lambda x: obf(x.reshape(1,-1)).reshape(-1,1))
 
     # store for solutions
     solutions = []

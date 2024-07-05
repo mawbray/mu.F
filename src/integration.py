@@ -1,6 +1,7 @@
 from abc import ABC
 from functools import partial
 from copy import deepcopy
+from hydra.utils import get_original_cwd
 
 import networkx as nx
 import jax.numpy as jnp
@@ -34,7 +35,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
 
     # Iterate over the nodes and apply nested sampling
     for node in nodes:
-        if cfg.solvers.evaluation_mode.forward == 'ray': ray.init()
+        if cfg.solvers.evaluation_mode.forward == 'ray':  ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']})
         logging.info(f'------- Characterising node {node} according to precedence order -------')
         # define model for deus
         model = subproblem_model(node, cfg, graph, mode=mode, max_devices=max_devices)
