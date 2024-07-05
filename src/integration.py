@@ -9,7 +9,7 @@ import logging
 
 from constraints.constructor import constraint_evaluator
 from unit_evaluators.constructor import subproblem_unit_wrapper
-from surrogate.surrogate import surrogate
+from constraints.solvers.surrogate.surrogate import surrogate
 from samplers.constructor import construct_deus_problem
 from samplers.appproximators import calculate_box_outer_approximation
 from samplers.utils import create_problem_description_deus
@@ -19,6 +19,7 @@ from utils import dataset as dataset
 from utils import data_processing as data_processor
 from utils import apply_feasibility
 import time
+import ray
 
 
 def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterate=0, max_devices=1):
@@ -33,6 +34,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
 
     # Iterate over the nodes and apply nested sampling
     for node in nodes:
+        if cfg.solvers.evaluation_mode.forward == 'ray': ray.init()
         logging.info(f'------- Characterising node {node} according to precedence order -------')
         # define model for deus
         model = subproblem_model(node, cfg, graph, mode=mode, max_devices=max_devices)
@@ -41,6 +43,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         # solve extended DS using NS
         solver =  construct_deus_problem(DEUS, problem_sheet, model)
         solver.solve()
+        if cfg.solvers.evaluation_mode.forward == 'ray': ray.shutdown()
         feasible, infeasible = solver.get_solution()
         feasible_set, feasible_set_prob = feasible[0], feasible[1]
         # update the graph with the number of function evaluations
@@ -102,7 +105,8 @@ def surrogate_training_forward(cfg, graph, node, iterate:int=0):
         graph.edges[node, successor]["forward_surrogate"] = query_model
         graph.nodes[node]['x_scalar'] = forward_evaluator_surrogate.trainer.get_model_object('standardisation_metrics_input')
         graph.edges[node,successor]['y_scalar'] = forward_evaluator_surrogate.trainer.get_model_object('standardisation_metrics_output')
-
+        graph.edges[node,successor]["forward_surrogate_serialised"] = forward_evaluator_surrogate.get_serailised_model_data()
+    
     return query_model
 
 
@@ -246,7 +250,7 @@ def classifier_construction(cfg, graph, node, iterate):
     # store the trained model in the graph
     graph.nodes[node]["classifier"] = query_model
     graph.nodes[node]['classifier_x_scalar'] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
-    
+    graph.nodes[node]['classifier_serialised'] = ls_surrogate.get_serailised_model_data()
 
     return 
 

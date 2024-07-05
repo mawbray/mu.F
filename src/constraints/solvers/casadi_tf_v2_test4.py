@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     # Define your problems
     problems = [
-        {'id': 1, 'data': {'n': 10, 'cons_g': lambda x: x[0] + x[1] - 10}},
+        {'id': 1, 'data': {'n': 10, 'cons_g': lambda x: x[0] + x[1] - 10, 'fn': lambda x: jnp.sum(x) - 10}},
         {'id': 2, 'data': {'n': 20, 'cons_g': lambda x: x[0] + x[1] - 20}},
         {'id': 3, 'data': {'n': 30, 'cons_g': lambda x: x[0] + x[1] - 20}},
         {'id': 4, 'data': {'n': 40, 'cons_g': lambda x: x[0] + x[1] - 20}},

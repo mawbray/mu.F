@@ -199,14 +199,15 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         result_dict = {}
 
         evals = 0
+        #ray.init()
         for i, solve in enumerate(solver_batches):
             results = ray.get([sol.remote(d['id'], d['data']) for sol, d in  solve]) # set off and then synchronize before moving on
             for j, result in enumerate(results):
                 result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
-                evals += 1
-        ray.shutdown()
+            evals += j+1
+        #ray.shutdown()
 
-        return jnp.concatenate([jnp.array([value]).reshape(1,-1) for value, _ in result_dict.items()], axis=0)
+        return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
 
 
 
@@ -270,19 +271,21 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         """
         Evaluates the constraints
         """
-        objective, constraints, bounds = self.prepare_forward_problem(inputs)
+        problem_data = self.prepare_forward_problem_ray(inputs)
         solver_object = self.load_solver()  # solver type has been defined elsewhere in the case study/graph construction. 
         pred_fn_input_i = {pred: {} for pred in self.graph.predecessors(self.node)}
 
         solved_successful = 0
-        problems = sum([len(constraints[pred]) for pred in self.graph.predecessors(self.node)])
+        problems = sum([len(problem_data[pred]) for pred in self.graph.predecessors(self.node)])
 
         # iterate over predecessors and evaluate the constraints
         for pred in self.graph.predecessors(self.node):
-            for p in range(len(constraints[pred])): 
-                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, objective[pred][p], bounds[pred][p], constraints[pred][p])
+            for p in range(len(problem_data[pred])): 
+                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, problem_data[pred][p]['objective_func'], problem_data[pred][p]['bounds'], problem_data[pred][p]['equality_constraints'])
                 initial_guess = forward_solver.initial_guess()
                 forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
+                forward_solver.solver.problem_data['data']['eqc_rhs'] = problem_data[pred][p]['eqc_rhs']
+                forward_solver.solver.problem_data['data']['cfg'] = self.cfg
                 forward_solver.solver.problem_data['id'] = i
                 pred_fn_input_i[pred][p] = forward_solver.solver
 
@@ -348,6 +351,43 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                 raise ValueError("Invalid formulation.")
             
         return pred_uncertain_params
+    
+    def prepare_forward_problem_ray(self, inputs):
+        """
+        Prepares the forward constraints surrogates and decision variables
+        """
+
+        # get the inputs from the predecessors of the node
+        pred_inputs = self.get_predecessors_inputs(inputs)
+        pred_uncertain_params = self.get_predecessors_uncertain()
+
+        # prepare the forward surrogates
+        problem_data = {pred: {p: {} for p in range(len(pred_uncertain_params[pred]))} for pred in self.graph.predecessors(self.node)}
+        
+        for pred in self.graph.predecessors(self.node):
+            for p in range(len(pred_uncertain_params[pred])):
+                # load the forward surrogate
+                problem_data[pred][p]['equality_constraints'] = self.graph.edges[pred, self.node]["forward_surrogate_serialised"]
+                # create a partial function for the optimizer to evaluat                
+                if self.cfg.formulation == 'probabilistic':
+                    raise NotImplementedError("Method not implemented for probabilistic case")
+                    #if self.cfg.solvers.standardised: TODO find a way to handle the case of no classifier training and request for standardisation.
+                    #forward_constraints[pred][p] = partial(lambda x, up, inputs: surrogate(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_inputs[pred], up=jnp.array(pred_uncertain_params[pred][p]['c']))
+                elif self.cfg.formulation == 'deterministic':
+                    if self.cfg.solvers.standardised:   # TODO find a way to handle the case of no classifier training and request for standardisation.
+                        pred_input = self.standardise_inputs(pred_inputs[pred], pred)
+                    else:
+                        pred_input = pred_inputs[pred]
+                    problem_data[pred][p]['eqc_rhs'] = pred_input.copy()
+                # load the standardised bounds
+                decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
+                if self.cfg.solvers.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
+                problem_data[pred][p]['bounds'] = decision_bounds.copy()
+                # load the forward objective
+                problem_data[pred][p]['objective_func'] = self.graph.nodes[pred]["classifier_serialised"]
+               
+        # return the forward surrogates and decision bounds
+        return problem_data
     
     def prepare_forward_problem(self, inputs):
         """

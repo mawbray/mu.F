@@ -7,11 +7,12 @@ import numpy as np
 from omegaconf import DictConfig
 
 
-from surrogate.data_utils import binary_classifier_data_preparation, regression_node_data_preparation, forward_evaluation_data_preparation
-from surrogate.gp_utils import train as train_gp
-from surrogate.nn_utils import hyperparameter_selection as train_ann
-from surrogate.nn_utils import Dataset
-from surrogate.svm_utils import train as train_svm
+from constraints.solvers.surrogate.data_utils import binary_classifier_data_preparation, regression_node_data_preparation, forward_evaluation_data_preparation
+from constraints.solvers.surrogate.gp_utils import train as train_gp
+from constraints.solvers.surrogate.gp_utils import build_gp    
+from constraints.solvers.surrogate.nn_utils import hyperparameter_selection as train_ann
+from constraints.solvers.surrogate.nn_utils import Dataset, build_ann
+from constraints.solvers.surrogate.svm_utils import train as train_svm, build_svm
 
 
 class trainer_base(ABC):
@@ -75,7 +76,7 @@ class trainer(trainer_base):
     def train(self, node=None) -> jnp.ndarray:
         dataset = self.get_data(successor_node=node)
         self.load_trainer_methods()
-        model, args = self.trainer(self.cfg, dataset, self.cfg.surrogate.num_folds) 
+        model, args, serialised_data = self.trainer(self.cfg, dataset, self.cfg.surrogate.num_folds) 
 
         if self.model_class == 'regression':
             assert len(args) == 4, "Regression model training should return 4 arguments; standardised model (i.e. model mapping from and into a standardised space), unstandardised model (i.e. model mapping from and into original data space), standardisation metrics for input and output"
@@ -83,5 +84,36 @@ class trainer(trainer_base):
         elif self.model_class == 'classification':
             assert len(args) == 3, "Classification model training should return 3 arguments; standardised model, unstandardised model, standardisation metrics for input and output"
             self.standardised_model, self.unstandardised_model, self.standardisation_metrics_input = args
+
+        self.serialised_data = serialised_data
        
         return model
+    
+    def get_serialised_model_data(self) -> dict:
+        return self.serialised_data
+    
+
+class rebuilder(ABC):
+    def __init__(self, cfg: DictConfig, model_type: str, problem_data: dict) -> None:
+        self.cfg = cfg
+        self.model_type = model_type
+        self.problem_data = problem_data
+        self.model_class = model_type[0]
+        self.model_subclass = model_type[1]
+        self.model_surrogate = model_type[2]
+        self.load_rebuilder_methods()
+
+    def load_rebuilder_methods(self) -> None:
+        if self.model_subclass == 'ANN':
+            if self.model_class == 'regression':
+                self.builder = partial(build_ann, model_class='regressor')
+            elif self.model_class == 'classification':
+                self.builder = partial(build_ann, model_class='classifier')
+        elif self.model_subclass == 'GP':
+            self.builder = build_gp
+        elif self.model_subclass == 'SVM':
+            self.builder = build_svm
+        return 
+
+    def rebuild(self) -> jnp.ndarray:
+        return self.builder(self.cfg, self.problem_data)
