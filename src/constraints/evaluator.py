@@ -3,7 +3,7 @@ import os
 from typing import Iterable, Callable, List
 from omegaconf import DictConfig
 import logging
-
+from hydra.utils import get_original_cwd
 
 import numpy as np
 import jax.numpy as jnp
@@ -201,7 +201,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         result_dict = {}
 
         evals = 0
-       
+        
         for i, solve in enumerate(solver_batches):
             results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
             for j, result in enumerate(results):
@@ -209,6 +209,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
             evals += j+1
 
         del solver_batches, results
+    
 
         return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
 

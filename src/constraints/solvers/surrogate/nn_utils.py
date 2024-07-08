@@ -55,6 +55,22 @@ def serialise_model(params, model, x_scalar, y_scalar, model_type, model_data):
     model_data['standardisation_metrics_input'] = standardisation_metrics(x_scalar.mean_, x_scalar.scale_)
     if model_type == 'regressor':
         model_data['standardisation_metrics_output'] = standardisation_metrics(y_scalar.mean_, y_scalar.scale_)
+
+    #assess model serialisation 
+    # Function to compare original and deserialized parameters
+    def compare_params(original, deserialized):
+        for k, v in original.items():
+            if isinstance(v, dict):
+                compare_params(v, deserialized[k])
+            else:
+                assert jnp.allclose(v, deserialized[k]), f"Mismatch found in parameter {k}"
+
+    # Compare original and deserialized parameters
+    try:
+        compare_params(params, from_bytes(params, model_data['serialized_params']))
+        print("Serialization and deserialization successful. Parameters match!")
+    except AssertionError as e:
+        print(f"Error: {e}")
     return model_data
 
 

@@ -163,7 +163,7 @@ def construct_model(problem_data, cfg):
     """
 
     objective_func = surrogate_reconstruction(cfg, ('classification', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['objective_func']).rebuild_model()
-    equality_constraints = surrogate_reconstruction(cfg, ('classification', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['equality_constraints']).rebuild_model()
+    equality_constraints = surrogate_reconstruction(cfg, ('regression', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['equality_constraints']).rebuild_model()   # TODO update this notation to select different REGRESSOR.
 
 
     return objective_func, equality_constraints
@@ -177,7 +177,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     bounds: list
     initial_guess: numpy array
     """
-    import constraints
+
 
     initial_guess, bounds = \
       problem_data['initial_guess'], problem_data['bounds']
@@ -187,7 +187,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     if problem_data['uncertain_params'] == None:
       equality_constraints = partial(lambda x, inputs : eqc(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['eqc_rhs'])
     else: 
-       partial(lambda x, up, inputs: eqc(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['eqc_rhs'], up=jnp.array(problem_data['uncertain_params']))
+      equality_constraints= partial(lambda x, up, inputs: eqc(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['eqc_rhs'], up=jnp.array(problem_data['uncertain_params']))
 
     objective_func = partial(lambda x: obf(x.reshape(1,-1)).reshape(-1,1))
 

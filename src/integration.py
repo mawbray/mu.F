@@ -35,7 +35,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
 
     # Iterate over the nodes and apply nested sampling
     for node in nodes:
-        if cfg.solvers.evaluation_mode.forward == 'ray':  ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']})
+        #if cfg.solvers.evaluation_mode.forward == 'ray':  ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']})
         logging.info(f'------- Characterising node {node} according to precedence order -------')
         # define model for deus
         model = subproblem_model(node, cfg, graph, mode=mode, max_devices=max_devices)
@@ -44,7 +44,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         # solve extended DS using NS
         solver =  construct_deus_problem(DEUS, problem_sheet, model)
         solver.solve()
-        if cfg.solvers.evaluation_mode.forward == 'ray': ray.shutdown()
+        #if cfg.solvers.evaluation_mode.forward == 'ray': ray.shutdown()
         feasible, infeasible = solver.get_solution()
         feasible_set, feasible_set_prob = feasible[0], feasible[1]
         # update the graph with the number of function evaluations
@@ -367,9 +367,13 @@ class subproblem_model(ABC):
 
         del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs
 
+        if self.unit_index ==1: print('constraints: ', cons_g)
+
         return cons_g
 
     def s(self, d, p):
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
+            ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']}, num_cpus=10)  # , ,
         # evaluate feasibility and then update classifier data and number of function evaluations
         g = self.evaluate_subproblem_batch(d, self.max_devices, p)
         # shape parameters for returning constraint evaluations to DEUS
@@ -377,6 +381,8 @@ class subproblem_model(ABC):
         # adding function evaluations
         self.function_evaluations += g.shape[0]*g.shape[1]
         # return information for DEUS
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
+            ray.shutdown()
         return [g[i,:,:].reshape(n_theta,n_g) for i in range(g.shape[0])]
         
     def get_constraints(self, d, p):

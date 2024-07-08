@@ -11,7 +11,7 @@ surrogate_forward:
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
-    num_epochs: 500 # 10 #50 # 50 # 500
+    num_epochs: 200 # 10 #50 # 50 # 500
     min_delta: 0.00001
     patience: 10
     batch_size: 264 #64
@@ -48,7 +48,7 @@ classifier_args:
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
-    num_epochs: 1000 # 10 #50 # 50 # 500
+    num_epochs: 200 # 10 #50 # 50 # 500
     min_delta: 0.000001
     patience: 50
     batch_size: 264 #64
