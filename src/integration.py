@@ -367,7 +367,6 @@ class subproblem_model(ABC):
 
         del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs
 
-        if self.unit_index ==1: print('constraints: ', cons_g)
 
         return cons_g
 
