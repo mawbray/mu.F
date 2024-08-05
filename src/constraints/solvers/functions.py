@@ -73,6 +73,8 @@ def get_session():
     return tf.Session()
 
 
+# TODO modify casadi_nlp_optimizer_eq_cons and casadi_multi_start to handle inequality constraints as well as equality.
+
 def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initial_guess):
     """
     objective: casadi callback
