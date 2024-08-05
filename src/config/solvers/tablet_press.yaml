@@ -12,7 +12,7 @@ penalty_method_coupler:
 
 
 evaluation_mode: 
-  forward: mp-ms
+  forward: ray #mp-ms
   backward: jax-pmap #serial 
 
 
@@ -22,9 +22,8 @@ backward_coupling_solver: box_constrained_nlp
 
 forward_coupling:
   max_solution_time: 1. # if forward solution > 1s then raise warning
-  max_devices: 20
-  parallelised: False
-  n_starts: 3
+  parallelised: True
+  n_starts: 4
   casadi_ipopt_options:
     maxiter: 1000
     verbose: False
@@ -45,7 +44,7 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
-standardised: True #  true
+standardised: False #  true
 
 
 backward_coupling:

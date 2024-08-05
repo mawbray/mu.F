@@ -13,7 +13,7 @@ from sklearn.model_selection import KFold, GridSearchCV
 import jax.numpy as jnp
 from jax import jit
 
-from surrogate.data_utils import binary_classifier_data_preparation, standardisation_metrics
+from constraints.solvers.surrogate.data_utils import binary_classifier_data_preparation, standardisation_metrics
 
 import logging
 
@@ -25,7 +25,9 @@ def all_feasible(x):
 def no_feasible(x):
     return jnp.linalg.norm(x*jnp.array([1e-4]), ord='fro') + jnp.array([5])
 
+def get_serialised_model_data(model):
 
+    return model.get_serialised_model_data()
 
 def train(cfg, dataset, num_folds, unit_index, iterate):
     """
@@ -99,7 +101,7 @@ def compute_best_svm_classifier(
 
     return support_vectors, model, training_performance, labels
     
-    
+  
 @jit
 def rbf_kernel(x, y, epsilon=1e-3):
     # Compute the RBF kernel for multivariate case, this implementation is reasonable and avoids constructing large matrices.
@@ -146,4 +148,43 @@ def convert_svm_to_jax(pipeline):
         return decision.squeeze()
 
     return (svm_standardised, svm_unstandardised, standardisation_metrics(mean=x_mean, std=x_std))
+
+
+
+def build_svm(cfg, model_data):
+
+    x_standardisation = model_data['standardisation_metrics_input']
+    x_mean = x_standardisation.mean
+    x_std = x_standardisation.std
+
+
+    # Define the SVM model
+    support_vectors = model_data['serialized_params']['support_vectors']
+    coefficients = model_data['serialized_params']['coefficients']
+    intercept = model_data['serialized_params']['intercept']
+    kernel_param = model_data['serialized_params']['kernel_param']
+
+    if cfg['solvers']['standardised']:
+        @jit
+        def svm_standardised(x):
+            # defining multivariate -> univariate fn (no batching support )
+            x = x.reshape(1, -1)
+            decision = jnp.dot(coefficients, rbf_kernel(support_vectors, x,epsilon=kernel_param)) + intercept
+            return decision.reshape(-1,1)
+        return svm_standardised
+        
+    else:
+        @jit
+        def svm_unstandardised(x):
+            # Compute the decision function
+            x_ = (x.reshape(-1,) - x_mean.reshape(-1,)) / x_std.reshape(-1,)
+            x_ = x_.reshape(1, -1)
+            decision = jnp.dot(coefficients, rbf_kernel(support_vectors, x_,epsilon=kernel_param)) + intercept
+            # Apply the sign function to get the predicted class
+            return decision.reshape(-1,1)
+        return svm_unstandardised
+        
+
+
+
 

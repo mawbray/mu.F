@@ -1,6 +1,7 @@
 from abc import ABC
 from functools import partial
 from copy import deepcopy
+from hydra.utils import get_original_cwd
 
 import networkx as nx
 import jax.numpy as jnp
@@ -9,7 +10,7 @@ import logging
 
 from constraints.constructor import constraint_evaluator
 from unit_evaluators.constructor import subproblem_unit_wrapper
-from surrogate.surrogate import surrogate
+from constraints.solvers.surrogate.surrogate import surrogate
 from samplers.constructor import construct_deus_problem
 from samplers.appproximators import calculate_box_outer_approximation
 from samplers.utils import create_problem_description_deus
@@ -19,6 +20,7 @@ from utils import dataset as dataset
 from utils import data_processing as data_processor
 from utils import apply_feasibility
 import time
+import ray
 
 
 def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterate=0, max_devices=1):
@@ -33,6 +35,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
 
     # Iterate over the nodes and apply nested sampling
     for node in nodes:
+        #if cfg.solvers.evaluation_mode.forward == 'ray':  ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']})
         logging.info(f'------- Characterising node {node} according to precedence order -------')
         # define model for deus
         model = subproblem_model(node, cfg, graph, mode=mode, max_devices=max_devices)
@@ -41,6 +44,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         # solve extended DS using NS
         solver =  construct_deus_problem(DEUS, problem_sheet, model)
         solver.solve()
+        #if cfg.solvers.evaluation_mode.forward == 'ray': ray.shutdown()
         feasible, infeasible = solver.get_solution()
         feasible_set, feasible_set_prob = feasible[0], feasible[1]
         # update the graph with the number of function evaluations
@@ -102,7 +106,8 @@ def surrogate_training_forward(cfg, graph, node, iterate:int=0):
         graph.edges[node, successor]["forward_surrogate"] = query_model
         graph.nodes[node]['x_scalar'] = forward_evaluator_surrogate.trainer.get_model_object('standardisation_metrics_input')
         graph.edges[node,successor]['y_scalar'] = forward_evaluator_surrogate.trainer.get_model_object('standardisation_metrics_output')
-
+        graph.edges[node,successor]["forward_surrogate_serialised"] = forward_evaluator_surrogate.get_serailised_model_data()
+    
     return query_model
 
 
@@ -246,7 +251,7 @@ def classifier_construction(cfg, graph, node, iterate):
     # store the trained model in the graph
     graph.nodes[node]["classifier"] = query_model
     graph.nodes[node]['classifier_x_scalar'] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
-    
+    graph.nodes[node]['classifier_serialised'] = ls_surrogate.get_serailised_model_data()
 
     return 
 
@@ -362,9 +367,12 @@ class subproblem_model(ABC):
 
         del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs
 
+
         return cons_g
 
     def s(self, d, p):
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
+            ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']}, num_cpus=10)  # , ,
         # evaluate feasibility and then update classifier data and number of function evaluations
         g = self.evaluate_subproblem_batch(d, self.max_devices, p)
         # shape parameters for returning constraint evaluations to DEUS
@@ -372,6 +380,8 @@ class subproblem_model(ABC):
         # adding function evaluations
         self.function_evaluations += g.shape[0]*g.shape[1]
         # return information for DEUS
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
+            ray.shutdown()
         return [g[i,:,:].reshape(n_theta,n_g) for i in range(g.shape[0])]
         
     def get_constraints(self, d, p):

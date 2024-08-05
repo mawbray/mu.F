@@ -48,3 +48,6 @@ class predictor(prediction_base):
 
     def predict(self, prediction_function, X: jnp.ndarray) -> jnp.ndarray:
         return prediction_function(X)
+    
+    def get_serialised_model_data(self) -> Tuple:
+        return self.trainer.get_serialised_model_data()

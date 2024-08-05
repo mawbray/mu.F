@@ -166,3 +166,5 @@ cython_debug/
 # deus algorithm
 /src/samplers/algorithms/deus*
 /feasible*
+
+/src/memray*

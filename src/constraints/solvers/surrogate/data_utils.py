@@ -69,15 +69,13 @@ def binary_classifier_data_preparation(
         # Randomly select negative samples to match the number of positive samples
         neg_indices = jnp.where(labels == -1)[0]
         selected_indices = jax.random.choice(Key, neg_indices, shape=(num_pos - num_neg,))
-        noise = jax.random.multivariate_normal(Key, mean=jnp.ones(support.shape[1],), cov=jnp.eye(support.shape[1],)*0.001, shape=(support[selected_indices].shape[0],))
-        support = jnp.concatenate([support.squeeze(), support[selected_indices].squeeze() * noise], axis=0)
+        support = jnp.concatenate([support.squeeze(), support[selected_indices].squeeze()], axis=0)
         labels = jnp.concatenate([labels, labels[selected_indices]], axis=0)
     elif num_neg > num_pos:
         # Randomly select positive samples to match the number of negative samples
         pos_indices = jnp.where(labels == 1)[0]
         selected_indices = jax.random.choice(Key, pos_indices, shape=(num_neg - num_pos,))
-        noise = jax.random.multivariate_normal(Key, mean=jnp.ones(support.shape[1],), cov=jnp.eye(support.shape[1],)*0.001, shape=(support[selected_indices].shape[0],))
-        support = jnp.concatenate([support.squeeze(), support[selected_indices].squeeze()* noise], axis=0)
+        support = jnp.concatenate([support.squeeze(), support[selected_indices].squeeze()], axis=0)
         labels = jnp.concatenate([labels, labels[selected_indices]], axis=0)
 
 

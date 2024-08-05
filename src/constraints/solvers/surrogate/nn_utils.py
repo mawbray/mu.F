@@ -17,6 +17,7 @@ from flax.training import train_state
 from flax.training.common_utils import get_metrics, onehot
 from flax.training.early_stopping import EarlyStopping
 from flax.experimental.nnx import softmax
+from flax.serialization import to_bytes, from_bytes
 from flax import jax_utils
 import optax
 from sklearn.metrics import confusion_matrix
@@ -29,7 +30,7 @@ from functools import partial
 from omegaconf import DictConfig
 from functools import partial
 
-from surrogate.data_utils import standardisation_metrics
+from constraints.solvers.surrogate.data_utils import standardisation_metrics
 
 
 
@@ -45,6 +46,32 @@ class Dataset(ABC):
 
 def identify_neural_network(hidden_units, output_units, activation_functions) -> nn.Module:
     return NeuralNetworkEstimator(hidden_units=hidden_units, output_units=output_units, activation_functions=activation_functions)
+
+def serialise_model(params, model, x_scalar, y_scalar, model_type, model_data):
+    model_data['hidden_units'] = model.hidden_units
+    model_data['output_units'] = model.output_units
+    model_data['activation_function'] = model.activation_functions
+    model_data['serialized_params'] = to_bytes(params)
+    model_data['standardisation_metrics_input'] = standardisation_metrics(x_scalar.mean_, x_scalar.scale_)
+    if model_type == 'regressor':
+        model_data['standardisation_metrics_output'] = standardisation_metrics(y_scalar.mean_, y_scalar.scale_)
+
+    #assess model serialisation 
+    # Function to compare original and deserialized parameters
+    def compare_params(original, deserialized):
+        for k, v in original.items():
+            if isinstance(v, dict):
+                compare_params(v, deserialized[k])
+            else:
+                assert jnp.allclose(v, deserialized[k]), f"Mismatch found in parameter {k}"
+
+    # Compare original and deserialized parameters
+    try:
+        compare_params(params, from_bytes(params, model_data['serialized_params']))
+        print("Serialization and deserialization successful. Parameters match!")
+    except AssertionError as e:
+        print(f"Error: {e}")
+    return model_data
 
 
 def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng_key: random.PRNGKey=jax.random.PRNGKey(0)): 
@@ -90,8 +117,10 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
     # Train the model with the best hyperparameters using all the data
     if model_type == 'regressor':
         best_model = identify_neural_network(best_hyperparams['hidden_size'], standard_D.y.shape[1], best_hyperparams['activation_function'])
+        best_hyperparams['output_units'] = standard_D.y.shape[1]
     elif model_type == 'classifier':
         best_model = identify_neural_network(best_hyperparams['hidden_size'], 2, best_hyperparams['activation_function'])
+        best_hyperparams['output_units'] = 2
     else:
         raise NotImplementedError(f"Model type {model_type} not implemented")
 
@@ -101,13 +130,11 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
     x_mean = jnp.array(x_scalar.mean_)
     x_std = jnp.array(x_scalar.scale_)
 
-    
+    serialised_model = serialise_model(best_params, best_model, x_scalar, y_scalar, model_type, {})
 
     @jit
     def standardise(x):
         return (x - x_mean) / x_std
-    
-    
 
     if model_type == 'regressor':
 
@@ -128,9 +155,7 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
             if x.ndim <2: x = x.reshape(1,-1)
             return opt_model(x)
 
-
-
-        return opt_model, (query_standardised_model, query_unstandardised_model, standardisation_metrics(x_mean, x_std), standardisation_metrics(y_mean, y_std))
+        return opt_model, (query_standardised_model, query_unstandardised_model, standardisation_metrics(x_mean, x_std), standardisation_metrics(y_mean, y_std)), serialised_model
     
     elif model_type == 'classifier':
 
@@ -149,10 +174,7 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
             if x.shape[0]>= x.shape[1]: x= x.T
             return mapp_(opt_model(x))
         
-        
-
-
-        return opt_model, (query_standardised_classifier, query_unstandardised_classifier, standardisation_metrics(x_mean, x_std)) #, standardisation_metrics(jnp.zeros((1,2)), jnp.ones((1,2))))
+        return opt_model, (query_standardised_classifier, query_unstandardised_classifier, standardisation_metrics(x_mean, x_std)), serialised_model #, standardisation_metrics(jnp.zeros((1,2)), jnp.ones((1,2))))
 
 
 
@@ -250,6 +272,11 @@ def get_initial_params(key: jax.Array, data:jnp.array, model: nn.Module) -> Dict
   initial_params = model.init(key, init_shape)#['params']
   return initial_params
 
+def get_initial_params_serial(key: jax.Array, data:jnp.array, model: nn.Module) -> Dict:
+  input_dims = tuple(data.shape[1:])  # (minibatch, height, width, stacked frames))
+  init_shape = jnp.ones(input_dims, jnp.float32)
+  initial_params = model.init(key, init_shape)#['params']
+  return initial_params
 
 
 def train(cfg, model, data, valid_data, model_type):
@@ -410,5 +437,76 @@ def create_minibatches(dataset, batch_size, num_devices=1):
     return [minibatches[batch] for batch in range(min(num_devices, len(minibatches)))]
 
 
+def build_ann(cfg, model_data, model_class):
 
+    # Determine the input and output dimensions
+    x_standardisation = model_data['standardisation_metrics_input']
+    x_mean = x_standardisation.mean
+    x_std = x_standardisation.std
 
+    # Create the neural network estimator
+    model = NeuralNetworkEstimator(hidden_units=model_data['hidden_units'], output_units=model_data['output_units'], activation_functions=model_data['activation_function'])
+    params = get_initial_params_serial(jax.random.PRNGKey(0), x_mean.reshape(1,-1), model)
+    params = from_bytes(params, model_data['serialized_params'])
+    opt_model = partial(model.apply, params)
+
+    if model_class == 'regressor':
+        y_standardisation = model_data['standardisation_metrics_output']
+        y_mean = y_standardisation.mean
+        y_std = y_standardisation.std
+
+        y_mean = jnp.array(y_mean)
+        y_std = jnp.array(y_std)
+
+        @jit
+        def project(y):
+            return y * y_std + y_mean
+        
+        if cfg['solvers']['standardised']:
+            @jit
+            def query_standardised_model(x):
+                if x.ndim <2: x = x.reshape(1,-1)
+                return opt_model(x)
+            return query_standardised_model    
+
+        else:
+            @jit
+            def standardise(x):
+                return (x - x_mean) / x_std
+            @jit
+            def query_unstandardised_model(x):
+                if x.ndim <2 : x = x.reshape(1,-1)
+                return project(opt_model(standardise(x)))
+            return query_unstandardised_model
+
+    
+    elif model_class == 'classifier':
+
+        def mapp_(y):
+            if y.ndim <2 : y = y.reshape(1,-1)
+            return jnp.array([0.5]) - softmax(y, axis=-1)[0,0]    # if this quantity is less than or equal to zero, then the sample predicts feasibility.
+
+        if cfg['solvers']['standardised']:
+            @jit
+            def query_standardised_classifier(x):
+                if x.ndim <2: x = x.reshape(1,-1)
+                if x.shape[0]>= x.shape[1]: x= x.T
+                return mapp_(opt_model(x))
+            return query_standardised_classifier
+        
+        else:
+            @jit
+            def standardise(x):
+                return (x - x_mean) / x_std
+            @jit
+            def query_unstandardised_classifier(x):
+                if x.ndim <2 : x = x.reshape(1,-1)
+                return mapp_(opt_model(standardise(x))) 
+    
+            
+            return query_unstandardised_classifier
+    
+    else:
+        raise NotImplementedError(f"Model class {model_class} not implemented")
+
+    
