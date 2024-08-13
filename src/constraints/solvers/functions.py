@@ -1,17 +1,18 @@
 from casadi import SX, MX, nlpsol, Function, vertcat, Sparsity
+
 import casadi 
 import numpy as np
 from scipy.stats import qmc
 from jax.experimental import jax2tf
 import multiprocessing as mp
-import tensorflow.compat.v1 as tf # .compat.v1
+import tensorflow.compat.v1 as tf # type: ignore # .compat.v1
 import ray
 
-from constraints.solvers.surrogate.surrogate import surrogate_reconstruction
+#from constraints.solvers.surrogate.surrogate import surrogate_reconstruction
 
 tf.disable_v2_behavior()
 
-
+tf.compat.v1.disable_eager_execution()  # Disable eager execution to use placeholders
 
 """
 utilities for Casadi NLP solver with equality constraints
@@ -32,6 +33,50 @@ def generate_initial_guess(n_starts, n_d, bounds):
     sobol_samples = qmc.Sobol(d=n_d, scramble=True).random(n_starts)
     return jnp.array(lower_bound) + (jnp.array(upper_bound) - jnp.array(lower_bound)) * sobol_samples
 
+
+# multi start nlp with inequality constraint introduced
+'''
+def nlp_multi_start_casadi_eq_cons(initial_guess, objective_func, equality_constraints, inequality_constraints, bounds, solver):
+    """
+    objective_func: function
+    equality_constraints: function
+    inequality_constraints: function
+    bounds: list
+
+    """
+    lower_bound, upper_bound = bounds
+    n_d = len(lower_bound)
+    bnds = (lower_bound, upper_bound)
+    n_starts = initial_guess.shape[0]
+
+    # formatting for casadi
+    constraints = lambda x: equality_constraints(x.squeeze()).reshape(-1,1)
+    constraints = lambda x: inequality_constraints(x.squeeze()).reshape(-1,1)
+    objective   = lambda x: objective_func(x.squeeze()).reshape(-1,1)
+
+    # store for solutions
+    solutions_store = []
+
+    for i in range(n_starts):
+        init_guess = [initial_guess[i,j] for j in range(n_d)]
+        solver, solution = casadi_nlp_optimizer_eq_cons(objective, constraints, bnds, init_guess, solver)
+        if solver.stats()['success']:
+            solutions_store.append((solver,solution))
+            if np.array(solution['f']) <= 0: break
+
+    try: 
+        min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'].reshape(1,-1) for sol_f in solutions_store]))
+        solver_opt, solution_opt = solutions_store[min_obj_idx]   
+        del solutions_store
+        return solver_opt, solution_opt
+    
+    except: 
+       return None, None
+
+
+def get_session():
+    return tf.Session()
+'''
 
 def nlp_multi_start_casadi_eq_cons(initial_guess, objective_func, equality_constraints, bounds, solver):
     """
@@ -73,8 +118,84 @@ def get_session():
     return tf.Session()
 
 
-# TODO modify casadi_nlp_optimizer_eq_cons and casadi_multi_start to handle inequality constraints as well as equality.
 
+
+# TODO modify casadi_nlp_optimizer_eq_cons and casadi_multi_start to handle inequality constraints as well as equality.
+def casadi_nlp_optimizer_eq_cons(objective, inequality_constraints, bounds, initial_guess):
+    """
+    objective: casadi callback
+    equality_constraints: casadi callback
+    inequality_constraint: casadi callback
+    bounds: list
+    initial_guess: numpy array
+    Operates in a session via the casadi callbacks and tensorflow V1
+    """
+    n_d = len(bounds[0].squeeze())
+    lb = [bounds[0].squeeze()[i] for i in range(n_d)]
+    ub = [bounds[1].squeeze()[i] for i in range(n_d)]
+    #tf.keras.backend.clear_session()
+
+    #tf.reset_default_graph()
+    ##0r
+    tf.compat.v1.reset_default_graph()
+   
+
+   # session = tf.Session()
+    ## or
+    #session = tf.function()
+    session = tf.compat.v1.Session() 
+
+    with session: 
+        # Get the casadi callbacks required 
+        cost_fn   = casadify(objective, n_d, session)
+        ineq_cons = casadify(inequality_constraints, n_d, session)
+        
+        # casadi work up
+        x = MX.sym('x', n_d,1)
+        j = cost_fn(x)
+        h = ineq_cons(x)
+
+        F = Function('F', [x], [j])
+        H = Function('H', [x], [h])
+
+
+        # Define the box bounds
+        lbx = lb
+        ubx = ub
+
+        # Define the bounds for the equality and inequality constraints
+        #lbg = [0, -np.inf]
+        #ubg = [0, 0]
+        #alternative   method as above is not compactible 
+        # Define the bounds for the equality and inequality constraints
+           # g(x) <= 0
+        lbg = [-np.inf] * h.size1()  # Equality constraints (0), Inequality (unbounded below)
+        ubg = [0] * h.size1()  # Both equality and inequality are treated as g(x) <= 0
+       #alternative depending on how the inequality constraint is set i.e g(x) >= 0 in this case
+        #lbg = [0] * g.size1() + [0] * h.size1()   # Equality constraints (0), Inequality (unbounded above)
+        #ubg = [0] * g.size1() + [np.inf] * h.size1()  # Both equality and inequality are treated as g(x) >= 0      
+
+        # Define the NLP
+        nlp = {'x':x , 'f':F(x), 'g':  H(x)}
+
+        # Define the IPOPT solver
+        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':3, 'print_time':0, 'ipopt.max_iter': 500} # , 
+      
+        solver = nlpsol('solver', 'ipopt', nlp, options)
+
+        # Solve the NLP
+        solution = solver(x0=initial_guess, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+  
+    session.close()
+    
+    del session, cost_fn, ineq_cons, nlp, F, H,  x, j,  h, lbx, ubx, lbg, ubg, options
+    
+      
+    return solver, solution
+
+
+##
+'''
 def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initial_guess):
     """
     objective: casadi callback
@@ -128,11 +249,161 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
     del session, cost_fn, eq_cons, nlp, F, G, x, j, g, lbx, ubx, lbg, ubg, options
     
       
-    return solver, solution
+    return solver, solution'''
+##
+
+
+# Introduce inequality constraint to casadi_multi_start
+def casadi_multi_start(initial_guess, objective_func, inequality_constraints, bounds):
+    """
+    objective: casadi callback
+    equality_constraints: casadi callback
+    inequality_constraints: casadi callback
+    bounds: list
+    initial_guess: numpy array
+    """
+    n_starts = initial_guess.shape[0]
+
+    # store for solutions
+    solutions = []
+    for i in range(n_starts):
+        solver, solution = casadi_nlp_optimizer_eq_cons(objective_func,inequality_constraints, bounds, np.array(initial_guess[i,:]).squeeze())
+        if solver.stats()['success']:
+          solutions.append((solver, solution))
+          if np.array(solution['f']) <= 0: break
+
+    try:
+        min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'] for sol_f in solutions]))
+        solver_opt, solution_opt = solutions[min_obj_idx]
+        n_s = len(solutions)
+        del solutions
+        return solver_opt, solution_opt, n_s
+    except: 
+        return solver, solution, len(solutions)
+
+#Modified Casadi multi-start nlp to store and print different results  
+def casadi_multi_start_V(initial_guess, objective_func, equality_constraints, inequality_constraints, bounds):
+    """
+    Runs the CasADi NLP solver multiple times with different initial guesses.
+    
+    Parameters:
+    - initial_guess: numpy array of shape (n_starts, n_variables)
+    - objective_func: casadi callback for the objective function
+    - equality_constraints: casadi callback for the equality constraints
+    - inequality_constraints: casadi callback for the inequality constraints
+    - bounds: list containing lower and upper bounds for the variables
+    
+    Returns:
+    - solver_opt: CasADi solver object for the best solution
+    - solution_opt: The best solution found
+    - n_s: Number of successful solutions
+    """
+    n_starts = initial_guess.shape[0]
+
+    # Store for solutions
+    solutions = []
+    
+    for i in range(n_starts):
+        print(f"\nStarting optimization with initial guess {i + 1}/{n_starts}: {initial_guess[i,:]}")
+        
+        solver, solution = casadi_nlp_optimizer_eq_cons(
+            objective_func, 
+            equality_constraints, 
+            inequality_constraints, 
+            bounds, 
+            np.array(initial_guess[i,:]).squeeze()
+        )
+        
+        if solver.stats()['success']:
+            print(f"Successful optimization with initial guess {i + 1}: Solution = {solution['x']}, Objective value = {solution['f']}")
+            solutions.append((solver, solution))
+            if np.array(solution['f']) <= 0:
+                break
+        else:
+            print(f"Optimization failed with initial guess {i + 1}.")
+    
+    try:
+        min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'] for sol_f in solutions]))
+        solver_opt, solution_opt = solutions[min_obj_idx]
+        n_s = len(solutions)
+        del solutions
+        return solver_opt, solution_opt, n_s
+    except Exception as e:
+        print(f"Error during multi-start optimization: {str(e)}")
+        return solver, solution, len(solutions)
+#or
+# Modified Casadi multi-start nlp version 3 that requires more storage. This stores the solutions and the corresponding initial guesses
+def casadi_multi_start_VI(initial_guess, objective_func, equality_constraints, inequality_constraints, bounds):
+    """
+    Runs the CasADi NLP solver multiple times with different initial guesses.
+    
+    Parameters:
+    - initial_guess: numpy array of shape (n_starts, n_variables)
+    - objective_func: CasADi callback for the objective function
+    - equality_constraints: CasADi callback for the equality constraints
+    - inequality_constraints: CasADi callback for the inequality constraints
+    - bounds: list containing lower and upper bounds for the variables
+    
+    Returns:
+    - solver_opt: CasADi solver object for the best solution
+    - solution_opt: The best solution found
+    - n_s: Number of successful solutions
+    """
+    n_starts = initial_guess.shape[0]
+
+    # Store for solutions and corresponding initial guesses
+    solutions = []
+    initial_guesses = []
+
+    for i in range(n_starts):
+        current_guess = np.array(initial_guess[i,:]).squeeze()
+        print(f"\nStarting optimization with initial guess {i + 1}/{n_starts}: {current_guess}")
+
+        solver, solution = casadi_nlp_optimizer_eq_cons(
+            objective_func, 
+            equality_constraints, 
+            inequality_constraints, 
+            bounds, 
+            current_guess
+        )
+        
+        if solver.stats()['success']:
+            print(f"Successful optimization with initial guess {i + 1}: Solution = {solution['x'].full()}, Objective value = {solution['f']}")
+            solutions.append((current_guess, solver, solution))
+            if np.array(solution['f']) <= 0:
+                break
+        else:
+            print(f"Optimization failed with initial guess {i + 1}.")
+    
+    try:
+        # Extract the objective values and find the index of the minimum value
+        obj_values = np.array([sol[2]['f'] for sol in solutions])
+        min_obj_idx = np.argmin(obj_values)
+        best_initial_guess, solver_opt, solution_opt = solutions[min_obj_idx]
+        n_s = len(solutions)
+        del solutions
+        print(f"Best initial guess leading to the optimal solution: {best_initial_guess}")
+        return solver_opt, solution_opt, n_s
+    except Exception as e:
+        print(f"Error during multi-start optimization: {str(e)}")
+        return None, None, len(solutions)
 
 
 
+def construct_model(problem_data, cfg):
+    """
+    problem_data : dict    
+    """
 
+    objective_func = surrogate_reconstruction(cfg, ('classification', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['objective_func']).rebuild_model()
+    equality_constraints = surrogate_reconstruction(cfg, ('regression', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['equality_constraints']).rebuild_model()   # TODO update this notation to select different REGRESSOR.
+    inequality_constraints = surrogate_reconstruction(cfg, ('regression', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['inequality_constraints']).rebuild_model()   # TODO update this notation to select different REGRESSOR.
+
+    return objective_func, equality_constraints, inequality_constraints
+
+
+
+'''
 def casadi_multi_start(initial_guess, objective_func, equality_constraints, bounds):
     """
     objective: casadi callback
@@ -168,9 +439,54 @@ def construct_model(problem_data, cfg):
     equality_constraints = surrogate_reconstruction(cfg, ('regression', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['equality_constraints']).rebuild_model()   # TODO update this notation to select different REGRESSOR.
 
 
-    return objective_func, equality_constraints
-   
+    return objective_func, equality_constraints'''
+##   
 
+# inequality constraint introduced
+@ray.remote(num_cpus=1)
+def ray_casadi_multi_start(problem_id, problem_data, cfg):
+    """
+    objective: casadi callback
+    equality_constraints: casadi callback
+    inequality_constraints: casadi callback
+    bounds: list
+    initial_guess: numpy array
+    """
+
+
+    initial_guess, bounds = \
+      problem_data['initial_guess'], problem_data['bounds']
+    n_starts = initial_guess.shape[0]
+
+    obf, eqc, ineqc = construct_model(problem_data, cfg)
+    if problem_data['uncertain_params'] == None:
+      equality_constraints = partial(lambda x, inputs : eqc(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['eqc_rhs'])
+      inequality_constraints = partial(lambda x, inputs : ineqc(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['ineqc_rhs'])
+    else: 
+      equality_constraints= partial(lambda x, up, inputs: eqc(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['eqc_rhs'], up=jnp.array(problem_data['uncertain_params']))
+      inequality_constraints= partial(lambda x, up, inputs: ineqc(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['ineqc_rhs'], up=jnp.array(problem_data['uncertain_params']))
+
+    objective_func = partial(lambda x: obf(x.reshape(1,-1)).reshape(-1,1))
+
+    # store for solutions
+    solutions = []
+    for i in range(n_starts):
+        solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, equality_constraints, inequality_constraints, bounds, np.array(initial_guess[i,:]).squeeze())
+        if solver.stats()['success']:
+          solutions.append((solver, solution))
+          if np.array(solution['f']) <= 0: break
+
+    try:
+        min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'] for sol_f in solutions]))
+        solver_opt, solution_opt = solutions[min_obj_idx]
+        n_s = len(solutions)
+        del solutions
+        return solver_opt.stats(), solution_opt, n_s
+    except: 
+        return solver.stats(), solution, len(solutions)
+    
+
+'''
 @ray.remote(num_cpus=1)
 def ray_casadi_multi_start(problem_id, problem_data, cfg):
     """
@@ -209,7 +525,8 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
         return solver_opt.stats(), solution_opt, n_s
     except: 
         return solver.stats(), solution, len(solutions)
-    
+'''
+
 
 def casadify(functn, nd, session):
   """
@@ -218,7 +535,9 @@ def casadify(functn, nd, session):
   nd: the number of input dimensions to the function 
   session: a tf session object
   """
-  x = tf.placeholder(shape=(nd,1),dtype=tf.float64)
+  #x = tf.placeholder(shape=(nd,1),dtype=tf.float64)
+  ## or to use version 1 since tensorflow version2 does not support placeholder
+  x = tf.compat.v1.placeholder(shape=(nd,1),dtype=tf.float64)
   fn = tf_jaxmodel_wrapper(functn)
   y = fn(x)
   fn_callback = TensorFlowEvaluator([x], [y], session)
@@ -250,7 +569,43 @@ class TensorFlowEvaluator(casadi.Callback):
 
   def get_sparsity_out(self,i):
       return casadi.Sparsity.dense(*self.t_out[i].get_shape().as_list())
+ #alternative get_sparsity_out for the purpose of debug (new) 
+  '''
+  def get_sparsity_out(self, i):
+    shape = self.t_out[i].get_shape().as_list()
+    print(f"Shape of output tensor at index {i}: {shape}")
+    if not shape or len(shape) != 2:
+        raise ValueError(f"Invalid shape {shape} for dense sparsity")
+    return casadi.Sparsity.dense(*shape)
+   '''
+  # alternative 3
+  '''
+  def get_sparsity_out(self, i):
+    shape = self.t_out[i].get_shape().as_list()
+    print(f"Shape of output tensor at index {i}: {shape}")
+    if not shape or len(shape) == 0:
+        # Handling scalar output: Convert to a 1x1 shape
+        shape = [1, 1]
+    elif len(shape) == 1:
+        # Handling 1D output: Convert to a 1xN shape
+        shape = [1, shape[0]]
+    elif len(shape) != 2:
+        raise ValueError(f"Invalid shape {shape} for dense sparsity")
+    return ca.Sparsity.dense(*shape)
+    '''
+  #alternative 4
 
+
+  ''' 
+  def get_sparsity_out(self, i):
+    shape = self.t_out[i].get_shape().as_list()
+    print(f"Shape of output tensor at index {i}: {shape}")
+    if len(shape) == 1:
+        shape = [shape[0], 1]  # Convert (N,) to (N, 1)
+    elif len(shape) == 0:
+        shape = [1, 1]  # Handle scalars by converting to (1, 1)
+    return casadi.Sparsity.dense(*shape)
+   '''
   def eval(self,arg):
     # Associate each tensorflow input with the numerical argument passed by CasADi
     d = dict((v,arg[i].toarray()) for i,v in enumerate(self.t_in))
@@ -262,7 +617,7 @@ class TensorFlowEvaluator(casadi.Callback):
   def has_reverse(self,nadj): return nadj==1
   def get_reverse(self,nadj,name,inames,onames,opts):
     # Construct tensorflow placeholders for the reverse seeds
-    adj_seed = [tf.placeholder(shape=self.sparsity_out(i).shape,dtype=tf.float64) for i in range(self.n_out())]
+    adj_seed = [tf.compat.v1.placeholder(shape=self.sparsity_out(i).shape,dtype=tf.float64) for i in range(self.n_out())]
     # Construct the reverse tensorflow graph through 'gradients'
     grad = tf.gradients(self.t_out, self.t_in,grad_ys=adj_seed)
     # Create another TensorFlowEvaluator object
@@ -313,7 +668,6 @@ def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bo
     assess_subproblem_solution = partial(return_most_feasible_penalty_subproblem_uncons, objective_func=objective_func)
     _, assessment = jax.lax.scan(assess_subproblem_solution, init=None, xs=solutions.params)
     
-
     cond = solutions[1].error <= jnp.array([tol]).squeeze()
     mask = jnp.asarray(cond)
     update_assessment = (jnp.where(mask, assessment[0], jnp.minimum(assessment[0],jnp.linalg.norm(assessment[1], axis=1).squeeze())), jnp.where(mask, jnp.linalg.norm(assessment[1], axis=1).squeeze(), jnp.inf))
@@ -666,3 +1020,397 @@ def casadi_solver_call(solver, constraints, initial_guess, nlp):
     return solver, solution
 
 '''
+
+#                          *****TEST FUNCTIONS*****
+
+#  (a)  ***Test function for Casadi nlp optimizer***
+'''
+ # Feasible problem ; option 1
+if __name__ == '__main__':
+    
+  def test_fn():
+    # Objective function: Minimize the sum of squares of all elements in x
+    obj_fn = lambda x: jnp.array([jnp.power(x[0], 2) + jnp.power(x[1], 2)])
+
+    # Nonlinear Equality constraint: 
+    equality_fn = lambda x: jnp.array([jnp.sin(x[0] + x[1]) - 0.08])
+
+    # Nonlinear Inequality constraints: Ensure non-linear bounds
+    inequality_fn = lambda x: jnp.array([
+        jnp.exp(x[0]) - 2,      # exp(x[0]) <= 2  (transformed as exp(x[0]) - 2 <= 0)
+        -jnp.log(x[1]) + 1      # log(x[1]) >= 1  (transformed as -log(x[1]) + 1 <= 0)
+    ])
+
+    # Call the solver
+    solver, solution = casadi_nlp_optimizer_eq_cons(
+        obj_fn,
+        equality_fn,
+        inequality_fn,
+        bounds=[np.array([0.1, 0.1]), np.array([5.0, 5.0])],  # Bounds must ensure valid input for log
+        initial_guess=np.array([0.5, 0.5])
+    )
+
+    # Extract results
+    x_opt = solution['x'].full()  # Convert to NumPy array
+    f_opt = solution['f']  # Objective value
+
+    # Check the solver status
+    status = solver.stats()['success']
+
+    # Print results
+    print("Solver Status:", status)
+    if status:
+        print("Optimal solution:", x_opt)
+        print("Objective value at optimal solution:", f_opt)
+    else:
+        print("Optimization failed.")
+
+    return status
+
+  status = test_fn()
+  print(status)
+'''
+
+#  Feasible problem ; option 2
+if __name__ == '__main__':
+ def test_fn():
+    # Objective function: Minimize the Rosenbrock function- a known non-convex opt problem
+    obj_fn = lambda x: jnp.array([100 * jnp.power(x[1] - jnp.power(x[0], 2), 2) + jnp.power(1 - x[0], 2)])
+
+    # Nonlinear Equality constraint: x[0]^3 + x[1] - 1 = 0
+    equality_fn = lambda x: jnp.array([jnp.power(x[0], 3) + x[1] - 1])
+
+    # Nonlinear Inequality constraints:
+    inequality_fn = lambda x: jnp.array([
+        0.5 - jnp.sin(x[0] + x[1]),   # sin(x[0] + x[1]) >= 0.5
+        jnp.power(x[0], 2) + jnp.power(x[1], 2) - 2  # x[0]^2 + x[1]^2 <= 2
+    ])
+
+    # Call the solver
+    solver, solution = casadi_nlp_optimizer_eq_cons(
+        obj_fn,
+        inequality_fn,
+        bounds=[np.array([-1.5, -1.5]), np.array([1.5, 1.5])],  # Bounds on x[0] and x[1]
+        initial_guess=np.array([0.0, 1.0])
+    )
+
+    # Extract results
+    x_opt = solution['x'].full()  # Convert to NumPy array
+    f_opt = solution['f']  # Objective value
+
+    # Check the solver status
+    status = solver.stats()['success']
+
+    # Print results
+    print("Solver Status:", status)
+    if status:
+        print("Optimal solution:", x_opt)
+        print("Objective value at optimal solution:", f_opt)
+    else:
+        print("Optimization failed.")
+
+    return status
+
+
+ status = test_fn()
+ print(status)
+
+
+
+
+
+'''
+#option C
+if __name__ == '__main__':
+    def test_fn():
+        # Ensure that these return arrays, not scalars
+        inequality_fn = lambda x: jnp.array([jnp.tanh(jnp.sum(x[0] + x[1]))])
+        equality_fn = lambda x: jnp.array([jnp.sigmoid(jnp.sum(x[0] + x[1]))])
+
+        # Objective function can return a scalar if that's expected
+        obj_fn = lambda x: jnp.sum(jnp.power(x[0], 2) + jnp.power(x[1], 2))
+
+        # Use the casadi_nlp_optimizer_eq_cons (or your appropriate solver)
+        solver, solution = casadi_nlp_optimizer_eq_cons(
+            obj_fn,
+            equality_fn,
+            inequality_fn,
+            bounds=[np.array([-5, -5]), np.array([5, 5])],
+            initial_guess=np.array([0, 0])
+        )
+
+        # Extract results
+        x_opt = solution['x'].toarray()  # Convert to NumPy array
+        f_opt = solution['f'].toarray()  # Convert to NumPy array
+
+        # Check the solver status
+        status = solver.stats()['success']
+
+        # Print results
+        print("Solver Status:", status)
+        if status:
+            print("Optimal solution:", x_opt)
+            print("Objective value at optimal solution:", f_opt)
+        else:
+            print("Optimization failed.")
+
+        return status 
+
+    status = test_fn()
+    print(status)
+'''
+'''
+#This works Test function for casadi nlp, need some modifications to make the problem feasible
+if __name__ == '__main__':
+   
+   def test_fn():
+    # Objective function: Minimize the sum of squares of all elements in x
+    #obj_fn = lambda x: jnp.sum(jnp.power(x[0], 2) + jnp.power(x[1], 2))
+    obj_fn = lambda x: jnp.array([jnp.power(x[0], 2) + jnp.power(x[1], 2)])
+
+    # Equality constraint: Ensure that sum of elements in x equals 1
+    equality_fn = lambda x: jnp.array([2*x[1]-x[0], x[1]+3*x[0]-5])
+
+    # Inequality constraints: Ensure each element in x is within certain bounds
+    inequality_fn = lambda x: jnp.array([
+        x[0] - 1,     # x[0] >= 1 (transformed as x[0] - 1 >= 0)
+        -x[1] + 2     # x[1] <= 2 (transformed as -x[1] + 2 >= 0)
+    ])
+
+    # Call the solver
+    solver, solution = casadi_nlp_optimizer_eq_cons(
+        obj_fn,
+        equality_fn,
+        inequality_fn,
+        bounds=[np.array([0, 0]), np.array([5, 5])],
+        initial_guess=np.array([0.5, 0.5])
+    )
+
+    # Extract results
+    x_opt = solution['x'].full()  # Convert to NumPy array
+    f_opt = solution['f']  # Objective value
+
+    # Check the solver status
+    status = solver.stats()['success']
+
+    # Print results
+    print("Solver Status:", status)
+    if status:
+        print("Optimal solution:", x_opt)
+        print("Objective value at optimal solution:", f_opt)
+    else:
+        print("Optimization failed.")
+
+    return status
+   
+status = test_fn()
+print(status)
+'''
+
+
+# (b) TEST FUNCTION FOR MULTISTART OPTIMIZATION with CasAdi
+ 
+'''
+#  Feasible problem ; option 1
+if __name__ == '__main__':
+
+  def test_fn():
+    # Objective function: Minimize the sum of squares of all elements in x
+    obj_fn = lambda x: jnp.array([jnp.power(x[0], 2) + jnp.power(x[1], 2)])
+
+    # Nonlinear Equality constraint: 
+    equality_fn = lambda x: jnp.array([jnp.sin(x[0] + x[1]) - 0.08])
+
+    # Nonlinear Inequality constraints: Ensure non-linear bounds
+    inequality_fn = lambda x: jnp.array([
+        jnp.exp(x[0]) - 2,      # exp(x[0]) <= 2  (transformed as exp(x[0]) - 2 <= 0)
+        -jnp.log(x[1]) + 1      # log(x[1]) >= 1  (transformed as -log(x[1]) + 1 <= 0)
+    ])
+
+    # Call the solver            n_s= number of solution
+    solver, solution, n_s = casadi_multi_start(       
+        initial_guess= np.array([[0.5, 0.5], [1.0, 1.0], [2.0, 2.0]]),  # Ensuring it's a 2D array with one row # multiple initial guesses
+        objective_func = obj_fn,
+        equality_constraints= equality_fn,
+        inequality_constraints = inequality_fn,
+        bounds=[np.array([0.1, 0.1]), np.array([5.0, 5.0])]  # Bounds must ensure valid input for log
+        )
+
+    # Extract results
+    x_opt = solution['x'].full()  # Convert to NumPy array
+    f_opt = solution['f']  # Objective value
+
+    # Check the solver status
+    status = solver.stats()['success']
+
+    # Print results
+    print("Solver Status:", status)
+    if status:
+        print("Optimal solution:", x_opt)
+        print("Objective value at optimal solution:", f_opt)
+        print(f"Number of successful solutions found: {n_s}")
+    else:
+        print("Optimization failed.")
+
+    return status
+
+  status = test_fn()
+  print(status)
+'''  
+'''
+  #  Feasible problem ; option 2
+if __name__ == '__main__':  
+  def test_fn():
+    # Objective function: Minimize the Rosenbrock function- a known non-convex opt problem
+    obj_fn = lambda x: jnp.array([100 * jnp.power(x[1] - jnp.power(x[0], 2), 2) + jnp.power(1 - x[0], 2)])
+
+    # Nonlinear Equality constraint: x[0]^3 + x[1] - 1 = 0
+    equality_fn = lambda x: jnp.array([jnp.power(x[0], 3) + x[1] - 1])
+
+    # Nonlinear Inequality constraints:
+    inequality_fn = lambda x: jnp.array([
+        0.5 - jnp.sin(x[0] + x[1]),   # sin(x[0] + x[1]) >= 0.5  NB: sine in radian
+        jnp.power(x[0], 2) + jnp.power(x[1], 2) - 2  # x[0]^2 + x[1]^2 <= 2
+    ])
+
+    # Call the solver              n_s= number of solution
+    solver, solution, n_s = casadi_multi_start_V(
+        initial_guess = np.array([[0.5, 0.5], [0.5, 0.875], [0.0, 1.0]]),
+        objective_func = obj_fn,
+        equality_constraints = equality_fn,
+        inequality_constraints = inequality_fn,
+        bounds=[np.array([-1.5, -1.5]), np.array([1.5, 1.5])],  # Bounds on x[0] and x[1]
+    )
+
+    # Extract results
+    x_opt = solution['x'].full()  # Convert to NumPy array
+    f_opt = solution['f']  # Objective value
+
+    # Check the solver status
+    status = solver.stats()['success']
+
+    # Print results
+    print("Solver Status:", status)
+    if status:
+        print("Optimal solution:", x_opt)
+        print("Objective value at optimal solution:", f_opt)
+        print(f"Number of successful solutions found: {n_s}")
+    else:
+        print("Optimization failed.")
+
+    return status
+
+
+  status = test_fn()
+  print(status)
+'''
+    
+'''
+ #  Feasible problem ; option 3
+if __name__ == '__main__':
+  def sigmoid(x):
+    return 1 / (1 + jnp.exp(-x))
+
+  def tanh(x):
+    return jnp.tanh(x)
+
+  def test_fn():
+    # Objective function: Minimize the sigmoid and tanh-based function
+    obj_fn = lambda x: jnp.array([sigmoid(x[0]) + tanh(x[1]) - 1])
+
+    # Nonlinear Equality constraint: x[0]^3 + x[1] - 1 = 0
+    equality_fn = lambda x: jnp.array([jnp.power(x[0], 3) + x[1] - 1])
+
+    # Nonlinear Inequality constraints:
+    inequality_fn = lambda x: jnp.array([
+        0.5 - sigmoid(x[0] + x[1]),   # sigmoid(x[0] + x[1]) >= 0.5
+        jnp.power(x[0], 2) + jnp.power(x[1], 2) - 2  # x[0]^2 + x[1]^2 <= 2
+    ])
+
+    # Call the solver
+    solver, solution, n_s = casadi_multi_start_VI(
+        initial_guess=np.array([[0.5, 0.5], [0.5, 0.875], [0.0, 1.0]]),
+        objective_func=obj_fn,
+        equality_constraints=equality_fn,
+        inequality_constraints=inequality_fn,
+        bounds=[np.array([-1.5, -1.5]), np.array([1.5, 1.5])]  # Bounds on x[0] and x[1]
+    )
+
+    # Extract results
+    x_opt = solution['x']  # Convert to NumPy array
+    f_opt = solution['f']  # Objective value
+
+    # Check the solver status
+    status = solver.stats()['success']
+
+    # Print results
+    print("Solver Status:", status)
+    if status:
+        print("Optimal solution:", x_opt)
+        print("Objective value at optimal solution:", f_opt)
+        print(f"Number of successful solutions found: {n_s}")
+    else:
+        print("Optimization failed.")
+
+    return status
+
+
+  status = test_fn()
+  print(status)
+'''
+
+## Test test multistart_ more variables and constraints
+if __name__ == '__main__':
+ def test_fn():
+    # Objective function: Minimize a combination of trigonometric, polynomial, and exponential functions
+    obj_fn = lambda x: jnp.array([
+        jnp.sin(x[0]) + jnp.cos(x[1]) + x[2]**2 + jnp.exp(x[3]) + x[4]**4
+    ])
+
+    # Nonlinear Equality constraints
+    equality_fn = lambda x: jnp.array([
+        jnp.power(x[0], 2) + jnp.power(x[1], 2) + jnp.power(x[2], 2) - 1,  # Sphere constraint
+        x[3] * x[4] - 0.5  # Product constraint
+    ])
+
+    # Nonlinear Inequality constraints
+    inequality_fn = lambda x: jnp.array([
+        jnp.sin(x[0] + x[1]) + x[2] - 0.5,  # sin(x0 + x1) + x2 <= 0.5
+        jnp.exp(x[3]) + x[4] - 2,  # exp(x3) + x4 <= 2
+        x[0] + x[1] + x[2] + x[3] + x[4] +1  # x0 + x1 + x2 + x3 + x4 >= -1
+    ])
+
+    # Call the solver with multiple initial guesses
+    solver, solution, n_s = casadi_multi_start(
+        initial_guess=np.array([
+            [0.5, 0.5, 0.5, 0.5, 0.5],
+            [-0.5, -0.5, -0.5, -0.5, -0.5],
+            [0.1, -0.2, 0.3, -0.4, 0.5],
+            [-1.0, 1.0, -1.0, 1.0, -1.0],
+            [1.0, 0.5, 0.25, -0.25, -0.5]
+        ]),
+        objective_func=obj_fn,
+        inequality_constraints=inequality_fn,
+        bounds=[np.array([-2.0, -2.0, -2.0, -2.0, -2.0]), np.array([2.0, 2.0, 2.0, 2.0, 2.0])]
+    )
+        # Extract results
+    x_opt = solution['x']  # Convert to NumPy array
+    f_opt = solution['f']  # Objective value
+
+    # Check the solver status
+    status = solver.stats()['success']
+
+    # Print results
+    print("Solver Status:", status)
+    if status:
+        print("Optimal solution:", x_opt)
+        print("Objective value at optimal solution:", f_opt)
+        print(f"Number of successful solutions found: {n_s}")
+    else:
+        print("Optimization failed.")
+        
+    return status
+
+
+ status = test_fn()
+ print(status)

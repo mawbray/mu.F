@@ -397,42 +397,37 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         # return the forward surrogates and decision bounds
         return problem_data
     
-    def prepare_forward_problem(self, inputs):
+    def prepare_forward_problem(self, v_2):
         """
         Prepares the forward constraints surrogates and decision variables
         """
 
-        # get the inputs from the predecessors of the node
-        pred_inputs = self.get_predecessors_inputs(inputs)
-        pred_uncertain_params = self.get_predecessors_uncertain()
-
         # prepare the forward surrogates
-        forward_constraints = {pred: {p: None for p in range(len(pred_uncertain_params[pred]))} for pred in self.graph.predecessors(self.node)}
-        forward_bounds = {pred: {p: None for p in range(len(pred_uncertain_params[pred]))} for pred in self.graph.predecessors(self.node)}
-        forward_objective = {pred: {p: None for p in range(len(pred_uncertain_params[pred]))} for pred in self.graph.predecessors(self.node)}
+        forward_constraints = {pred: None for pred in self.graph.predecessors(self.node)}
+        forward_bounds = {pred: None for pred in self.graph.predecessors(self.node)}
+        forward_objective = {pred: None for pred in self.graph.predecessors(self.node)}
 
         
         for pred in self.graph.predecessors(self.node):
-            for p in range(len(pred_uncertain_params[pred])):
-                # load the forward surrogate
-                surrogate = self.graph.edges[pred, self.node]["forward_surrogate"]
-                # create a partial function for the optimizer to evaluat                
-                if self.cfg.formulation == 'probabilistic':
-                    #if self.cfg.solvers.standardised: TODO find a way to handle the case of no classifier training and request for standardisation.
-                    forward_constraints[pred][p] = partial(lambda x, up, inputs: surrogate(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_inputs[pred], up=jnp.array(pred_uncertain_params[pred][p]['c']))
-                elif self.cfg.formulation == 'deterministic':
-                    if self.cfg.solvers.standardised:   # TODO find a way to handle the case of no classifier training and request for standardisation.
-                        pred_input = self.standardise_inputs(pred_inputs[pred], pred)
-                    else:
-                        pred_input = pred_inputs[pred]
-                    forward_constraints[pred][p] = partial(lambda x, inputs: surrogate(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_input.copy())
-                # load the standardised bounds
-                decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
-                if self.cfg.solvers.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
-                forward_bounds[pred][p] = decision_bounds.copy()
-                # load the forward objective
+            # load the forward surrogate
+            surrogate = self.graph.edges[pred, self.node]["forward_surrogate"]
+            # create a partial function for the optimizer to evaluat                
+            if self.cfg.formulation == 'probabilistic':
+                #if self.cfg.solvers.standardised: TODO find a way to handle the case of no classifier training and request for standardisation.
+                raise ValueError('No probabilistic setting')
+            elif self.cfg.formulation == 'deterministic':
                 classifier = self.graph.nodes[pred]["classifier"]
-                forward_objective[pred][p] = lambda x: classifier(x).reshape(-1,1)
+                forward_constraints[pred] = lambda x: classifier(x).reshape(-1,1)
+            # load the standardised bounds
+            decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
+            if self.cfg.solvers.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
+            forward_bounds[pred] = decision_bounds.copy()
+            # load the forward objective
+            if self.cfg.solvers.standardised:
+                v_2 = self.standardise_model_decisions(v_2, self.node) 
+            classifier_2 = self.graph.nodes[self.node]["classifier"]
+            obj = partial(lambda x, v: - classifier_2(jnp.hstack([v, surrogate(x.reshape(1,-1)).reshape(-1,1)])), v=v_2)
+            forward_objective[pred] = obj
                
         # return the forward surrogates and decision bounds
         return forward_objective, forward_constraints, forward_bounds
@@ -450,6 +445,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         except:
 
             return inputs
+
     
     def standardise_model_decisions(self, decisions, in_node):
         """
