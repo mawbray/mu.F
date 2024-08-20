@@ -35,18 +35,18 @@ class solver_base(ABC):
 
 
 class serialms_casadi_box_eq_nlp_solver(solver_base):
-    def __init__(self, cfg, objective_func, equality_constraints, bounds):
+    def __init__(self, cfg, objective_func, inequality_constraints, bounds):
         super().__init__(cfg)
-        self.construct_solver(objective_func, equality_constraints, bounds)
+        self.construct_solver(objective_func, inequality_constraints, bounds)
 
     def __call__(self, initial_guesses):
         return self.solve(initial_guesses)
 
-    def construct_solver(self, objective_func, equality_constraints, bounds):
+    def construct_solver(self, objective_func, inequality_constraints, bounds):
         self.n_d = len(bounds[0])
         self.bounds = bounds
         # formatting for casadi
-        self.solver = partial(casadi_multi_start, objective_func=objective_func, equality_constraints=equality_constraints, bounds=bounds)
+        self.solver = partial(casadi_multi_start, objective_func=objective_func, inequality_constraints=inequality_constraints, bounds=bounds)
         return
     
     def initial_guess(self):
@@ -71,7 +71,7 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
 
         del solver, result, t_wall, len_feasible
 
-        return {'success': status, 'objective': -objective, 'constraints': constraints}
+        return {'success': status, 'objective': objective, 'constraints': constraints}
     
     
     def get_status(self, solver):

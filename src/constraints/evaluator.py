@@ -320,30 +320,20 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         problems = sum([len(constraints[pred]) for pred in self.graph.predecessors(self.node)])
 
         # iterate over predecessors and evaluate the constraints
-        for pred in self.graph.predecessors(self.node):
-            for p in range(len(constraints[pred])): 
-                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, objective[pred][p], bounds[pred][p], constraints[pred][p])
-                initial_guess = forward_solver.initial_guess()
-                pred_fn_evaluations[pred][p] = self.evaluation_method(forward_solver, initial_guess)
+        forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, objective, bounds, constraints)
+        initial_guess = forward_solver.initial_guess()
+        pred_fn_evaluations = self.evaluation_method(forward_solver, initial_guess)
 
-                # Update the number of NLP SOLVED TO CONVERGENCE
-                solved_successful += pred_fn_evaluations[pred][p]['success']
-                
+        # Update the number of NLP SOLVED TO CONVERGENCE
+        solved_successful += ['success']
+        
 
-                del forward_solver, initial_guess
-
-                if (np.array(pred_fn_evaluations[pred][p]['objective']) <= 0) and (pred_fn_evaluations[pred][p]['success']): break
-                
-
-        # reshape the evaluations and just get information about the constraints.
-        fn_evaluations = [min([jnp.array(pred_fn_evaluations[pred][p]['objective']) for p in pred_fn_evaluations[pred].keys()]) for pred in self.graph.predecessors(self.node)]
-
-        del pred_fn_evaluations, objective, constraints, bounds
+        del forward_solver, initial_guess
 
         if solved_successful != problems: logging.info(f"forward nlp solved to convergence: {solved_successful} out of {problems}")
 
     
-        return self.shaping_function(jnp.concatenate(fn_evaluations, axis=-1))
+        return self.shaping_function(jnp.array(pred_fn_evaluations))
 
     def get_predecessors_uncertain(self):
         """

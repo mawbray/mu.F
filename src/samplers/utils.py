@@ -33,18 +33,23 @@ def extended_design_list_constructor(bounds_for_input, bounds_for_design):
     else:
         return bounds_for_design
 
-def get_unit_bounds(G: nx.DiGraph, unit_index: int):
+def get_unit_bounds(G: nx.DiGraph, unit_index: int, mode: str):
     # constructing holder for input and design parameter bounds
-    if G.nodes[unit_index]['extendedDS_bounds'] == 'None':
+    if mode=="backward":
+        if G.nodes[unit_index]['extendedDS_bounds'] == 'None':
+            design_var = design_list_constructor(G.nodes[unit_index]['KS_bounds'])
+            if G.in_degree()[unit_index] > 0: 
+                bounds_for_input = [G.edges[predec,unit_index]["input_data_bounds"] for predec in G.predecessors(unit_index)]
+                bounds =  extended_design_list_constructor(bounds_for_input, design_var) # this should just operate on data in the graph.
+            else:
+                bounds = design_var
+        else: 
+            bounds = { f'd{index+1}': {f'd{index+1}': [ G.nodes[unit_index]['extendedDS_bounds'][0][0,index],  G.nodes[unit_index]['extendedDS_bounds'][1][0,index]]} for index in range(len(G.nodes[unit_index]['extendedDS_bounds'][0].squeeze()))}
+    elif mode=="forward":
         design_var = design_list_constructor(G.nodes[unit_index]['KS_bounds'])
-        if G.in_degree()[unit_index] > 0: 
-            bounds_for_input = [G.edges[predec,unit_index]["input_data_bounds"] for predec in G.predecessors(unit_index)]
-            bounds =  extended_design_list_constructor(bounds_for_input, design_var) # this should just operate on data in the graph.
-        else:
-            bounds = design_var
+        bounds = design_var
     else: 
-        bounds = { f'd{index+1}': {f'd{index+1}': [ G.nodes[unit_index]['extendedDS_bounds'][0][0,index],  G.nodes[unit_index]['extendedDS_bounds'][1][0,index]]} for index in range(len(G.nodes[unit_index]['extendedDS_bounds'][0].squeeze()))}
-    
+        raise ValueError('mode not valid')
     return bounds
 
 
@@ -63,7 +68,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
     
 
     # This is a problem description generation method specific to DEUS
-    bounds = get_unit_bounds(G, unit_index)
+    bounds = get_unit_bounds(G, unit_index, forward_mode)
 
     logging.info(f"Bounds: {bounds}")
     logging.info(f'EXTENDED DS DIM.: {len(bounds)}')

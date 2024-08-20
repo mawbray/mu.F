@@ -65,25 +65,6 @@ def main(cfg: DictConfig) -> None:
             visualiser(cfg, G, string='decomposition', path=f'decomposition_{m}_iterate_{i}').visualise()
             save_graph(G.copy(), m + '_iterate_' + str(i))
 
-            # reconstruction
-            if cfg.reconstruction.reconstruct[i]: # TODO fix reconstruction vmap
-                network_model = network_simulator(cfg, G, constraint_evaluator)
-                joint_live_set, joint_live_set_prob = reconstruction(cfg, G, network_model).run() # TODO update uncertainty evaluations
-                
-                # update the graph with the function evaluations
-                for node in G.nodes():
-                    G.nodes[node]["fn_evals"] += network_model.function_evaluations
-                
-                # visualisation of reconstruction
-                if cfg.reconstruction.plot_reconstruction == 'nominal_map':
-                    df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
-                elif cfg.reconstruction.plot_reconstruction == 'probability_map':
-                    df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
-                    df['probability'] = joint_live_set_prob
-                visualiser(cfg, G, df, 'reconstruction', path=f'reconstruction_{m}_iterate_{i}').visualise()
-                df.to_excel(f'inside_samples_{mode}_iterate_{i}.xlsx')
-                save_graph(G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))
-
             # TODO generalise this to all graphs based on in-degree and out-degree
             # update precedence order, note this should only be done for acyclic graphs
             if m == 'backward':
