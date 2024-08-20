@@ -132,7 +132,7 @@ class data_processing(ABC):
                 Y.append(y_edge[:,i,:].reshape(d.shape[0],-1))
                 if feasible_indices is not None:
                     # This is useful for updating KS or fitting models to feasible region only.
-                    Z.append(y_edge[:,i,:].reshape(d.shape[0],-1)[fe_ind.squeeze()])
+                    Z.append(y_edge[:,i,:].reshape(d.shape[0],-1)[fe_ind[:,0].reshape(-1,),:])
 
             X = jnp.vstack(X)
             Y = jnp.vstack(Y)

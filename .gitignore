@@ -170,3 +170,4 @@ cython_debug/
 /feasible*
 
 /src/memray*
+/outputs/
