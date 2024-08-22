@@ -316,24 +316,20 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         solver_object = self.load_solver()  # solver type has been defined elsewhere in the case study/graph construction. 
         pred_fn_evaluations = {pred: {} for pred in self.graph.predecessors(self.node)}
 
-        solved_successful = 0
-        problems = sum([len(constraints[pred]) for pred in self.graph.predecessors(self.node)])
 
         # iterate over predecessors and evaluate the constraints
-        forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, objective, bounds, constraints)
+        forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, objective[0], bounds[0], constraints[0])
         initial_guess = forward_solver.initial_guess()
         pred_fn_evaluations = self.evaluation_method(forward_solver, initial_guess)
 
-        # Update the number of NLP SOLVED TO CONVERGENCE
-        solved_successful += ['success']
+        ## Update the number of NLP SOLVED TO CONVERGENCE
+        #solved_successful += ['success']
         
 
         del forward_solver, initial_guess
 
-        if solved_successful != problems: logging.info(f"forward nlp solved to convergence: {solved_successful} out of {problems}")
-
     
-        return self.shaping_function(jnp.array(pred_fn_evaluations))
+        return self.shaping_function(jnp.array(pred_fn_evaluations['objective']).reshape(-1,1))
 
     def get_predecessors_uncertain(self):
         """
@@ -416,7 +412,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
             if self.cfg.solvers.standardised:
                 v_2 = self.standardise_model_decisions(v_2, self.node) 
             classifier_2 = self.graph.nodes[self.node]["classifier"]
-            obj = partial(lambda x, v: - classifier_2(jnp.hstack([v, surrogate(x.reshape(1,-1)).reshape(-1,1)])), v=v_2)
+            obj = partial(lambda x, v: - classifier_2(jnp.hstack([v, surrogate(x.reshape(1,-1)).reshape(1,-1)])).reshape(-1,1), v=v_2)
             forward_objective[pred] = obj
                
         # return the forward surrogates and decision bounds

@@ -312,18 +312,23 @@ class subproblem_model(ABC):
         
     def subproblem_constraint_evals(self, d, p):
         # unit forward pass
-        outputs = self.unit_forward_evaluator.get_constraints(d, p) # outputs (rank 3 tensor if we have parametric uncertainty in the unit, n_d \times n_theta \times n_g)
-
         # get inputs/design parameters split
         unit_design, unit_inputs = self.unit_forward_evaluator.get_input_decision_split(d) # decisions, inputs (both rank 2 tensors)
 
-        # evaluate process constraints 
-        process_constraint_evals = self.process_constraints.evaluate(unit_design, unit_inputs, outputs) # process constraints (rank 3 tensor n_d \times n_theta \times n_g)
+        if not self.mode == 'forward':
+            outputs = self.unit_forward_evaluator.get_constraints(d, p) # outputs (rank 3 tensor if we have parametric uncertainty in the unit, n_d \times n_theta \times n_g)
+
+            # evaluate process constraints 
+            
+            process_constraint_evals = self.process_constraints.evaluate(unit_design, unit_inputs, outputs) # process constraints (rank 3 tensor n_d \times n_theta \times n_g)
+        else:
+            process_constraint_evals = None
+            outputs = None
 
         # evaluate feasibility upstream
         if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
             start_time = time.time()
-            forward_constraint_evals = self.forward_constraints.evaluate(unit_inputs) # forward constraints (rank 3 tensor n_d \times n_theta \times n_g)
+            forward_constraint_evals = self.forward_constraints.evaluate(unit_design) # forward constraints (rank 3 tensor n_d \times n_theta \times n_g)
             end_time = time.time()
             execution_time = end_time - start_time
             logging.info(f'execution_time_forward_constraints: {execution_time}')
@@ -332,7 +337,7 @@ class subproblem_model(ABC):
                 forward_constraint_evals = forward_constraint_evals.reshape(-1,1)
             if forward_constraint_evals.ndim == 2:
                 forward_constraint_evals = np.expand_dims(forward_constraint_evals, axis=1)
-            forward_constraint_evals = np.repeat(forward_constraint_evals, outputs.shape[1], axis=1)
+            forward_constraint_evals = np.repeat(forward_constraint_evals, 1, axis=1)
         else:
             forward_constraint_evals = None
         
@@ -352,7 +357,7 @@ class subproblem_model(ABC):
 
         # update input output data for forward surrogate model
 
-        if self.cfg.surrogate.forward_evaluation_surrogate:
+        if (self.cfg.surrogate.forward_evaluation_surrogate) and (outputs !=None):
             self.input_output_data = update_data(self.input_output_data, d, p, outputs)  # updating dataset for surrogate model of forward unit evaluation
 
         # concatenate constraint evaluations

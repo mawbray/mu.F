@@ -22,7 +22,7 @@ backward_coupling_solver: box_constrained_nlp
 
 forward_coupling:
   max_solution_time: 1. 
-  parallelised: True
+  parallelised: False
   n_starts: 4
   casadi_ipopt_options:
     maxiter: 500

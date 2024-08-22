@@ -163,23 +163,15 @@ def casadi_nlp_optimizer_eq_cons(objective, inequality_constraints, bounds, init
         lbx = lb
         ubx = ub
 
-        # Define the bounds for the equality and inequality constraints
-        #lbg = [0, -np.inf]
-        #ubg = [0, 0]
-        #alternative   method as above is not compactible 
-        # Define the bounds for the equality and inequality constraints
-           # g(x) <= 0
         lbg = [-np.inf] * h.size1()  # Equality constraints (0), Inequality (unbounded below)
         ubg = [0] * h.size1()  # Both equality and inequality are treated as g(x) <= 0
-       #alternative depending on how the inequality constraint is set i.e g(x) >= 0 in this case
-        #lbg = [0] * g.size1() + [0] * h.size1()   # Equality constraints (0), Inequality (unbounded above)
-        #ubg = [0] * g.size1() + [np.inf] * h.size1()  # Both equality and inequality are treated as g(x) >= 0      
+       
 
         # Define the NLP
         nlp = {'x':x , 'f':F(x), 'g':  H(x)}
 
         # Define the IPOPT solver
-        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':3, 'print_time':0, 'ipopt.max_iter': 500} # , 
+        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':0, 'print_time':0, 'ipopt.max_iter': 500} # , 
       
         solver = nlpsol('solver', 'ipopt', nlp, options)
 
