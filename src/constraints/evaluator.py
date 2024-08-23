@@ -410,9 +410,9 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
             forward_bounds[pred] = decision_bounds.copy()
             # load the forward objective
             if self.cfg.solvers.standardised:
-                v_2 = self.standardise_model_decisions(v_2, self.node) 
+                v_2_ = self.standardise_model_decisions([v for v in v_2[0]], self.node) 
             classifier_2 = self.graph.nodes[self.node]["classifier"]
-            obj = partial(lambda x, v: - classifier_2(jnp.hstack([v, surrogate(x.reshape(1,-1)).reshape(1,-1)])).reshape(-1,1), v=v_2)
+            obj = partial(lambda x, v: - classifier_2(jnp.hstack([v, surrogate(x.reshape(1,-1)).reshape(1,-1)])).reshape(-1,1), v=jnp.hstack(v_2_).reshape(1,-1))
             forward_objective[pred] = obj
                
         # return the forward surrogates and decision bounds
@@ -439,7 +439,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         """
         try:
             mean, std = self.graph.nodes[in_node]['classifier_x_scalar'].mean, self.graph.nodes[in_node]['classifier_x_scalar'].std
-            return [(decision - mean) / std for decision in decisions]
+            return [(decision - m) / s for i, (m, s, decision) in enumerate(zip([m for m in mean], [s for s in std], decisions)) if i < len(decisions)]
         except:
             try:
                 mean, std = self.graph.nodes[in_node]['x_scalar'].mean, self.graph.nodes[in_node]['x_scalar'].std
