@@ -4,6 +4,7 @@ from jax import jit
 from omegaconf import DictConfig
 import jax.numpy as jnp
 
+# --- tablet press case study --- # 
 
 @partial(jit, static_argnums=(0,))
 def bulk_density_u1(cfg, design_args, input_args, *args):
@@ -376,4 +377,139 @@ def unit_3_dynamics(
 
 
 
-case_studies = {'tablet_press': {0: unit_1_dynamics, 1: unit_2_dynamics, 2: unit_3_dynamics}}
+# --- convex estimator case study --- #
+
+@partial(jit, static_argnums=(0,))
+def sub_fn_1(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+):
+    """sub function 1 for convex estimator
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs - Block 1 output
+
+    """
+
+    log_terms = jnp.array([jnp.log(input_args[i]) for i in range(input_args.shape[0])])
+    coefficients = jnp.array([design_args[i] for i in range(design_args.shape[0])])
+    return - jnp.dot(coefficients, log_terms)
+
+
+@partial(jit, static_argnums=(0,))
+def sub_fn_2(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+):
+    """sub function 2 for convex estimator
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs - Block 2 output
+
+    """
+    log_terms = jnp.array([input_args[i]*jnp.log(input_args[i] + 1) for i in range(input_args.shape[0])])
+    coefficients = jnp.array([design_args[i] for i in range(design_args.shape[0])])
+    return jnp.dot(coefficients, log_terms)
+
+@partial(jit, static_argnums=(0,))
+def sub_fn_3(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+):
+    """sub function 3 for convex estimator
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs - Block 3 output
+
+    """
+    return design_args
+
+@partial(jit, static_argnums=(0,))
+def sub_fn_4(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+):
+    """sub function 4 for convex estimator
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs - Block 4 output
+
+    """
+    return jnp.dot(design_args, input_args)
+
+@partial(jit, static_argnums=(0,))
+def sub_fn_5(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+):
+    """sub function 5 for convex estimator
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs - Block 5 output
+
+    """
+    return jnp.matmul(jnp.matmul(input_args.T, design_args), input_args)
+    
+
+@partial(jit, static_argnums=(0,))
+def sub_fn_6(cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None):
+    """sub function 6 for convex estimator
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs - Block 6 output
+
+    """
+    return jnp.sum(input_args[:-2])
+
+
+
+case_studies = {'tablet_press': {0: unit_1_dynamics, 1: unit_2_dynamics, 2: unit_3_dynamics}, 'convex_estimator': {0: sub_fn_1, 1: sub_fn_2, 2: sub_fn_3, 3: sub_fn_4, 4: sub_fn_5, 5: sub_fn_6}}

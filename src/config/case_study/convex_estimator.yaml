@@ -1,0 +1,108 @@
+case_study: convex_estimator
+
+vmap_evaluations: True
+
+adjacency_matrix:
+  - [0, 0, 0, 0, 0, 1]
+  - [0, 0, 0, 0, 0, 1]
+  - [0, 0, 0, 0, 0, 1]
+  - [0, 0, 0, 0, 0, 1]
+  - [0, 0, 0, 0, 0, 1]
+  - [0, 0, 0, 0, 0, 0]
+
+n_design_args:
+  - 5
+  - 4
+  - 1
+  - 4
+  - 4
+  - 2
+
+n_input_args:
+  (0,5): 1
+  (1,5): 1
+  (2,5): 1
+  (3,5): 1
+  (4,5): 1 
+
+KS_bounds:  # unit, arg, b
+  - - - 300
+      - 900
+    - - 300
+      - 700
+  - - - 300
+      - 900
+    - - 300
+      - 700
+
+fn_evals: 
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+
+unit_op:
+  - 'steady_state'
+  - 'steady_state'
+  - 'steady_state'
+  - 'steady_state'
+  - 'steady_state'
+
+unit_params_fn:
+  - None
+  - None
+  - None
+  - None
+  - None
+
+n_theta:
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+
+
+
+parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weight in posteiror distribution]}]]  #  q = multivariate_normal([6.66e-06, 0.0010335], [[0.00001e-06, 0.000001e-08],[0.000001e-08, 0.0000005]])
+  - [{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.}]
+
+parameters_best_estimate: # list of lists [node][[param1]] most likely estimate
+  - [0.]
+  - [0.]
+  - [0.]
+  - [0.]
+  - [0.]
+  - [0.]
+
+extendedDS_bounds: [None, None, None, None, None, None]
+
+
+design_space_dimensions:
+- 'U1: Temp. (K)'
+- 'U1: Batch time (mins)'
+- 'U2: Temp. (K)'
+- 'U2: Batch time (mins)'
+
+process_space_names:
+  - ['U1: Temp. (K)', 'U1: Batch time (mins)']
+  - ['U2: Temp. (K)', 'U2: Batch time (mins)', 'Conc. A (mol/L)','Conc. B (mol/L)']
+
+
+mode:
+  - backward
+  #- backward-forward
+  #- backward-forward
+  #- forward
+  #- forward-backward
+  #- 'forward-backward'
+
+
+evaluation_mode: 'jax-pmap' #serial

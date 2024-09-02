@@ -1,0 +1,10 @@
+
+
+reconstruct: 
+  - True
+
+
+plot_reconstruction: nominal_map # probability_map #
+
+
+reconstruction_scheme: uniform #sobol

@@ -1,0 +1,34 @@
+# dynamics definition
+
+arrhenius:
+  EA: 
+    - - 1500.2 # AE R1
+      - 5000.1 # AE R2
+    - - 2500.2 # AE R1
+      - 5000.1 # AE R2
+  A:
+    - - 1.66e-07 # pre-exponent. factor R1
+      - 0.00050335 # pre-exponent. factor R2
+    - - 9.66e-06 # pre-exponent. factor R1
+      - 0.0050335 # pre-exponent. factor R2
+  R: 8.314 # ideal gas constant
+
+
+root_node_inputs:
+  - - 2000. # component 1
+    - 0. # component 2
+    - 0. # component 3
+
+
+constraint:
+  purity_u1: 0.24
+  purity_u2: 0.825
+
+
+integration:
+  scheme: tsit5  # dopri8
+  step_size_controller: pid
+  t0: 0
+  tf: 1
+  dt0: 1.0e-1
+  max_steps: 10000
