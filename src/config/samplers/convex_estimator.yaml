@@ -10,6 +10,7 @@ vol_scale: 0.01
 
 ns:
   n_live: 3500
+  n_live: 3500
   final_sample_live: 3500  
   n_replacements: 50 
   n_iter: 15000 

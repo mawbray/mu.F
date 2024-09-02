@@ -3,6 +3,7 @@ case_study: convex_estimator
 vmap_evaluations: True
 
 adjacency_matrix:
+  - [1, 1, 1, 1, 1, 1]
   - [0, 0, 0, 0, 0, 1]
   - [0, 0, 0, 0, 0, 1]
   - [0, 0, 0, 0, 0, 1]
@@ -11,31 +12,55 @@ adjacency_matrix:
   - [0, 0, 0, 0, 0, 0]
 
 n_design_args:
+  - 0
   - 5
   - 4
   - 1
   - 4
   - 4
   - 2
+  
 
 n_input_args:
-  (0,5): 1
-  (1,5): 1
-  (2,5): 1
-  (3,5): 1
-  (4,5): 1 
+  (0,1): 2
+  (0,2): 2
+  (0,3): 2
+  (0,4): 2
+  (0,5): 2
+  (0,6): 2
+  (1,6): 1
+  (2,6): 1
+  (3,6): 1
+  (4,6): 1
+  (5,6): 1 
 
 KS_bounds:  # unit, arg, b
-  - - - 300
-      - 900
-    - - 300
-      - 700
-  - - - 300
-      - 900
-    - - 300
-      - 700
+  - - - 0
+    - - 0
+  - - - -10
+      - 10
+    - - -10
+      - 10
+  - - - -10
+      - 10
+    - - -10
+      - 10
+  - - - -10
+      - 10
+  - - - -10
+      - 10
+    - - -10
+      - 10
+  - - - -10
+      - 10
+    - - -10
+      - 10
+    - - -10
+      - 10
 
 fn_evals: 
+  - 0
+  - 0
   - 0
   - 0
   - 0
@@ -48,6 +73,8 @@ unit_op:
   - 'steady_state'
   - 'steady_state'
   - 'steady_state'
+  - 'steady_state'
+  - 'steady_state'
 
 unit_params_fn:
   - None
@@ -55,8 +82,11 @@ unit_params_fn:
   - None
   - None
   - None
+  - None
+  - None
 
 n_theta:
+  - 1
   - 1
   - 1
   - 1
@@ -73,6 +103,7 @@ parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weigh
   - [{'c': [0.], 'w': 1.}]
   - [{'c': [0.], 'w': 1.}]
   - [{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.}]
 
 parameters_best_estimate: # list of lists [node][[param1]] most likely estimate
   - [0.]
@@ -81,8 +112,9 @@ parameters_best_estimate: # list of lists [node][[param1]] most likely estimate
   - [0.]
   - [0.]
   - [0.]
+  - [0.]
 
-extendedDS_bounds: [None, None, None, None, None, None]
+extendedDS_bounds: [None, None, None, None, None, None, None]
 
 
 design_space_dimensions:
