@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 import pandas as pd
 import pickle 
 import itertools
-
+import logging
 
 def apply_direct_method(cfg, graph):
 
@@ -33,7 +33,7 @@ def direct_evaluation(cfg: DictConfig) -> None:
 
 
     # Load the identified sets
-    stems = ['/home/mmowbray/Github/feasibility/mu.F/src/multirun/2024-08-28/15-39-48/0/']
+    stems = ['/home/mmowbray/Github/feasibility/mu.F/src/multirun/2024-09-02/17-58-37/0/'] # mmowbray/Github/feasibility/mu.F/src/multirun/2024-08-28/15-39-48/0/
     leaves = ['graph_forward_iterate_1.pickle']
 
     with open(stems[0] + leaves[0], 'rb') as f:
@@ -53,7 +53,6 @@ def direct_evaluation(cfg: DictConfig) -> None:
     G = case_study_constructor(cfg)   # TODO integration of case study construction G is a networkx graph - need to update case study contructor
 
     # Save the graph to a file
-
     model = network_simulator(cfg, G, constraint_evaluator)
     _, _, up = get_network_uncertain_params(cfg)
     constraint_evaluations = model.direct_evaluate(joint_live_set, up[0]['c'].reshape(1, -1))
@@ -68,6 +67,8 @@ def direct_evaluation(cfg: DictConfig) -> None:
 
     df = pd.DataFrame({key: feasible_live_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
     visualiser(cfg, G, data=df, string='design_space', path=f'reconstruction').visualise()
+
+    logging.info(f'Feasible set: {len(feasible_live_set)/len(joint_live_set)}')
     
 
     return feasible
