@@ -143,8 +143,8 @@ def nonconvex_ground_truth(dynamic_profile, cfg):
     return non_convex_sum(dynamic_profile[-2:], cfg) + interaction_terms(dynamic_profile[-2:], cfg)
 
 @partial(jit, static_argnums=(1))
-def non_convex_sum(dynamic_profile, cfg):
-    return jnp.sum(jnp.array([jnp.pow(dynamic_profile[i],3) - jnp.pow(dynamic_profile[i],2) for i in range(len(dynamic_profile))]))
+def non_convex_sum( dynamic_profile, cfg):
+    return jnp.sum(jnp.array([jnp.power(dynamic_profile[i],3) - jnp.power(dynamic_profile[i],2) for i in range(1,len(dynamic_profile))]))
 
 @partial(jit, static_argnums=(1))
 def interaction_terms(dynamic_profile, cfg):

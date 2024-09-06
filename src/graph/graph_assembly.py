@@ -49,13 +49,36 @@ class graph_constructor(graph_constructor_base):
             self.G.nodes[node]["n_input_args"] = sum([self.G.edges[predec, node]["n_input_args"] for predec in self.G.predecessors(node)])
         return
     
+    def add_n_aux_args(self, n_aux_args):
+
+        for (i, j) in self.G.edges:
+            self.G.edges[i,j]["n_auxiliary_args"] = n_aux_args[f'({i},{j})']
+
+        for node in self.G.nodes:
+            self.G.nodes[node]["n_auxiliary_args"] = n_aux_args[f'node_{node}']
+
+        return
    
-    def add_input_indices(self):
+    def add_input_aux_indices(self):
+        """
+        function determines the indices of the input arguments of each edge to a given \textbf{node} in the graph
+        - helpful for the construction of the coupling NLP.
+        """
         for node in self.G.nodes:
             n_d = 0
             for predec in self.G.predecessors(node):
                 self.G.edges[predec, node]["input_indices"] = [n_d + i for i in range(self.G.edges[predec, node]["n_input_args"])]
                 n_d += self.G.edges[predec, node]["n_input_args"]
+
+            if self.cfg.model.constraint.auxiliary == 'global':
+                for pred in self.G.predecessors(node):
+                    self.G.edges[pred, node]["auxiliary_indices"] = [n_d + i for i in range(self.G.edges[pred, node]["n_auxiliary_args"])]
+            elif self.cfg.constraints.auxiliary == 'local':
+                for pred in self.G.predecessors(node):
+                    self.G.edges[pred, node]["auxiliary_indices"] = [n_d + i for i in range(self.G.edges[pred, node]["n_auxiliary_args"])]
+                    n_d += self.G.edges[predec, node]["n_auxiliary_args"]
+            else:
+                raise ValueError('Invalid auxiliary variable structure')
         return
     
     

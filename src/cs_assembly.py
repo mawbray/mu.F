@@ -51,7 +51,7 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     # add nodes properties to the graph
     G.add_arg_to_nodes('n_design_args', cfg.case_study.n_design_args)
     G.add_arg_to_nodes('n_theta', cfg.case_study.n_theta)
-    G.add_arg_to_nodes('KS_bounds', cfg.case_study.KS_bounds)
+    G.add_arg_to_nodes('KS_bounds', cfg.case_study.KS_bounds.design_args)
     G.add_arg_to_nodes('parameters_best_estimate', cfg.case_study.parameters_best_estimate)
     G.add_arg_to_nodes('parameters_samples', cfg.case_study.parameters_samples)
     G.add_arg_to_nodes('fn_evals', cfg.case_study.fn_evals)
@@ -65,7 +65,8 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
 
     # add miscellaneous information to the graph
     G.add_n_input_args(cfg.case_study.n_input_args)
-    G.add_input_indices()
+    G.add_n_aux_args(cfg.case_study.n_aux_args)
+    G.add_input_aux_indices()
 
     # add edge properties to the graph
     G.add_arg_to_edges('edge_fn', dict_of_edge_fn)
@@ -87,6 +88,10 @@ def unit_params_fn(cfg, G):
         return {node: partial(arrhenius_kinetics_fn,Ea=jnp.array(cfg.model.arrhenius.EA[node]), A=jnp.array(cfg.model.arrhenius.A[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
     elif cfg.case_study.case_study == 'tablet_press':
         return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
+    elif cfg.case_study.case_study == 'convex_estimator':
+        return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
+    else :
+        raise ValueError('Invalid case study')
 
 def solver_constructor(cfg, G):
 

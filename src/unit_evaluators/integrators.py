@@ -25,7 +25,7 @@ from diffrax import Tsit5
 from unit_evaluators.ode import case_studies
 
 
-def unit_dynamics(design_params, u, decision_dependent, uncertainty_params, cfg, node):   
+def unit_dynamics(design_params, u, aux, decision_dependent, uncertainty_params, cfg, node):   
     """
     Here we assume that the dynamics are defined by a system of ODEs.
     This is a general function that assumes initial conditions are defined by input parameters within the extended design space 
@@ -36,13 +36,13 @@ def unit_dynamics(design_params, u, decision_dependent, uncertainty_params, cfg,
     """
 
     if design_params.ndim < 2:
-        params = jnp.expand_dims(design_params, axis=0)
+        design_params = jnp.expand_dims(design_params, axis=0)
 
     if decision_dependent.ndim < 2:
         decision_dependent = jnp.expand_dims(decision_dependent, axis=0)
 
     # defining the params to pass to the vector field
-    params = jnp.hstack([params, decision_dependent, uncertainty_params.reshape(1,-1)]).squeeze()
+    params = jnp.hstack([design_params, decision_dependent, aux, uncertainty_params.reshape(1,-1)]).squeeze()
 
     # defining the dynamics
     term = ODETerm(case_studies[cfg.case_study.case_study][node])

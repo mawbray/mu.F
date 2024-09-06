@@ -314,16 +314,16 @@ class subproblem_model(ABC):
         # unit forward pass
         outputs = self.unit_forward_evaluator.get_constraints(d, p) # outputs (rank 3 tensor if we have parametric uncertainty in the unit, n_d \times n_theta \times n_g)
 
-        # get inputs/design parameters split
-        unit_design, unit_inputs = self.unit_forward_evaluator.get_input_decision_split(d) # decisions, inputs (both rank 2 tensors)
+        # get design/inputs/aux parameters split
+        unit_design, unit_inputs, aux_args = self.unit_forward_evaluator.get_auxilliary_input_decision_split(d) # decisions, inputs (both rank 2 tensors)
 
         # evaluate process constraints 
-        process_constraint_evals = self.process_constraints.evaluate(unit_design, unit_inputs, outputs) # process constraints (rank 3 tensor n_d \times n_theta \times n_g)
+        process_constraint_evals = self.process_constraints.evaluate(unit_design, unit_inputs, aux_args, outputs) # process constraints (rank 3 tensor n_d \times n_theta \times n_g)
 
         # evaluate feasibility upstream
         if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
             start_time = time.time()
-            forward_constraint_evals = self.forward_constraints.evaluate(unit_inputs) # forward constraints (rank 3 tensor n_d \times n_theta \times n_g)
+            forward_constraint_evals = self.forward_constraints.evaluate(unit_inputs, aux_args) # forward constraints (rank 3 tensor n_d \times n_theta \times n_g)
             end_time = time.time()
             execution_time = end_time - start_time
             logging.info(f'execution_time_forward_constraints: {execution_time}')
@@ -341,7 +341,7 @@ class subproblem_model(ABC):
         # evaluate feasibility downstream
         if (self.backward_constraints is not None) and (self.G.out_degree(self.unit_index) > 0):
             start_time = time.time()
-            backward_constraint_evals = self.backward_constraints.evaluate(outputs) # backward constraints (rank 3 tensor, n_d \times n_theta \times n_g)
+            backward_constraint_evals = self.backward_constraints.evaluate(outputs, aux_args) # backward constraints (rank 3 tensor, n_d \times n_theta \times n_g)
             end_time = time.time()
             execution_time = end_time - start_time
             logging.info(f'execution_time_backward_constraints: {execution_time}')

@@ -23,12 +23,12 @@ class constraint_evaluator(ABC):
         else:   
             raise ValueError('Invalid constraint type')
 
-    def evaluate_process(self, design, inputs, outputs):
-        return self.constraint_evaluator(outputs)
+    def evaluate_process(self, design, inputs, aux, outputs):
+        return self.constraint_evaluator(design, inputs, outputs, aux)
     
-    def evaluate_forward(self, inputs):
-        return self.constraint_evaluator(inputs)
+    def evaluate_forward(self, inputs, aux):
+        return self.constraint_evaluator(inputs, aux)
     
-    def evaluate_backward(self, outputs):
-        return self.constraint_evaluator(outputs)
+    def evaluate_backward(self, outputs, aux):
+        return self.constraint_evaluator(outputs, aux)
     

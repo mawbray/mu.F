@@ -380,8 +380,8 @@ def unit_3_dynamics(
 # --- convex estimator case study --- #
 
 @partial(jit, static_argnums=(0,))
-def sub_fn_1(
-    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+def sub_fn_2(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
 ):
     """sub function 1 for convex estimator
     Args:
@@ -399,14 +399,14 @@ def sub_fn_1(
 
     """
 
-    log_terms = jnp.array([jnp.log(input_args[i]) for i in range(input_args.shape[0])])
+    log_terms = jnp.array([jnp.log(aux[0,i]).squeeze() for i in range(aux.shape[1])])
     coefficients = jnp.array([design_args[i] for i in range(design_args.shape[0])])
-    return - jnp.dot(coefficients, log_terms)
+    return jnp.hstack([-jnp.dot(coefficients, log_terms).reshape(1,1), aux])
 
 
 @partial(jit, static_argnums=(0,))
-def sub_fn_2(
-    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+def sub_fn_3(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
 ):
     """sub function 2 for convex estimator
     Args:
@@ -423,13 +423,13 @@ def sub_fn_2(
         outputs - Block 2 output
 
     """
-    log_terms = jnp.array([input_args[i]*jnp.log(input_args[i] + 1) for i in range(input_args.shape[0])])
+    log_terms = jnp.array([aux[0,i]*jnp.log(aux[0,i] + 1) for i in range(aux.shape[1])])
     coefficients = jnp.array([design_args[i] for i in range(design_args.shape[0])])
-    return jnp.dot(coefficients, log_terms)
+    return jnp.hstack([jnp.dot(coefficients, log_terms).reshape(1,1), aux])
 
 @partial(jit, static_argnums=(0,))
-def sub_fn_3(
-    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+def sub_fn_1(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
 ):
     """sub function 3 for convex estimator
     Args:
@@ -446,11 +446,11 @@ def sub_fn_3(
         outputs - Block 3 output
 
     """
-    return design_args
+    return jnp.hstack([design_args.reshape(1,1), aux])
 
 @partial(jit, static_argnums=(0,))
 def sub_fn_4(
-    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
 ):
     """sub function 4 for convex estimator
     Args:
@@ -467,11 +467,11 @@ def sub_fn_4(
         outputs - Block 4 output
 
     """
-    return jnp.dot(design_args, input_args)
+    return jnp.hstack([jnp.dot(design_args, aux.T).reshape(1,1), aux])
 
 @partial(jit, static_argnums=(0,))
 def sub_fn_5(
-    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
 ):
     """sub function 5 for convex estimator
     Args:
@@ -488,11 +488,15 @@ def sub_fn_5(
         outputs - Block 5 output
 
     """
-    return jnp.matmul(jnp.matmul(input_args.T, design_args), input_args)
+    Q = jnp.diag(design_args[0,:-1])
+    Q= Q.at[0,1].set(design_args[0,-1])
+    Q = Q.at[1,0].set(design_args[0,-1])
+
+    return jnp.hstack([jnp.matmul(jnp.matmul(aux, Q), aux.T).reshape(1,1), aux])
     
 
 @partial(jit, static_argnums=(0,))
-def sub_fn_6(cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args: None):
+def sub_fn_6(cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None):
     """sub function 6 for convex estimator
     Args:
         cfg: hydra config
@@ -508,7 +512,7 @@ def sub_fn_6(cfg: DictConfig, design_args: jnp.ndarray, input_args: None, *args:
         outputs - Block 6 output
 
     """
-    return jnp.sum(input_args[:-2])
+    return jnp.hstack([jnp.sum(input_args[:-2]).reshape(1,1), aux])
 
 
 

@@ -50,7 +50,7 @@ class unit_evaluation(base_unit):
         """
         return self.unit_cfg.decision_dependent_params(decisions, uncertain_params)
 
-    def evaluate(self, design_args, input_args, uncertain_params=None):
+    def evaluate(self, design_args, input_args, aux_args, uncertain_params=None):
         """
         Evaluates the unit.
 
@@ -67,15 +67,19 @@ class unit_evaluation(base_unit):
         """
 
         dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
-        
-        if dd_params.ndim<3: 
-            dd_params = jnp.expand_dims(dd_params, axis=-1)
+        dd_params = expand_dims(dd_params, axis=-1)
+        input_args = expand_dims(input_args, axis=1)
+        design_args = expand_dims(design_args, axis=1)
+        aux_args = expand_dims(aux_args, axis=1)            
 
-        if input_args.ndim < 3:
-            input_args = jnp.expand_dims(input_args, axis=1)    
-        
+        return self.unit_cfg.evaluator(design_args, input_args, aux_args, dd_params, uncertain_params)
 
-        return self.unit_cfg.evaluator(design_args, input_args, dd_params, uncertain_params)
+
+def expand_dims(array, axis):
+    if array.ndim < 3:
+        array = jnp.expand_dims(array, axis=axis)
+    return array
+
 
 class subproblem_unit_wrapper(unit_evaluation):
     def __init__(self, cfg, graph, node):
@@ -108,30 +112,43 @@ class subproblem_unit_wrapper(unit_evaluation):
         if uncertain_params is None:
             uncertain_params = jnp.empty((1,1))
         
-        design_args, input_args = self.get_input_decision_split(decisions)
+        design_args, input_args, aux_args = self.get_auxilliary_input_decision_split(decisions)
 
         if input_args.shape[1] == 0: 
             if not (self.cfg.model.root_node_inputs[self.node] == 'None'):
                 input_args = jnp.array([self.cfg.model.root_node_inputs[self.node]]*design_args.shape[0])
             else:
                 input_args = jnp.empty((design_args.shape[0], 0))
+
+        if aux_args.shape[1] == 0: 
+            if not (self.cfg.model.root_node_aux[self.node] == 'None'):
+                aux_args = jnp.array([self.cfg.model.root_node_aux[self.node]]*design_args.shape[0])
+            else:
+                aux_args = jnp.empty((design_args.shape[0], 0))
             
-        if input_args.ndim == 1:
-            input_args = jnp.expand_dims(input_args, axis=1)
-        if input_args.ndim < 3:
-            input_args = jnp.expand_dims(input_args, axis=1)
-
-        if input_args.shape[1] != uncertain_params.shape[0]:
-            input_args = jnp.concatenate([input_args for _ in range(uncertain_params.shape[0])], axis=1) # repeat input_args for each uncertain param
+        input_args = expand_input_args(input_args, uncertain_params)
+        aux_args = expand_input_args(aux_args, uncertain_params)
         
-        
-        return self.evaluate(design_args, input_args, uncertain_params)
+        return self.evaluate(design_args, input_args, aux_args, uncertain_params)
     
-    def get_input_decision_split(self, decisions):
+    def get_auxilliary_input_decision_split(self, decisions):
+        """
+        """
         n_d = self.graph.nodes[self.node]['n_design_args']
-        design_args, input_args = decisions[:,:n_d], decisions[:,n_d:]
-        return design_args, input_args
+        n_u = self.graph.nodes[self.node]['n_input_args']
+        design_args, input_args, auxiliary_args = decisions[:,:n_d], decisions[:,n_d:n_d+n_u], decisions[:,n_d+n_u:]
+        return design_args, input_args, auxiliary_args
 
+def expand_input_args(array, template):
+    if array.ndim == 1:
+        array = jnp.expand_dims(array, axis=1)
+    if array.ndim < 3:
+        array = jnp.expand_dims(array, axis=1)
+
+    if array.shape[1] != template.shape[0]:
+        array = jnp.concatenate([array for _ in range(template.shape[0])], axis=1) # repeat input_args for each uncertain param
+
+    return array
 
 class unit_cfg:
     def __init__(self, cfg, graph, node):
@@ -158,9 +175,9 @@ class unit_cfg:
         if cfg.case_study.vmap_evaluations:
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
-                self.evaluator = vmap(vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0, 0, 0, None), out_axes=0), in_axes=(None, 1, 1, 0), out_axes=1) # inputs are design args, input args, deicsion_and_uncertainty_dependent_params, uncertain params
+                self.evaluator = vmap(vmap(jit(partial(unit_dynamics, cfg=cfg, node=node)), in_axes=(0, 0, 0, 0, None), out_axes=0), in_axes=(None, 1, None, 1, 0), out_axes=1) # inputs are design args, input args, deicsion_and_uncertainty_dependent_params, uncertain params
             elif graph.nodes[node]['unit_op'] == 'steady_state':
-                self.evaluator = vmap(vmap(jit(partial(unit_steady_state, cfg=cfg, node=node)), in_axes=(0, 0, 0, None), out_axes=0), in_axes=(None, 1, 1, 0), out_axes=1)   
+                self.evaluator = vmap(vmap(jit(partial(unit_steady_state, cfg=cfg, node=node)), in_axes=(0, 0, 0, 0, None), out_axes=0), in_axes=(None, 1, None, 1, 0), out_axes=1)   
             else:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 
@@ -214,6 +231,7 @@ class network_simulator(ABC):
         """
         u_p = None
         n_d = 0
+        aux_args = decisions[:, sum([self.graph.nodes[node]['n_design_args'] for node in self.graph.nodes]):]
         for node in self.graph.nodes:
             if not (uncertain_params == None) :
                 u_p = uncertain_params[node]
@@ -224,17 +242,17 @@ class network_simulator(ABC):
                 else:
                     inputs = jnp.empty((decisions.shape[0], u_p.shape[0], 0))
             else:
-                inputs = jnp.hstack([jnp.copy(self.graph.edges[predecessor, node]['input_data_store']) for predecessor in self.graph.predecessors(node)])
+                inputs = jnp.concatenate([jnp.copy(self.graph.edges[predecessor, node]['input_data_store'])[:,:,0].reshape(-1,1,1) for predecessor in self.graph.predecessors(node)], axis=-1)
 
             unit_nd = self.graph.nodes[node]['n_design_args']
-            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, u_p)
+            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, u_p)
             
             for successor in self.graph.successors(node):
                 self.graph.edges[node, successor]['input_data_store'] = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))
 
             node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
 
-            self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, outputs)
+            self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, outputs)
 
             n_d += unit_nd
 
@@ -329,7 +347,7 @@ class network_simulator(ABC):
                 else:
                     inputs = jnp.empty((decisions.shape[0], u_p.shape[0], 0))
             else:
-                inputs = jnp.hstack([jnp.copy(self.graph.edges[predecessor, node]['input_data_store']) for predecessor in self.graph.predecessors(node)])
+                inputs = jnp.concatenate([jnp.copy(self.graph.edges[predecessor, node]['input_data_store'])[:,:,0].reshape(-1,1,1) for predecessor in self.graph.predecessors(node)], axis=-1)
 
             unit_nd = self.graph.nodes[node]['n_design_args']
             outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, u_p)
