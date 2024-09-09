@@ -68,14 +68,19 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     G.add_n_aux_args(cfg.case_study.n_aux_args)
     G.add_input_aux_indices()
 
+    # add the args to the graph 
+    G.add_arg_to_graph('aux_bounds', cfg.case_study.KS_bounds.aux_args)
+    G.add_arg_to_graph('n_aux_args', cfg.case_study.global_n_aux_args)
+
     # add edge properties to the graph
     G.add_arg_to_edges('edge_fn', dict_of_edge_fn)
+    # add the auxiliary filters to the graph
+    G.add_arg_to_edges('aux_filter', aux_filter(cfg, G))
 
     graph = G.get_graph()
 
     for node in graph.nodes:
         G.add_node_object(node, unit_evaluation(cfg, graph, node), "forward_evaluator")
-
 
     return G
 
@@ -92,6 +97,10 @@ def unit_params_fn(cfg, G):
         return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
     else :
         raise ValueError('Invalid case study')
+    
+
+def aux_filter(cfg, G):
+    return {edge: lambda x: [x[0][:,:-G.G.graph['n_aux_args']], x[1][:,:-G.G.graph['n_aux_args']]] for edge in G.G.edges}
 
 def solver_constructor(cfg, G):
 

@@ -29,7 +29,8 @@ def initializer_cp(df):
     return pp
 
 def get_ds_bounds(cfg, G):
-    DS_bounds = [np.array(G.nodes[unit_index]['KS_bounds']) for unit_index in G.nodes]
+    DS_bounds = [np.array(G.nodes[unit_index]['KS_bounds']) for unit_index in G.nodes if G.nodes[unit_index]['KS_bounds'][0][0] != 'None']
+    if G.graph['aux_bounds'][0][0] != 'None': DS_bounds += [np.array(G.graph['aux_bounds']).reshape(np.array(G.graph['aux_bounds']).shape[0], np.array(G.graph['aux_bounds']).shape[2])]
     DS_bounds = np.vstack(DS_bounds)
     DS_bounds = pd.DataFrame(DS_bounds.T, columns=cfg.case_study.design_space_dimensions)
     return DS_bounds

@@ -11,7 +11,7 @@ def design_list_constructor(bounds_for_design):
 
     bounds = {}
     for i, bound in enumerate(bounds_for_design):
-        bounds[f'd{i+1}'] = {f'd{i+1}': [bound[0], bound[1]]}
+        if bound[0] != 'None': bounds[f'd{i+1}'] = {f'd{i+1}': [bound[0], bound[1]]}
         
     return bounds
 
@@ -32,16 +32,31 @@ def extended_design_list_constructor(bounds_for_input, bounds_for_design):
         return bounds_for_design | bounds
     else:
         return bounds_for_design
+    
+def add_global_aux(bounds, G):
+    if len(bounds) > 0:
+        n_index = len(bounds)
+    else: 
+        n_index = 0
+
+    aux_bounds = G.graph['aux_bounds']
+    for j in range(len(aux_bounds)): # iterate over auxiliary args
+        for n in aux_bounds[j]: # iterate over variables for each auxiliary arg
+            bounds[f'd{n_index+1}'] = {f'd{n_index+1}': [n[0], n[1]]}
+            n_index +=1
+    return bounds
+
 
 def get_unit_bounds(G: nx.DiGraph, unit_index: int):
     # constructing holder for input and design parameter bounds
     if G.nodes[unit_index]['extendedDS_bounds'] == 'None':
         design_var = design_list_constructor(G.nodes[unit_index]['KS_bounds'])
         if G.in_degree()[unit_index] > 0: 
-            bounds_for_input = [G.edges[predec,unit_index]["input_data_bounds"] for predec in G.predecessors(unit_index)]
+            bounds_for_input = [G.edges[predec,unit_index]['aux_filter'](G.edges[predec,unit_index]["input_data_bounds"]) for predec in G.predecessors(unit_index)]
             bounds =  extended_design_list_constructor(bounds_for_input, design_var) # this should just operate on data in the graph.
         else:
             bounds = design_var
+        bounds = add_global_aux(bounds, G)
     else: 
         bounds = { f'd{index+1}': {f'd{index+1}': [ G.nodes[unit_index]['extendedDS_bounds'][0][0,index],  G.nodes[unit_index]['extendedDS_bounds'][1][0,index]]} for index in range(len(G.nodes[unit_index]['extendedDS_bounds'][0].squeeze()))}
     
@@ -69,7 +84,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
     logging.info(f'EXTENDED DS DIM.: {len(bounds)}')
 
     if cfg.formulation == 'deterministic': 
-        parameter_samples = [{'c': jnp.array(G.nodes[unit_index]['parameters_best_estimate']).squeeze(), 'w': 1.0}]
+        parameter_samples = [{'c': jnp.array(G.nodes[unit_index]['parameters_best_estimate']).reshape(-1,), 'w': 1.0}]
     elif cfg.formulation == 'probabilistic':
         parameter_samples = [{key: value for key,value in dict_.items()} for i,dict_ in enumerate(G.nodes[unit_index]['parameters_samples']) if i < cfg.max_uncertain_samples]
         sum_weights = jnp.sum(jnp.array([param['w'] for param in parameter_samples ])) # normalise weights to sum to 1

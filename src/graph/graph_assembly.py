@@ -17,6 +17,11 @@ class graph_constructor_base(ABC):
     def get_graph(self):
         return self.G.copy()
     
+    def add_arg_to_graph(self,  arg_name, arg_value):
+        self.G.graph[arg_name] = arg_value
+        return
+
+    
     def add_arg_to_nodes(self, arg_name, arg_value):
         for node in self.G.nodes:
             self.G.nodes[node][arg_name] = arg_value[node]

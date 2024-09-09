@@ -75,10 +75,12 @@ class initialisation(ABC):
                     bounds_[f'd{index}'] = {f'd{index}': [bound[0], bound[1]]}
                     index += 1
         
-        for i, bound in enumerate(bounds.aux_args):
-            # global auxiliary varibles
-            bounds_[f'd{index}'] = {f'd{index}': [bound[0], bound[1]]}
-            index += 1
+        for j, unit_bounds in enumerate(bounds.aux_args):
+            for i, bound in enumerate(unit_bounds):
+                if bound[0] != 'None' and bound[1] != 'None':
+                    # global auxiliary varibles
+                    bounds_[f'd{index}'] = {f'd{index}': [bound[0], bound[1]]}
+                    index += 1
 
             
         return bounds_
