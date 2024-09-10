@@ -190,8 +190,8 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         if self.pool == 'ray':
             self.evaluation_method = self.ray_evaluation
         
-    def __call__(self, inputs):
-        return self.evaluate(inputs)
+    def __call__(self, inputs, aux):
+        return self.evaluate(inputs, aux)
     
     def ray_evaluation(self, solver, max_devices, solver_processing):
 
@@ -238,28 +238,28 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         """
         return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)
     
-    def evaluate(self, inputs):
+    def evaluate(self, inputs, aux):
         """
         Evaluates the constraints by iterating sequentially over the design and the uncertain params
         inputs: samples in the extended design space
         outputs: the constraint evaluations
         """
         if self.pool == 'mp-ms':
-            return self.serial_wrapper(inputs)
+            return self.serial_wrapper(inputs, aux)
         elif self.pool == 'ray':
-            return self.ray_wrapper(inputs)
+            return self.ray_wrapper(inputs, aux)
             
     def parallel_wrapper(self, inputs):
         raise NotImplementedError("Method not implemented")
     
-    def ray_wrapper(self, inputs):
+    def ray_wrapper(self, inputs, aux):
         """ first prepare the problem set up, 
         then evaluate the constraints in parallel using ray.
         """
 
         solver_inputs = []
         for i in range(inputs.shape[0]):
-            solver_inputs.append(self.evaluate_parallel(i, inputs[i,:].reshape(1,-1)))        
+            solver_inputs.append(self.evaluate_parallel(i, inputs[i,:].reshape(1,-1), aux[i,:].reshape(1,-1)))        
 
         if len(list(solver_inputs[0].values())) > 1:
             raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
@@ -306,7 +306,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
     def serial_wrapper(self, inputs, aux):
         results = []
         for i in range(inputs.shape[0]):
-            results.append(self.evaluate_serial(inputs[i,:].reshape(1,-1), aux=aux.reshape(1,-1)))
+            results.append(self.evaluate_serial(inputs[i,:].reshape(1,-1), aux=aux[i,:].reshape(1,-1)))
         
 
         return jnp.vstack(results)
@@ -568,19 +568,19 @@ def prepare_backward_problem(outputs, graph, node, cfg):
 
         n_d  = graph.nodes[succ]['n_design_args']
         input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices'].copy()]))
-        aux_indices = np.copy(np.array([input_indices[-1] + input_ for input_ in graph.edges[node, succ]['auxiliary_indices'].copy()]))
+        aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices'].copy()]))
         
         # standardisation of outputs if required
-        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ].copy(), succ, input_indices+aux_indices))
+        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ].copy(), succ, jnp.hstack([input_indices, aux_indices])))
         
         # load the standardised bounds
         decision_bounds = graph.nodes[succ]["extendedDS_bounds"].copy()
-        ndim = graph.nodes[succ]['n_design_args'] + graph.nodes[succ]['n_input_args']
+        ndim = graph.nodes[succ]['n_design_args'] + graph.nodes[succ]['n_input_args'] + graph.graph['n_aux_args']
         
         # get the decision bounds
         if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ)
         
-        decision_bounds = [jnp.delete(bound, input_indices+aux_indices) for bound in decision_bounds]
+        decision_bounds = [jnp.delete(bound, np.hstack([input_indices,aux_indices])) for bound in decision_bounds]
         backward_bounds[succ] = [decision_bounds.copy() for i in range(succ_inputs[succ].shape[0])]
 
         # load the forward objective
@@ -597,7 +597,7 @@ def evaluate(outputs, aux, graph, node, cfg):
     Evaluates the constraints
     """
     evaluate_method = solve
-    objective, bounds = prepare_backward_problem(outputs, aux, graph, node, cfg)
+    objective, bounds = prepare_backward_problem(outputs, graph, node, cfg)
     succ_fn_evaluations = {}
     # iterate over successors and evaluate the constraints
     for succ in graph.successors(node):
@@ -616,14 +616,14 @@ def construct_input(x, y, fix_ind, aux_ind, ndim):
     
     # Create a mask for positions not in fix_ind and aux_ind
     total_indices = jnp.arange(ndim)
-    opt_ind = jnp.delete(total_indices, jnp.concatenate([fix_ind, aux_ind]))
+    opt_ind = jnp.delete(total_indices, np.concatenate([fix_ind, aux_ind]))
     
     # Assign values from x to input_ at positions not in fix_ind and aux_ind
     input_ = input_.at[opt_ind].set(x)
     
     # Assign values from y to input_ at positions in fix_ind and aux_ind
-    input_ = input_.at[fix_ind].set(y[:len(fix_ind)])
-    input_ = input_.at[aux_ind].set(y[len(fix_ind):])
+    input_ = input_.at[fix_ind].set(y[0,:len(fix_ind)])
+    input_ = input_.at[aux_ind].set(y[0,len(fix_ind):])
     
     return input_
 
@@ -695,10 +695,11 @@ def backward_constraint_evaluator(outputs, aux, cfg, graph, node, pool):
     batch_sizes, remainder = determine_batches(outputs.shape[0], max_devices)
     # get batches of outputs
     output_batches = create_batches(batch_sizes, outputs)
+    aux_batches = create_batches(batch_sizes, jnp.repeat(jnp.expand_dims(aux, axis=1), outputs.shape[1], axis=1))
     # evaluate the constraints
     results = []
-    for i, output_batch in enumerate(output_batches):
-        results.append(backward_surrogate_pmap_batch_evaluator(output_batch, aux, cfg, graph, node))
+    for i, (output_batch, aux_batch) in enumerate(zip(output_batches, aux_batches)):
+        results.append(backward_surrogate_pmap_batch_evaluator(output_batch, aux_batch, cfg, graph, node))
     # concatenate the results
     return jnp.vstack(results)
 

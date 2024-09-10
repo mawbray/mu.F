@@ -70,6 +70,7 @@ def get_network_bounds(G: nx.DiGraph):
         bounds = bounds + G.nodes[node]['KS_bounds']
 
     dict_bounds = design_list_constructor(bounds)
+    bounds = add_global_aux(dict_bounds, G)
 
     return dict_bounds
 

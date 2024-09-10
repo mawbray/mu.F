@@ -13,10 +13,14 @@ def construct_cartesian_product_of_live_sets(graph):
     """
     # Construct the cartesian product of the live sets
     unit_ls = {}
+    n_aux = graph.graph["n_aux_args"]
     for node in graph.nodes:
         n_d = graph.nodes[node]['n_design_args']
         rng = np.random.default_rng()
-        lset = np.copy(graph.nodes[node]["live_set_inner"][:,:n_d]).reshape(-1, n_d)
+        try:
+            lset = np.copy(graph.nodes[node]["live_set_inner"][:,:n_d]).reshape(-1, n_d)
+        except:
+            lset = graph.nodes[node]["live_set_inner"][:,-n_aux:].reshape(-1, n_aux)
         rng.shuffle(lset, axis = 0)
         unit_ls[node] = np.copy(lset)
 

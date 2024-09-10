@@ -97,6 +97,7 @@ class reconstruction(reconstruct_base):
         :return: The sampled live sets
         """
         sampled_live_sets = {}
+        n_aux = self.graph.graph['n_aux_args']
         for node, live_set in self.live_sets_nd_proj.items():
             rng = np.random.default_rng()
             # sample from the live set using bounds
@@ -116,7 +117,10 @@ class reconstruction(reconstruct_base):
             rnd_ind = np.round(unrounded_indices).astype(int)
             rounded_indices = np.minimum(rnd_ind, self.cfg.samplers.ns.n_live-1)
             # get shuffled live sets
-            sampled_live_sets[node] = np.copy(live_set[rounded_indices[:].reshape(-1), :]).reshape(-1, live_set.shape[1])
+            try:
+                sampled_live_sets[node] = np.copy(live_set[rounded_indices[:].reshape(-1), :]).reshape(-1, live_set.shape[1])
+            except:
+                sampled_live_sets[node] = live_set[rounded_indices[:].reshape(-1), :].reshape(-1,n_aux)
             # shuffle live set for next round
             rng.shuffle(live_set, axis=0)
             self.live_sets_nd_proj[node] = np.copy(live_set)

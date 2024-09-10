@@ -133,30 +133,34 @@ extendedDS_bounds: [None, None, None, None, None, None, None]
 
 
 design_space_dimensions:
-- 'Node 1: P1'
-- 'Node 2: P1'
-- 'Node 2: P2'
-- 'Node 3: P1'
-- 'Node 3: P2'
-- 'Node 4: P1'
-- 'Node 4: P2'
-- 'Node 5: P1'
-- 'Node 5: P2'
-- 'Node 5: P3'
-- 'Glob: Aux 1'
-- 'Glob: Aux 2'
+- 'U1: P1'
+- 'U2: P1'
+- 'U2: P2'
+- 'U3: P1'
+- 'U3: P2'
+- 'U4: P1'
+- 'U4: P2'
+- 'U5: P1'
+- 'U5: P2'
+- 'U5: P3'
+- 'U5: GAux 1'
+- 'U5: GAux 2'
 
 
 global_n_aux_args: 2
 
 process_space_names:
-  - ['U1: Temp. (K)', 'U1: Batch time (mins)']
-  - ['U2: Temp. (K)', 'U2: Batch time (mins)', 'Conc. A (mol/L)','Conc. B (mol/L)']
+  - ['U1: P1', 'G: Aux 1', 'G: Aux 2']
+  - ['U2: P1', 'U2: P2', 'G: Aux 1', 'G: Aux 2']
+  - ['U3: P1', 'U3: P2', 'G: Aux 1', 'G: Aux 2']
+  - ['U4: P1', 'U4: P2', 'G: Aux 1', 'G: Aux 2']
+  - ['U5: P1', 'U5: P2', 'U5: P3', 'G: Aux 1', 'G: Aux 2']
+  - ['I1', 'I2', 'I3', 'I4', 'I5', 'U5: GAux 1', 'U5: GAux 2']
 
 
 mode:
   - backward
-  #- backward-forward
+  - backward-forward
   #- backward-forward
   #- forward
   #- forward-backward
