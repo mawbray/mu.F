@@ -331,6 +331,7 @@ class network_simulator(ABC):
         nu_pk = 0
         nu_pk_1 = 0
         n_d = 0
+        aux_args = decisions[:, sum([self.graph.nodes[node]['n_design_args'] for node in self.graph.nodes]):]
         for node in self.graph.nodes:
             if not (uncertain_params.all() == None) :
                 nu_pk = nu_pk_1 + n_theta[node]
@@ -350,14 +351,14 @@ class network_simulator(ABC):
                 inputs = jnp.concatenate([jnp.copy(self.graph.edges[predecessor, node]['input_data_store'])[:,:,0].reshape(-1,1,1) for predecessor in self.graph.predecessors(node)], axis=-1)
 
             unit_nd = self.graph.nodes[node]['n_design_args']
-            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, u_p)
+            outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, u_p)
             
             for successor in self.graph.successors(node):
                 self.graph.edges[node, successor]['input_data_store'] = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))
 
             node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
 
-            self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, outputs)
+            self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, outputs)
 
 
             n_d += unit_nd
