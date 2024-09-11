@@ -2,7 +2,7 @@ surrogate_forward:
   drop_uncertain_params: False
   ann:
     hidden_size_options:
-      - [10, 5]
+      - [50, 25]
       #- [100, 25]
       #- [50, 50]
       #- [25, 10]
@@ -44,7 +44,7 @@ classifier_args:
     probability: [False]
   ann:
     hidden_size_options:
-      - [10, 10]
+      - [50, 25]
       #- [100, 50, 25]
       #- [50, 50]
       # - [25, 10]
