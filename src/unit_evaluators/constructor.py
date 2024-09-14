@@ -212,7 +212,7 @@ class network_simulator(ABC):
         self.cfg = cfg
         self.graph = graph.copy()
         self.constraint_evaluator = constraint_evaluator
-        self.function_evaluations = 0
+        self.function_evaluations = {node: 0 for node in self.graph.nodes}
 
     def simulate(self, decisions, uncertain_params=None):
         """
@@ -273,8 +273,8 @@ class network_simulator(ABC):
         The method simulates the network and returns the constraints.
         """
         constraints, _ = self.simulate(decisions, uncertain_params)
-        for g in constraints.copy().values():
-            self.function_evaluations += g.shape[0]*g.shape[1]
+        for node, g in constraints.copy().items():
+            self.function_evaluations[node] += g.shape[0]*g.shape[1]
         return constraints
     
     def get_extended_ks_info(self, decisions, uncertain_params=None):
@@ -308,8 +308,8 @@ class network_simulator(ABC):
         The method simulates the network and returns the constraints and the input data for each edge.
         """
         constraints, edge_data = self.simulate(decisions, uncertain_params)
-        for g in constraints.values():
-            self.function_evaluations += g.shape[0]*g.shape[1]
+        for node, g in constraints.items():
+            self.function_evaluations[node] += g.shape[0]*g.shape[1]
         return constraints, edge_data
         
     
@@ -382,8 +382,8 @@ class network_simulator(ABC):
         The method simulates the network and returns the constraints and the input data for each edge.
         """
         constraints, _ = self.evaluate_direct(decisions, uncertain_params)
-        for g in constraints.values():
-            self.function_evaluations += g.shape[0]*g.shape[1]
+        for node, g in constraints.items():
+            self.function_evaluations[node] += g.shape[0]*g.shape[1]
 
         cons_ = jnp.concatenate([cons for cons in constraints.values()], axis=-1)
 

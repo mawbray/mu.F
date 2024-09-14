@@ -72,7 +72,7 @@ def main(cfg: DictConfig) -> None:
                 
                 # update the graph with the function evaluations
                 for node in G.nodes():
-                    G.nodes[node]["fn_evals"] += network_model.function_evaluations
+                    G.nodes[node]["fn_evals"] += network_model.function_evaluations[node]
                 
                 # visualisation of reconstruction
                 if cfg.reconstruction.plot_reconstruction == 'nominal_map':

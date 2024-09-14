@@ -19,6 +19,7 @@ from utils import dataset_object as dataset_holder
 from utils import dataset as dataset
 from utils import data_processing as data_processor
 from utils import apply_feasibility
+from utils import save_graph
 import time
 import ray
 
@@ -59,7 +60,11 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
 
         del model, problem_sheet, solver
         
+        save_graph(graph.copy(), mode + '_iterate_' + str(iterate)+ '_node_' + str(node))
         graph = del_data(graph, node)
+
+
+
 
 
 

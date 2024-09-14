@@ -24,7 +24,7 @@ root_node_inputs:
 
 
 constraint:
-  estimation_bound: 0.01
+  estimation_bound: 0.03
   auxiliary: 'global' # or 'local'
 
 
