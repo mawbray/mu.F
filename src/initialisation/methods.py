@@ -21,7 +21,7 @@ class initialisation(ABC):
         constraints, eks_data = self.network_simulator.get_data(samples, uncertain_params)
         self.update_eks_data(eks_data)#
         for node in self.graph.nodes():
-            self.graph.nodes[node]["fn_evals"] = self.network_simulator.function_evaluations
+            self.graph.nodes[node]["fn_evals"] = self.network_simulator.function_evaluations[node]
         self.graph.graph["initial_forward_pass"] = pd.DataFrame({col:samples[:,i] for i,col in enumerate(self.cfg.case_study.design_space_dimensions)})
         return self.graph
     
