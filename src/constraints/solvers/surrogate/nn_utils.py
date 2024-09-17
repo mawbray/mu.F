@@ -129,6 +129,10 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
     opt_model = partial(best_model.apply, best_params)
     x_mean = jnp.array(x_scalar.mean_)
     x_std = jnp.array(x_scalar.scale_)
+    
+    logging.info(f'--- {model_type} ---')
+    logging.info(f"Best hyperparameters: {best_hyperparams}")
+    logging.info(f"Best average validation loss: {best_avg_loss}")
 
     serialised_model = serialise_model(best_params, best_model, x_scalar, y_scalar, model_type, {})
 
@@ -385,7 +389,14 @@ def train(cfg, model, data, valid_data, model_type):
         tn, fp, fn, tp = confusion_matrix(y_pred=jnp.astype(model_predict(state.params, data.X), jnp.int32), y_true=jnp.astype(data.y, jnp.int32).squeeze()).ravel()
         # metrics compression
         training_performance = {"acc": accuracy, "tn": tn, "fp": fp, "fn": fn, "tp": tp}
+        logging.info(f"--- {model_type} ---")
+        logging.info(f"training_performance: {training_performance}")
 
+    if model_type == 'regressor':
+        # get regressor performance
+        mse = jnp.mean(jnp.square(data.y - model.apply(state.params, data.X)))
+        training_performance = {"mse": mse, "standardised_mape": jnp.mean(jnp.abs((data.y - model.apply(state.params, data.X)) / data.y))}
+        logging.info(f"--- {model_type} ---")
         logging.info(f"training_performance: {training_performance}")
 
 

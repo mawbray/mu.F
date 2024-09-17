@@ -5,44 +5,46 @@ root_node_inputs:
 
 
 constraint:
-  unit1_volume: 0.2  #0.5 # 2 #0.2
-  unit2_volume: 1.9 # 2.2 #1.8
+  unit1_volume: 0.2
+  unit2_volume: 1.9
   die_radius: 0.017
-  tablet_size: [0.014, 0.0175] # [0.014, 0.0169]
-  tablet_composition: [0.09, 0.11] #[0.0675, 0.1325]
-  tablet_hardness: [4.8, 4.88] #[4.8, 4.88]
-
-
-# ----
+  tablet_size:
+  - 0.014
+  - 0.0175
+  tablet_composition:
+  - 0.09
+  - 0.11
+  tablet_hardness:
+  - 4.8
+  - 4.88
+  
 unit_1_args:
   bulk_density:
-    - 250
-    - -0.372
-    - 9
-    - 0.000225 # TODO: add more args
+  - 250
+  - -0.372
+  - 9
+  - 0.000225
   mean_residence_time:
-    - 100 # NOTE can change
-    - 100 
-    - 1
-
-
+  - 100
+  - 100
+  - 1
 unit_2_args:
-  bulk_density: #TODO: add more args
-    - 250
-    - 23.31
-    - -55.16
-    - -0.0507
+  bulk_density:
+  - 250
+  - 23.31
+  - -55.16
+  - -0.0507
   hold_up_mass:
-    - 680
-    - 5.449
-    - -1.875
-    - 0.001760
-    - -0.00000822
+  - 680
+  - 5.449
+  - -1.875
+  - 0.00176
+  - -8.22e-06
   particle_density:
-    - 318.59
-    - 45.1
-    - -117.45
-    - 0.022
+  - 318.59
+  - 45.1
+  - -117.45
+  - 0.022
     
 blender_density:
   include_lubricant: True
