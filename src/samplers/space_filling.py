@@ -32,7 +32,7 @@ def measure_live_set_volume(G, design_space_dimensions):
     design_space_dimensions = design_space_dimensions
 
     # Get the live set
-    live_set = np.array([G.nodes[node]['live_set'] for node in G.nodes()])
+    live_set = np.array([G.nodes[node]['live_set_inner'] for node in G.nodes()])
 
     # Get the number of points in the live set
     n_points = live_set.shape[0]
