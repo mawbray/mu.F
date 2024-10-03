@@ -143,7 +143,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
             #},
             "phases_setup": {
                 "initial": {
-                    "nlive": cfg.samplers.ns.n_live,
+                    "nlive": cfg.samplers.ns.n_live * len(bounds),
                     "nproposals": cfg.samplers.ns.n_replacements
                 },
                 "deterministic": {
@@ -157,7 +157,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
                     "nlive_change": {
                         "mode": "user_given",
                         "schedule": [
-                            (.00, cfg.samplers.ns.n_live, cfg.samplers.ns.n_replacements),
+                            (.00, cfg.samplers.ns.n_live * len(bounds), cfg.samplers.ns.n_replacements),
                         ]
                     }
                 }
@@ -167,7 +167,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
             "sampling": {
                 "algorithm": "mc_sampling-ns_global",
                 "settings": {
-                     "nlive": cfg.samplers.ns.n_live,  # This is overridden by points_schedule
+                     "nlive": cfg.samplers.ns.n_live* len(bounds),  # This is overridden by points_schedule
                      "nproposals": cfg.samplers.ns.n_replacements,  # This is overriden by points_schedule
                      "prng_seed": 1989,
                      "f0": cfg.samplers.ns.f0,
@@ -289,7 +289,7 @@ def create_problem_description_deus_direct(cfg: DictConfig, G:nx.DiGraph):
             #},
             "phases_setup": {
                 "initial": {
-                    "nlive": cfg.samplers.ns.n_live,
+                    "nlive": cfg.samplers.ns.n_live * len(bounds),
                     "nproposals": cfg.samplers.ns.n_replacements
                 },
                 "deterministic": {
@@ -303,7 +303,7 @@ def create_problem_description_deus_direct(cfg: DictConfig, G:nx.DiGraph):
                     "nlive_change": {
                         "mode": "user_given",
                         "schedule": [
-                            (.00, cfg.samplers.ns.n_live, cfg.samplers.ns.n_replacements),
+                            (.00, cfg.samplers.ns.n_live * len(bounds), cfg.samplers.ns.n_replacements),
                         ]
                     }
                 }
@@ -313,7 +313,7 @@ def create_problem_description_deus_direct(cfg: DictConfig, G:nx.DiGraph):
             "sampling": {
                 "algorithm": "mc_sampling-ns_global",
                 "settings": {
-                     "nlive": cfg.samplers.ns.n_live,  # This is overridden by points_schedule
+                     "nlive": cfg.samplers.ns.n_live * len(bounds),  # This is overridden by points_schedule
                      "nproposals": cfg.samplers.ns.n_replacements,  # This is overriden by points_schedule
                      "prng_seed": 1989,
                      "f0": cfg.samplers.ns.f0,

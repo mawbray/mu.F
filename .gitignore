@@ -160,6 +160,8 @@ cython_debug/
 #.idea/
 
 
+outputs/
+
 # hydra outputs
 /src/outputs/
 /src/multirun/

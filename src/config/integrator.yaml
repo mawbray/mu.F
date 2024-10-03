@@ -11,5 +11,5 @@ defaults:
 
 max_devices: 10
 formulation: deterministic # probabilistic #  # 
-method: direct #decomposition #decomposition # direct #
+method: decomposition #direct #decomposition #decomposition # direct #
 max_uncertain_samples: 50
