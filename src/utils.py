@@ -3,6 +3,7 @@ from abc import ABC
 import jax.numpy as jnp
 from typing import List
 
+
 def save_graph(G, mode):
     """
     Save the graph to a file

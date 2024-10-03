@@ -48,7 +48,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         feasible, infeasible = solver.get_solution()
         feasible_set, feasible_set_prob = feasible[0], feasible[1]
         # update the graph with the number of function evaluations
-        graph.nodes[node]["fn_evals"] += model.function_evaluations
+        if mode == 'backward': graph.nodes[node]["fn_evals"] += model.function_evaluations
         # estimate box for bounds for DS downstream
         process_data_forward(cfg, graph, node, model, feasible_set)
         # train constraints for DS downstream using data now stored in the graph
@@ -270,16 +270,17 @@ class subproblem_model(ABC):
         # subproblem construction
         self.process_constraints = constraint_evaluator(cfg, G, unit_index, pool=None, constraint_type='process')
         if mode == 'forward':
-            self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
+            self.build_forward_constraints()
             self.backward_constraints = None
         elif mode == 'backward':
-            self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
+            self.build_backward_constraints()
             self.forward_constraints = None
         elif (mode in ['forward-backward','backward-forward']):
-            self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
-            self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
+            self.build_backward_constraints()
+            self.build_forward_constraints()
         else:
             raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward', 'forward-backward' or 'backward-forward' .")
+        
         # subproblem unit construction
         self.unit_forward_evaluator = subproblem_unit_wrapper(cfg, G, unit_index)
 
@@ -290,6 +291,21 @@ class subproblem_model(ABC):
         self.mode = mode
         self.max_devices = max_devices
 
+    def build_forward_constraints(self):
+        """ Method to build the forward constraints"""
+        if self.G.in_degree(self.unit_index) > 0:
+            self.forward_constraints = constraint_evaluator(self.cfg, self.G, self.unit_index, pool=self.cfg.solvers.evaluation_mode.forward, constraint_type='forward')
+        else:
+            self.forward_constraints = None
+        pass
+
+    def build_backward_constraints(self):
+        """ Method to build the backward constraints"""
+        if self.G.out_degree(self.unit_index) > 0:
+            self.backward_constraints = constraint_evaluator(self.cfg, self.G, self.unit_index, pool=self.cfg.solvers.evaluation_mode.backward, constraint_type='backward')
+        else:
+            self.backward_constraints = None
+        pass
 
     def determine_batches(self, data, batch_size):
         """ Method to determine the number of batches"""
@@ -317,9 +333,7 @@ class subproblem_model(ABC):
 
         if not self.mode == 'forward':
             outputs = self.unit_forward_evaluator.get_constraints(d, p) # outputs (rank 3 tensor if we have parametric uncertainty in the unit, n_d \times n_theta \times n_g)
-
             # evaluate process constraints 
-            
             process_constraint_evals = self.process_constraints.evaluate(unit_design, unit_inputs, outputs) # process constraints (rank 3 tensor n_d \times n_theta \times n_g)
         else:
             process_constraint_evals = None
@@ -341,8 +355,6 @@ class subproblem_model(ABC):
         else:
             forward_constraint_evals = None
         
-        
-        
         # evaluate feasibility downstream
         if (self.backward_constraints is not None) and (self.G.out_degree(self.unit_index) > 0):
             start_time = time.time()
@@ -353,10 +365,7 @@ class subproblem_model(ABC):
         else:
             backward_constraint_evals = None
 
-        
-
         # update input output data for forward surrogate model
-
         if (self.cfg.surrogate.forward_evaluation_surrogate) and (outputs !=None):
             self.input_output_data = update_data(self.input_output_data, d, p, outputs)  # updating dataset for surrogate model of forward unit evaluation
 
