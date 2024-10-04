@@ -34,8 +34,8 @@ def extended_design_list_constructor(bounds_for_input, bounds_for_design):
         return bounds_for_design
 
 def get_unit_bounds(G: nx.DiGraph, unit_index: int, mode: str):
-    # constructing holder for input and design parameter bounds
-    if mode=="backward":
+    # constructing holder for input and design parameter bounds # TODO fix this for the decomposition/decentralised case.
+    if mode=="backward" or (mode=="backward-forward" and G.in_degree(unit_index) == 0):
         if G.nodes[unit_index]['extendedDS_bounds'] == 'None':
             design_var = design_list_constructor(G.nodes[unit_index]['KS_bounds'])
             if G.in_degree()[unit_index] > 0: 
@@ -45,7 +45,7 @@ def get_unit_bounds(G: nx.DiGraph, unit_index: int, mode: str):
                 bounds = design_var
         else: 
             bounds = { f'd{index+1}': {f'd{index+1}': [ G.nodes[unit_index]['extendedDS_bounds'][0][0,index],  G.nodes[unit_index]['extendedDS_bounds'][1][0,index]]} for index in range(len(G.nodes[unit_index]['extendedDS_bounds'][0].squeeze()))}
-    elif mode=="forward":
+    elif mode=="forward" or (mode=="backward-forward" and G.out_degree(unit_index) == 0):
         design_var = design_list_constructor(G.nodes[unit_index]['KS_bounds'])
         bounds = design_var
     else: 

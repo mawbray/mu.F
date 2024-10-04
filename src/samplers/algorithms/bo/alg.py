@@ -10,6 +10,8 @@ import numpy as np
 import sobol_seq
 import math
 
+import logging
+
 
 def generate_sobol_points(lower_bound, upper_bound, num_points=10):
     lower_bound = np.array(lower_bound)  # Convert to numpy array
@@ -35,24 +37,26 @@ class GPRegressionModel(ExactGP):
 
 
 def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_iterations):
-    print("Starting Bayesian optimization...")
-    print(f"Lower bound: {lower_bound}, Upper bound: {upper_bound}")
-    print(f"Num initial points: {num_initial_points}, Num iterations: {num_iterations}")
+    logging.info("Starting Bayesian optimization...")
+    logging.info(f"Lower bound: {lower_bound}, Upper bound: {upper_bound}")
+    logging.info(f"Num initial points: {num_initial_points}, Num iterations: {num_iterations}")
 
     # Generate Sobol points: now treat each as a different candidate
     train_x = torch.tensor(generate_sobol_points(lower_bound, upper_bound, num_initial_points)).float().T
 
+    logging.info(f"Shape of train_x: {train_x.shape}")  # Print the shape of train_x for debugging
+    logging.info(f"x-values: {train_x}")  # Print the x-values for debugging
+
     # Ensure correct dimensionality of train_x
     if train_x.dim() == 1:
         train_x = train_x.unsqueeze(-1)
-    print(f"Shape of train_x: {train_x.shape}")
+    logging.info(f"Shape of train_x: {train_x.shape}")
 
     # Evaluate the objective function for each candidate in train_x
     train_y = torch.stack([f(train_x[:, i]).squeeze() for i in range(train_x.shape[1])])
 
     likelihood = GaussianLikelihood()
-    print(torch.isnan(train_x).any())  # Should return False
-    print(torch.isnan(train_y).any())  # Should return False
+    
 
     #train_x = (train_x - train_x.mean()) / train_x.std()
     #train_y = (train_y - train_y.mean()) / train_y.std()
@@ -61,7 +65,7 @@ def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_i
 
     fit_gpytorch_model(likelihood, model, train_x.T, train_y)
 
-    print('Initial min:', train_y.min().item())
+    logging.info('Initial min:', train_y.min().item())
 
     for _ in range(num_iterations):
         candidate_x = select_next_point(model, lower_bound, upper_bound)
@@ -83,8 +87,11 @@ def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_i
     best_index = torch.argmin(train_y)
     best_candidate = train_x[:, best_index]
 
-    print(f'Final min: {train_y.min().item()}')
-    print(f'Best candidate: {best_candidate}')
+    logging.info(f'Final min: {train_y.min().item()}')
+    logging.info(f'Best candidate: {best_candidate}')
+
+    torch.save(train_y, 'opt_y.pt')
+    torch.save(train_x, 'opt_x.pt')
 
     return best_candidate, best_index  # Return the best candidate, which will be used to update C
 
@@ -96,20 +103,20 @@ def original_bayesian_optimization(f, lower_bound, upper_bound, num_initial_poin
 
     if train_x.dim() == 1:
         train_x = train_x.unsqueeze(-1)
-    print(f"Shape of train_x: {train_x.shape}")  # Print the shape of train_x for debugging
+    logging.info(f"Shape of train_x: {train_x.shape}")  # Print the shape of train_x for debugging
 
     train_x = train_x[:, 0]  # Take the first candidate for simplicity TODO: check
 
     train_y = f(train_x).squeeze()
-    print(f"Shape of train_y: {train_y.shape}")  # Add this to check the shape
+    logging.info(f"Shape of train_y: {train_y.shape}")  # Add this to check the shape
 
     likelihood = GaussianLikelihood()
     model = GPRegressionModel(train_x, train_y, likelihood)
-    print(f"Shape of train_x: {train_x.shape}, Shape of train_y: {train_y.shape}")
+    logging.info(f"Shape of train_x: {train_x.shape}, Shape of train_y: {train_y.shape}")
 
     fit_gpytorch_model(likelihood, model, train_x, train_y)
 
-    print('initial min:', train_y.min().item())
+    logging.info('initial min:', train_y.min().item())
 
     for _ in range(num_iterations):
         candidate_x = select_next_point(model, lower_bound, upper_bound)
@@ -125,7 +132,7 @@ def original_bayesian_optimization(f, lower_bound, upper_bound, num_initial_poin
         model = GPRegressionModel(train_x, train_y, likelihood)
         fit_gpytorch_model(likelihood, model, train_x, train_y)
 
-    print('final min:', train_y.min().item())
+    logging.info('final min:', train_y.min().item())
 
     return model
 
@@ -155,7 +162,7 @@ def fit_gpytorch_model(likelihood, model, train_x, train_y):
         if previous_loss is not None:
             change_in_loss = abs(loss - previous_loss)
             if change_in_loss <= tolerance:
-                print(f"Convergence achieved. after {k+1} iterations.")
+                logging.info(f"Convergence achieved. after {k+1} iterations.")
                 break  # Exit the loop if convergence is achieved
         
         # Update the previous_loss for the next iteration
@@ -219,7 +226,7 @@ def ucb(model, lower_bound, upper_bound):
     x0 = torch.clamp(x0, lower_bound, upper_bound)
 
     # Check the shape after optimization (should be [26])
-    print(f"Shape of candidate_x after optimization: {x0.shape}")
+    logging.info(f"Shape of candidate_x after optimization: {x0.shape}")
     return x0.detach()
 
 
