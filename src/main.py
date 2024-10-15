@@ -119,7 +119,7 @@ def main(cfg: DictConfig) -> None:
         fn = partial(run_a_single_evaluation, cfg=cfg, G=G, G_init=G_init)
 
         lower_bound = [0]
-        upper_bound = [0.04]
+        upper_bound = [0.02]
         num_initial_points = 4
         num_iterations = 5
 

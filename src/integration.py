@@ -331,7 +331,7 @@ class subproblem_model(ABC):
         # get inputs/design parameters split
         unit_design, unit_inputs = self.unit_forward_evaluator.get_input_decision_split(d) # decisions, inputs (both rank 2 tensors)
 
-        if not self.mode == 'forward':
+        if (not self.mode in ['forward', 'backward-forward']) or (self.G.out_degree(self.unit_index) > 0):
             outputs = self.unit_forward_evaluator.get_constraints(d, p) # outputs (rank 3 tensor if we have parametric uncertainty in the unit, n_d \times n_theta \times n_g)
             # evaluate process constraints 
             process_constraint_evals = self.process_constraints.evaluate(unit_design, unit_inputs, outputs) # process constraints (rank 3 tensor n_d \times n_theta \times n_g)

@@ -18,6 +18,7 @@ root_node_inputs:
   - - 2000. # component 1
     - 0. # component 2
     - 0. # component 3
+  - None
 
 
 constraint:
