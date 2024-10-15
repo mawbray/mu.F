@@ -399,7 +399,7 @@ def sub_fn_2(
 
     """
 
-    log_terms = jnp.array([jnp.log(aux[0,i]).squeeze() for i in range(aux.shape[1])])
+    log_terms = jnp.array([jnp.log(aux[0,i] + 1).squeeze() for i in range(aux.shape[1])])
     coefficients = jnp.array([design_args[i] for i in range(design_args.shape[0])])
     return jnp.hstack([-jnp.dot(coefficients, log_terms).reshape(1,1), aux])
 
