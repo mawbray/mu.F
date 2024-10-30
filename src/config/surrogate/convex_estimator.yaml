@@ -2,8 +2,7 @@ surrogate_forward:
   drop_uncertain_params: False
   ann:
     hidden_size_options:
-      - [50, 25]
-      #- [100, 25]
+      - [50, 25] #- [100, 25]
       - [50, 50]
       - [25, 10]
     activation_functions:
@@ -46,8 +45,8 @@ classifier_args:
     hidden_size_options:
       - [50, 25]
       #- [100, 50, 25]
-      - [50, 50]
-      - [25, 10]
+      #- [50, 50]
+      #- [25, 10]
     activation_functions:
       - ['tanh', tanh]
 
@@ -63,4 +62,4 @@ classifier_args:
 probability_map_args:
   drop_uncertain_params: true
 
-forward_evaluation_surrogate: true
+forward_evaluation_surrogate: False

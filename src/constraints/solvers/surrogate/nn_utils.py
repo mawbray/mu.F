@@ -136,6 +136,9 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
 
     serialised_model = serialise_model(best_params, best_model, x_scalar, y_scalar, model_type, {})
 
+    del standard_D
+ 
+
     @jit
     def standardise(x):
         return (x - x_mean) / x_std
@@ -208,8 +211,11 @@ def train_nn_surrogate_model(cfg: DictConfig, D, model: nn.Module, num_folds: in
         
         fold_losses.append(fold_loss)
 
+        del X_train, X_val, y_train, y_val
+
     # Compute average validation loss across folds
     avg_loss = jnp.mean(jnp.array(fold_losses))
+
 
     return avg_loss
 

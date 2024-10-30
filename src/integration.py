@@ -7,6 +7,8 @@ import networkx as nx
 import jax.numpy as jnp
 import numpy as np
 import logging
+import jax.profiler as profiler
+from jax import clear_backends, clear_caches
 
 from constraints.constructor import constraint_evaluator
 from unit_evaluators.constructor import subproblem_unit_wrapper
@@ -22,6 +24,8 @@ from utils import apply_feasibility
 from utils import save_graph
 import time
 import ray
+import gc
+from jax.lib import xla_bridge
 
 
 def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterate=0, max_devices=1):
@@ -53,17 +57,21 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         # estimate box for bounds for DS downstream
         process_data_forward(cfg, graph, node, model, feasible_set)
         # train constraints for DS downstream using data now stored in the graph
-        if (mode in ['forward', 'forward-backward', 'backward-forward']) or (mode in ['backward'] and graph.in_degree(node) == 0): surrogate_training_forward(cfg, graph, node)
+        #if (mode in ['forward', 'forward-backward', 'backward-forward']) or (mode in ['backward'] and graph.in_degree(node) == 0): surrogate_training_forward(cfg, graph, node)
         # classifier construction for current unit
         if cfg.surrogate.classifier: classifier_construction(cfg, graph, node, iterate)
         if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
 
         del model, problem_sheet, solver
         
+        
         save_graph(graph.copy(), mode + '_iterate_' + str(iterate)+ '_node_' + str(node))
         graph = del_data(graph, node)
-
-
+        gc.collect()
+        profiler.save_device_memory_profile(f"memory{node}.prof")
+        clear_caches()
+        clear_backends()
+        profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")
 
 
 
@@ -78,9 +86,10 @@ def del_data(graph, node):
     graph.nodes[node]["classifier_training"] = None
 
     for successor in graph.successors(node):
-        del graph.edges[node, successor]["surrogate_training"]
-        graph.edges[node, successor]["surrogate_training"] = None
-    
+        if 'surrogate_training' in graph.edges[node, successor]:
+            del graph.edges[node, successor]["surrogate_training"]
+            graph.edges[node, successor]["surrogate_training"] = None
+        
     return graph
 
 
@@ -186,29 +195,43 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
                 x_io = x_io[:,:n_args]
            
         
-        # --- apply the function to the selected output data --- #
-        # ensure the output data is rank 2
-        if y_io.ndim > 2: y_io= y_io.squeeze()
-        if selected_y_io.ndim < 2: selected_y_io= selected_y_io.reshape(-1,1)
-        # --- select the approximation method
-        if cfg.samplers.ku_approximation == 'box': 
-             feasible_outer_approx = calculate_box_outer_approximation
-        elif cfg.samplers.ku_approximation == 'ellipsoid':
-            raise NotImplementedError("Ellipsoid approximation not implemented yet.")
+            # --- apply the function to the selected output data --- #
+            # ensure the output data is rank 2
+            if y_io.ndim > 2: y_io= y_io.squeeze()
+            if selected_y_io.ndim < 2: selected_y_io= selected_y_io.reshape(-1,1)
+            # --- select the approximation method
+            if cfg.samplers.ku_approximation == 'box': 
+                feasible_outer_approx = calculate_box_outer_approximation
+            elif cfg.samplers.ku_approximation == 'ellipsoid':
+                raise NotImplementedError("Ellipsoid approximation not implemented yet.")
 
-        # --- find box bounds on inputs
-        graph.edges[node, successor][
-            "input_data_bounds"
-        ] = feasible_outer_approx(selected_y_io, cfg, ndim=2)
+            # --- find box bounds on inputs
+            graph.edges[node, successor][
+                "input_data_bounds"
+            ] = feasible_outer_approx(selected_y_io, cfg, ndim=2)
 
-        # store the forward evaluations on the graph for surrogate training
-        forward_evals = dataset(X=x_io, y=y_io)
-        graph.edges[node, successor]["surrogate_training"] = forward_evals 
+            # store the forward evaluations on the graph for surrogate training
+            forward_evals = dataset(X=x_io, y=y_io)
+            graph.edges[node, successor]["surrogate_training"] = forward_evals 
+
+            del x_io, y_io, selected_y_io, forward_evals
 
     # Store the classifier data and the live set data to the node
+    update_aux_bounds(live_set, graph, node, cfg)
     update_node_bounds_iplus1(graph, node, cfg)
 
+    del x_classifier, y_classifier, feasible_indices, live_set
+
     return
+
+def update_aux_bounds(live_set, graph, node, cfg):
+    # AUX SET IS THE INTERSECTION SO CAN DO THIS AFTER EACH NODE
+    aux = live_set[:,-cfg.case_study.n_aux_args[f'node_{node}']:]
+    aux_bounds = calculate_box_outer_approximation(aux, cfg, ndim=2)
+    graph.graph['aux_bounds'] = [[[aux_bounds[0][0,i], aux_bounds[1][0,i]]] for i in range(aux_bounds[0].shape[1])]
+
+    return 
+
 
 
 def transform_vmap_output(vmap_output):
@@ -257,6 +280,8 @@ def classifier_construction(cfg, graph, node, iterate):
     graph.nodes[node]["classifier"] = query_model
     graph.nodes[node]['classifier_x_scalar'] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
     graph.nodes[node]['classifier_serialised'] = ls_surrogate.get_serailised_model_data()
+
+    del ls_surrogate
 
     return 
 

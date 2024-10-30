@@ -21,8 +21,8 @@ from constraints.solvers.constructor import solver_construction
 
 class constraint_evaluator_base(ABC):
     def __init__(self, cfg, graph, node):
-        self.cfg = cfg.copy()
-        self.graph = graph.copy()
+        self.cfg = cfg
+        self.graph = graph
         self.node = node
 
         # shaping function to return to sampler. (depends on the way constraints are defined by the user)
@@ -296,7 +296,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                 initial_guess = forward_solver.initial_guess()
                 forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
                 forward_solver.solver.problem_data['data']['eqc_rhs'] = problem_data[pred][p]['eqc_rhs']
-                forward_solver.solver.problem_data['data']['cfg'] = dict(self.cfg).copy()
+                forward_solver.solver.problem_data['data']['cfg'] = dict(self.cfg)
                 forward_solver.solver.problem_data['data']['uncertain_params'] = None
                 forward_solver.solver.problem_data['id'] = i
                 pred_fn_input_i[pred][p] = forward_solver.solver
@@ -387,15 +387,15 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                     #forward_constraints[pred][p] = partial(lambda x, up, inputs: surrogate(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_inputs[pred], up=jnp.array(pred_uncertain_params[pred][p]['c']))
                 elif self.cfg.formulation == 'deterministic':
                     if self.cfg.solvers.standardised:   # TODO find a way to handle the case of no classifier training and request for standardisation.
-                        pred_input = self.standardise_inputs(jnp.hstack([pred_inputs[pred].copy().reshape(1,-1), pred_auxs[pred].copy().reshape(1,-1)]), pred, 'input')
+                        pred_input = self.standardise_inputs(jnp.hstack([pred_inputs[pred].copy().reshape(1,-1), pred_auxs[pred].reshape(1,-1)]), pred, 'input')
                     else:
-                        pred_input = jnp.hstack([pred_inputs[pred].copy().reshape(1,-1), pred_auxs[pred].copy().reshape(1,-1)])
+                        pred_input = jnp.hstack([pred_inputs[pred].reshape(1,-1), pred_auxs[pred].reshape(1,-1)])
 
-                    problem_data[pred][p]['eqc_rhs'] = pred_input.copy().T
+                    problem_data[pred][p]['eqc_rhs'] = pred_input.T
                 # load the standardised bounds
-                decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
+                decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"]
                 if self.cfg.solvers.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
-                problem_data[pred][p]['bounds'] = decision_bounds.copy()
+                problem_data[pred][p]['bounds'] = decision_bounds
                 # load the forward objective
                 problem_data[pred][p]['objective_func'] = self.graph.nodes[pred]["classifier_serialised"]
                
@@ -425,20 +425,20 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                 # create a partial function for the optimizer to evaluat                
                 if self.cfg.formulation == 'probabilistic':
                     #if self.cfg.solvers.standardised: TODO find a way to handle the case of no classifier training and request for standardisation + update to include auxiliary variables.
-                    forward_constraints[pred][p] = partial(lambda x, up, inputs: surrogate(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=jnp.hstack([pred_inputs[pred].copy().reshape(1,-1), pred_auxs[pred].copy().reshape(1,-1)]), up=jnp.array(pred_uncertain_params[pred][p]['c']))
+                    forward_constraints[pred][p] = partial(lambda x, up, inputs: surrogate(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=jnp.hstack([pred_inputs[pred].reshape(1,-1), pred_auxs[pred].reshape(1,-1)]), up=jnp.array(pred_uncertain_params[pred][p]['c']))
                 
                 elif self.cfg.formulation == 'deterministic':
                     if self.cfg.solvers.standardised:   # TODO find a way to handle the case of no classifier training and request for standardisation.
-                        pred_input = self.standardise_inputs(jnp.hstack([pred_inputs[pred].copy().reshape(1,-1), pred_auxs[pred].copy().reshape(1,-1)]), pred, 'inputs')
+                        pred_input = self.standardise_inputs(jnp.hstack([pred_inputs[pred].reshape(1,-1), pred_auxs[pred].reshape(1,-1)]), pred, 'inputs')
                     else:
-                        pred_input = jnp.hstack([pred_inputs[pred].copy().reshape(1,-1), pred_auxs[pred].copy().reshape(1,-1)])
-                    forward_constraints[pred][p] = partial(lambda x, inputs: surrogate(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_input.copy())
+                        pred_input = jnp.hstack([pred_inputs[pred].reshape(1,-1), pred_auxs[pred].reshape(1,-1)])
+                    forward_constraints[pred][p] = partial(lambda x, inputs: surrogate(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_input)
                 else:
                     raise ValueError("Invalid formulation.")
                 # load the standardised bounds
-                decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
+                decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"]
                 if self.cfg.solvers.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)
-                forward_bounds[pred][p] = decision_bounds.copy()
+                forward_bounds[pred][p] = decision_bounds
 
                 # load the forward objective
                 classifier = self.graph.nodes[pred]["classifier"]
@@ -567,11 +567,11 @@ def prepare_backward_problem(outputs, graph, node, cfg):
     for succ in graph.successors(node):
 
         n_d  = graph.nodes[succ]['n_design_args']
-        input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices'].copy()]))
-        aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices'].copy()]))
+        input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices']]))
+        aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices']]))
         
         # standardisation of outputs if required
-        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ].copy(), succ, jnp.hstack([input_indices, aux_indices])))
+        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ], succ, jnp.hstack([input_indices, aux_indices])))
         
         # load the standardised bounds
         decision_bounds = graph.nodes[succ]["extendedDS_bounds"].copy()
@@ -587,6 +587,8 @@ def prepare_backward_problem(outputs, graph, node, cfg):
         classifier = graph.nodes[succ]["classifier"]
         wrapper_classifier = mask_classifier(classifier, n_d, ndim, input_indices, aux_indices)
         backward_objective[succ] = [jit(partial(lambda x,y: wrapper_classifier(x,y).squeeze(), y=succ_inputs[succ][i].reshape(1,-1))) for i in range(succ_inputs[succ].shape[0])]
+
+    
 
     # return the forward surrogates and decision bounds
     return backward_objective, backward_bounds
@@ -677,7 +679,7 @@ def backward_surrogate_pmap_batch_evaluator(outputs, aux, cfg, graph, node):
     """
     Evaluates the constraints on a batch using jax-pmap - called by the backward_constraint_evaluator
     """
-    feasibility_call = partial(jax_pmap_evaluator, cfg=cfg.copy(), graph=graph.copy(), node=node)
+    feasibility_call = partial(jax_pmap_evaluator, cfg=cfg, graph=graph, node=node)
     
     return pmap(feasibility_call, in_axes=(0,0), out_axes=0, devices=[device for i, device in enumerate(devices('cpu')) if i<outputs.shape[0]])(outputs, aux)  #, axis_name='i'
    
@@ -701,6 +703,9 @@ def backward_constraint_evaluator(outputs, aux, cfg, graph, node, pool):
     for i, (output_batch, aux_batch) in enumerate(zip(output_batches, aux_batches)):
         results.append(backward_surrogate_pmap_batch_evaluator(output_batch, aux_batch, cfg, graph, node))
     # concatenate the results
+
+    del output_batches, aux_batches, batch_sizes
+
     return jnp.vstack(results)
 
     

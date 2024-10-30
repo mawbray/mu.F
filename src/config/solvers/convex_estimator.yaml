@@ -48,7 +48,7 @@ standardised: True
 
 # TODO: check standardisation is working properly in the backward pass
 backward_coupling:
-  n_starts: 4
+  n_starts:   4
   jax_opt_options:
     error_tol: 1e-6
     ftol0: 0.001

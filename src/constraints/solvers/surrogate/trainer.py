@@ -86,6 +86,8 @@ class trainer(trainer_base):
             self.standardised_model, self.unstandardised_model, self.standardisation_metrics_input = args
 
         self.serialised_data = serialised_data
+
+        del dataset
        
         return model
     

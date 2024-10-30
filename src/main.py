@@ -34,6 +34,7 @@ TODO :
 @hydra.main(config_path="config", config_name="integrator")
 def main(cfg: DictConfig) -> None:
     # Set the maximum number of devices
+    
     max_devices = len(jax.devices('cpu'))
 
     # Construct the case study graph
@@ -110,7 +111,7 @@ def main(cfg: DictConfig) -> None:
 
 
 
-
+    jax.profiler.save_device_memory_profile('profile.pb.gz')
 
     # The following loop logs the function evaluations for each node in the graph.
     for node in G.nodes():
@@ -126,7 +127,8 @@ if __name__ == "__main__":
     platform = jax.lib.xla_bridge.get_backend().platform.casefold()
 
     # Enable 64 bit floating point precision
-    jax.config.update("jax_enable_x64", True)
+    #jax.config.update("jax_enable_x64", True)
+    
     # run the program
     main()
     print("Done")
