@@ -28,59 +28,70 @@ import gc
 from jax.lib import xla_bridge
 
 
-def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterate=0, max_devices=1):
 
-    if mode == "backward" or mode == "forward-backward":
-        nodes = reversed(precedence_order.copy())
-    elif mode == "forward" or mode == "backward-forward":
-        nodes = precedence_order.copy()
-    else:
-        raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward' or 'forward-backward'.")
+class apply_decomposition:
+    def __init__(self, cfg, graph, precedence_order, mode:str="forward", iterate=0, max_devices=1, total_iterates=1):
+        self.cfg = cfg
+        self.graph = graph
+        self.precedence_order = precedence_order
+        self.mode = mode
+        self.iterate = iterate
+        self.max_devices = max_devices
+        self.total_iterates = total_iterates
+
+    def run(self):
+
+        cfg, graph = self.cfg, self.graph
+        precedence_order, mode, iterate, max_devices, total_iterates = self.precedence_order, self.mode, self.iterate, self.max_devices, self.total_iterates
+
+
+        if mode == "backward" or mode == "forward-backward":
+            nodes = reversed(precedence_order.copy())
+        elif mode == "forward" or mode == "backward-forward":
+            nodes = precedence_order.copy()
+        else:
+            raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward' or 'forward-backward'.")
         
 
-    # Iterate over the nodes and apply nested sampling
-    for node in nodes:
-        #if cfg.solvers.evaluation_mode.forward == 'ray':  ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']})
-        logging.info(f'------- Characterising node {node} according to precedence order -------')
-        # define model for deus
-        model = subproblem_model(node, cfg, graph, mode=mode, max_devices=max_devices)
-        # create problem sheet according to cfg 
-        problem_sheet = create_problem_description_deus(cfg, model, graph, node, mode) 
-        # solve extended DS using NS
-        solver =  construct_deus_problem(DEUS, problem_sheet, model)
-        solver.solve()
-        #if cfg.solvers.evaluation_mode.forward == 'ray': ray.shutdown()
-        feasible, infeasible = solver.get_solution()
-        feasible_set, feasible_set_prob = feasible[0], feasible[1]
-        # update the graph with the number of function evaluations
-        graph.nodes[node]["fn_evals"] += model.function_evaluations
-        # estimate box for bounds for DS downstream
-        process_data_forward(cfg, graph, node, model, feasible_set)
-        # train constraints for DS downstream using data now stored in the graph
-        #if (mode in ['forward', 'forward-backward', 'backward-forward']) or (mode in ['backward'] and graph.in_degree(node) == 0): surrogate_training_forward(cfg, graph, node)
-        # classifier construction for current unit
-        if cfg.surrogate.classifier: classifier_construction(cfg, graph, node, iterate)
-        if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
+        # Iterate over the nodes and apply nested sampling
+        for node in nodes:
+            #if cfg.solvers.evaluation_mode.forward == 'ray':  ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']})
+            logging.info(f'------- Characterising node {node} according to precedence order -------')
+            # define model for deus
+            model = subproblem_model(node, cfg, graph, mode=mode, max_devices=max_devices)
+            # create problem sheet according to cfg 
+            problem_sheet = create_problem_description_deus(cfg, model, graph, node, mode) 
+            # solve extended DS using NS
+            solver =  construct_deus_problem(DEUS, problem_sheet, model)
+            solver.solve()
+            feasible, infeasible = solver.get_solution()
+            feasible_set, feasible_set_prob = feasible[0], feasible[1]
+            # update the graph with the number of function evaluations
+            graph.nodes[node]["fn_evals"] += model.function_evaluations
+            # estimate box for bounds for DS downstream
+            process_data_forward(cfg, graph, node, model, feasible_set)
+            # train constraints for DS downstream using data now stored in the graph
+            if (mode in ['forward', 'backward-forward'] and graph.out_degree(node) != 0) or (mode in ['forward-backward','backward'] and graph.in_degree(node) == 0 and total_iterates-1>iterate): 
+                if cfg.surrogate.forward_evaluation_surrogate: surrogate_training_forward(cfg, graph, node)
+            # classifier construction for current unit
+            if cfg.surrogate.classifier: classifier_construction(cfg, graph, node, iterate)
+            if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
 
-        del model, problem_sheet, solver
-        
-        
-        save_graph(graph.copy(), mode + '_iterate_' + str(iterate)+ '_node_' + str(node))
-        graph = del_data(graph, node)
-        gc.collect()
-        profiler.save_device_memory_profile(f"memory{node}.prof")
-        clear_caches()
-        clear_backends()
-        profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")
+            del model, problem_sheet, solver, infeasible, feasible_set_prob, feasible_set, feasible
+            
+            
+            save_graph(graph.copy(), mode + '_iterate_' + str(iterate)+ '_node_' + str(node))
+            graph = del_data(graph, node)
+            gc.collect()
+            profiler.save_device_memory_profile(f"memory{node}.prof")
+            clear_caches()
+            clear_backends()
+            profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")
 
+        return graph
 
-
-
-
-    return graph
-
+    
 def del_data(graph, node):
-
 
     del graph.nodes[node]["classifier_training"]
     graph.nodes[node]["classifier_training"] = None
@@ -89,7 +100,6 @@ def del_data(graph, node):
         if 'surrogate_training' in graph.edges[node, successor]:
             del graph.edges[node, successor]["surrogate_training"]
             graph.edges[node, successor]["surrogate_training"] = None
-        
     return graph
 
 

@@ -10,18 +10,29 @@ n_design_args:
   - 2
   - 2
 
+n_aux_args:
+  # auxiliary arguments per edge
+  (0,1): 0
+  # auxiliary arguments per node
+  node_0: 0
+  node_1: 0
+
 n_input_args:
   (0,1): 1
 
 KS_bounds:  # unit, arg, b
-  - - - 900
-      - 1500
-    - - 250
-      - 1000
-  - - - 900
-      - 1500
-    - - 250
-      - 1000
+  design_args:
+    - - - 900
+        - 1500
+      - - 250
+        - 1000
+    - - - 900
+        - 1500
+      - - 250
+        - 1000
+  aux_args:
+    - []
+    - []
 
 fn_evals: 
   - 0

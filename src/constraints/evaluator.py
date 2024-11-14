@@ -79,18 +79,21 @@ class process_constraint_evaluator(constraint_evaluator_base):
         """
         Loads the constraints from the graph 
         """
-        return list(self.graph.nodes[self.node]['constraints'].copy())
+        if self.cfg.case_study.vmap_evaluations:
+            return list(self.graph.nodes[self.node]['constraints_vmap'].copy())
+        else:
+            return list(self.graph.nodes[self.node]['constraints'].copy())
     
     def vmap_evaluation(self):
         """
         Vectorizes the the constraints and then loads them back onto the graph
         """
         # get constraints from the graph
-        constraints = self.graph.nodes[self.node]['constraints']
+        constraints = self.graph.nodes[self.node]['constraints'].copy()
         # vectorize each constraint
         cons = [jit(vmap(jit(vmap(partial(constraint, cfg=self.cfg.model), in_axes=(0), out_axes=0)), in_axes=(1), out_axes=1)) for constraint in constraints]
         # load the vectorized constraints back onto the graph
-        self.graph.nodes[self.node]['constraints'] = cons
+        self.graph.nodes[self.node]['constraints_vmap'] = cons
 
         return 
 

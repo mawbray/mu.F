@@ -1,9 +1,11 @@
 
 import jax.numpy as jnp
+import pandas as pd
 from unit_evaluators.constructor import network_simulator
 from samplers.constructor import construct_deus_problem_network
 from constraints.constructor import constraint_evaluator
 from samplers.utils import create_problem_description_deus_direct
+from visualisation.visualiser import visualiser
 
 from deus import DEUS
 
@@ -16,6 +18,13 @@ def apply_direct_method(cfg, graph):
     feasible_set, infeasible_set = solver.get_solution()
     for node in graph.nodes:
         graph.nodes[node]['fn_evals'] = model.function_evaluations[node]
-
+    
+    if cfg.reconstruction.plot_reconstruction == 'nominal_map':
+        df = pd.DataFrame({key: feasible_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
+    elif cfg.reconstruction.plot_reconstruction == 'probability_map':
+        df = pd.DataFrame({key: feasible_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
+        df['probability'] = feasible_set
+    visualiser(cfg, graph, data=df, string='design_space', path=f'design_space_direct').visualise()
+    
 
     return feasible_set, infeasible_set

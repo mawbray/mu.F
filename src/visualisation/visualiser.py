@@ -24,7 +24,7 @@ class visualiser(ABC):
             self.visualiser = partial(decompose_call, path=path)
         
 
-    def visualise(self):
+    def run(self):
         self.visualiser(self.cfg, self.G)
         return
 
