@@ -7,7 +7,7 @@ defaults:
   - samplers: convex_estimator # serial_batch_reactor #tablet_press #serial_batch_reactor
   - reconstruction: convex_estimator # serial_batch_reactor #tablet_press #serial_batch_reactor
   - init: convex_estimator # serial_batch_reactor #tablet_press #serial_batch_reactor
-  - graph: convex_estimator # serial_batch_reactor #tablet_press #serial_batch_reactor
+  - graph: convex_estimator # serial_batch_reactor #tablet_press #serial_batch_reacto
 
 max_devices: 10
 formulation: deterministic # probabilistic #  # 

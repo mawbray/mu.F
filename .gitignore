@@ -165,6 +165,7 @@ outputs/
 # hydra outputs
 /src/outputs/
 /src/multirun/
+/outputs/
 # deus algorithm
 /src/samplers/algorithms/deus*
 /feasible*
