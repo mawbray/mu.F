@@ -77,7 +77,7 @@ class decomposition:
         elif self.cfg.reconstruction.plot_reconstruction == 'probability_map':
             df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(self.cfg.case_study.design_space_dimensions)})
             df['probability'] = joint_live_set_prob
-        visualiser(self.cfg, self.G, df, 'reconstruction', path=f'reconstruction_{m}_iterate_{i}').visualise()
+        visualiser(self.cfg, self.G, df, 'reconstruction', path=f'reconstruction_{m}_iterate_{i}').run()
         df.to_excel(f'inside_samples_{m}_iterate_{i}.xlsx')
         save_graph(self.G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))
 

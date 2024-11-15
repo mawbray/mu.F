@@ -22,6 +22,7 @@ root_node_inputs:
 constraint:
   purity_u1: 0.65
   purity_u2: 0.81
+  auxiliary: 'None'
 
 
 integration:

@@ -18,6 +18,7 @@ def save_graph(G, mode):
             G.edges[predec, node]["forward_surrogate"] = None # drop forward surrogates
             G.edges[predec, node]["aux_filter"] = None # drop backward surrogates
         G.nodes[node]["constraints"] = None   # drop constraint functions (all of these are non-serializable.)
+        G.nodes[node]["constraints_vmap"] = None # drop backward evaluators
         G.nodes[node]['classifier'] = None 
         G.nodes[node]['unit_params_fn'] = None
 

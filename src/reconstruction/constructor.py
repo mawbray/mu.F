@@ -21,6 +21,7 @@ class reconstruct_base(ABC):
     def evaluate_joint_model(self):
         pass
 
+
 class reconstruction(reconstruct_base):
     def __init__(self, cfg, graph, model):
         self.cfg = cfg

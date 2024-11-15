@@ -20,8 +20,9 @@ n_aux_args:
 n_input_args:
   (0,1): 1
 
-KS_bounds:  # unit, arg, b
+KS_bounds:  
   design_args:
+  # unit, arg, b
     - - - 900
         - 1500
       - - 250
@@ -31,8 +32,8 @@ KS_bounds:  # unit, arg, b
       - - 250
         - 1000
   aux_args:
-    - []
-    - []
+    - None    
+    - None
 
 fn_evals: 
   - 0
