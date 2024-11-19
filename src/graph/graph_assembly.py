@@ -28,7 +28,7 @@ class graph_constructor_base(ABC):
         return
     
     def add_arg_to_edges(self, arg_name, arg_value):
-        for (i, j) in self.G.edges:
+        for (i, j) in arg_value.keys():
             self.G.edges[i,j][arg_name] = arg_value[(i, j)]
         return
     
@@ -78,10 +78,13 @@ class graph_constructor(graph_constructor_base):
             if self.cfg.model.constraint.auxiliary == 'global':
                 for pred in self.G.predecessors(node):
                     self.G.edges[pred, node]["auxiliary_indices"] = [n_d + i for i in range(self.G.edges[pred, node]["n_auxiliary_args"])]
-            elif self.cfg.constraints.auxiliary == 'local':
+            elif self.cfg.model.constraint.auxiliary == 'local':
                 for pred in self.G.predecessors(node):
                     self.G.edges[pred, node]["auxiliary_indices"] = [n_d + i for i in range(self.G.edges[pred, node]["n_auxiliary_args"])]
                     n_d += self.G.edges[predec, node]["n_auxiliary_args"]
+            elif self.cfg.model.constraint.auxiliary == 'None':
+                for pred in self.G.predecessors(node):
+                    self.G.edges[pred, node]["auxiliary_indices"] = []
             else:
                 raise ValueError('Invalid auxiliary variable structure')
         return

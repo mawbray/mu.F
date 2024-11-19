@@ -19,11 +19,19 @@ root_node_inputs:
     - 0. # component 2
     - 0. # component 3
 
+node_aux: 
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+
 
 constraint:
-  purity_u1: 0.24
-  purity_u2: 0.825
-
+  purity_u1: 0.19
+  purity_u2: 0.82
+  auxiliary: 'None'
 
 integration:
   scheme: tsit5  # dopri8
@@ -32,3 +40,5 @@ integration:
   tf: 1
   dt0: 1.0e-1
   max_steps: 10000
+
+

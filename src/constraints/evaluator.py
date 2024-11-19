@@ -390,7 +390,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                     #forward_constraints[pred][p] = partial(lambda x, up, inputs: surrogate(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_inputs[pred], up=jnp.array(pred_uncertain_params[pred][p]['c']))
                 elif self.cfg.formulation == 'deterministic':
                     if self.cfg.solvers.standardised:   # TODO find a way to handle the case of no classifier training and request for standardisation.
-                        pred_input = self.standardise_inputs(jnp.hstack([pred_inputs[pred].copy().reshape(1,-1), pred_auxs[pred].reshape(1,-1)]), pred, 'input')
+                        pred_input = self.standardise_inputs(jnp.hstack([pred_inputs[pred].copy().reshape(1,-1), pred_auxs[pred].reshape(1,-1)]), pred, 'inputs')
                     else:
                         pred_input = jnp.hstack([pred_inputs[pred].reshape(1,-1), pred_auxs[pred].reshape(1,-1)])
 
@@ -574,7 +574,7 @@ def prepare_backward_problem(outputs, graph, node, cfg):
         aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices']]))
         
         # standardisation of outputs if required
-        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ], succ, jnp.hstack([input_indices, aux_indices])))
+        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ], succ, jnp.hstack([input_indices, aux_indices]).astype(int)))
         
         # load the standardised bounds
         decision_bounds = graph.nodes[succ]["extendedDS_bounds"].copy()
@@ -583,7 +583,7 @@ def prepare_backward_problem(outputs, graph, node, cfg):
         # get the decision bounds
         if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ)
         
-        decision_bounds = [jnp.delete(bound, np.hstack([input_indices,aux_indices])) for bound in decision_bounds]
+        decision_bounds = [jnp.delete(bound, np.hstack([input_indices,aux_indices]).astype(int), axis=1) for bound in decision_bounds]
         backward_bounds[succ] = [decision_bounds.copy() for i in range(succ_inputs[succ].shape[0])]
 
         # load the forward objective
@@ -621,14 +621,14 @@ def construct_input(x, y, fix_ind, aux_ind, ndim):
     
     # Create a mask for positions not in fix_ind and aux_ind
     total_indices = jnp.arange(ndim)
-    opt_ind = jnp.delete(total_indices, np.concatenate([fix_ind, aux_ind]))
+    opt_ind = jnp.delete(total_indices, np.concatenate([fix_ind, aux_ind]).astype(int))
     
     # Assign values from x to input_ at positions not in fix_ind and aux_ind
     input_ = input_.at[opt_ind].set(x)
     
     # Assign values from y to input_ at positions in fix_ind and aux_ind
-    input_ = input_.at[fix_ind].set(y[0,:len(fix_ind)])
-    input_ = input_.at[aux_ind].set(y[0,len(fix_ind):])
+    if fix_ind.size != 0: input_ = input_.at[fix_ind].set(y[0,:len(fix_ind)])
+    if aux_ind.size != 0: input_ = input_.at[aux_ind].set(y[0,len(fix_ind):])
     
     return input_
 

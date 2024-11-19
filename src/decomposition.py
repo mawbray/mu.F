@@ -37,7 +37,9 @@ class decomposition:
     def define_operations(self, iteration):
         m = self.mode[iteration]
         if m == 'forward' or m == 'backward-forward':
-            operations = {0: partial(apply_decomposition, precedence_order=self.precedence_order, mode=m, max_devices=self.max_devices, total_iterations=self.total_iterations)}
+            operations, visualisations = {}, {}
+            k = len(operations)
+            operations[k] = partial(apply_decomposition, precedence_order=self.precedence_order, mode=m, max_devices=self.max_devices)
             visualisations[k] = partial(visualiser, string='decomposition', path=f'decomposition_{m}_iterate_{iteration}')
         elif m == 'backward' or m == 'forward_backward':
             operations, visualisations = {}, {}
@@ -61,6 +63,8 @@ class decomposition:
             if self.cfg.reconstruction.reconstruct[i]:
                 self.reconstruct(self.mode[i], i)
             self.update_precedence_order(self.mode[i])
+
+        return self.G
         
 
     def reconstruct(self, m, i):

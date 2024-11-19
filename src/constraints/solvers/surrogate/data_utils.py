@@ -13,8 +13,6 @@ class standardisation_metrics:
     std: jnp.ndarray
 
 
-
-
 def evaluate_classifier(classifier, data_points, cfg, index):
 
     predictions = classifier.predict(data_points)

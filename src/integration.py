@@ -236,9 +236,11 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
 
 def update_aux_bounds(live_set, graph, node, cfg):
     # AUX SET IS THE INTERSECTION SO CAN DO THIS AFTER EACH NODE
-    aux = live_set[:,-cfg.case_study.n_aux_args[f'node_{node}']:]
-    aux_bounds = calculate_box_outer_approximation(aux, cfg, ndim=2)
-    graph.graph['aux_bounds'] = [[[aux_bounds[0][0,i], aux_bounds[1][0,i]]] for i in range(aux_bounds[0].shape[1])]
+    if cfg.case_study.n_aux_args[f'node_{node}'] != 0:
+        aux = live_set[:,-cfg.case_study.n_aux_args[f'node_{node}']:]
+        aux_bounds = calculate_box_outer_approximation(aux, cfg, ndim=2)
+        graph.graph['aux_bounds'] = [[[aux_bounds[0][0,i], aux_bounds[1][0,i]]] for i in range(aux_bounds[0].shape[1])]
+    else: pass
 
     return 
 

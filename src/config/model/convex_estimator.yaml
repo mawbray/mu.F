@@ -22,6 +22,14 @@ root_node_inputs:
   - None
   - None
 
+node_aux: 
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+
 
 constraint:
   estimation_bound: 0.001

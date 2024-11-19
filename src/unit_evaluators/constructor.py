@@ -113,15 +113,16 @@ class subproblem_unit_wrapper(unit_evaluation):
             uncertain_params = jnp.empty((1,1))
         
         design_args, input_args, aux_args = self.get_auxilliary_input_decision_split(decisions)
-
+        
+        # if no inputs to the unit, use the root node inputs or add empty array
         if input_args.shape[1] == 0: 
             if not (self.cfg.model.root_node_inputs[self.node] == 'None'):
                 input_args = jnp.array([self.cfg.model.root_node_inputs[self.node]]*design_args.shape[0])
             else:
                 input_args = jnp.empty((design_args.shape[0], 0))
-
+        # if no inputs to the unit, use the root node inputs or add empty array
         if aux_args.shape[1] == 0: 
-            if not (self.cfg.model.root_node_aux[self.node] == 'None'):
+            if not (self.cfg.model.node_aux[self.node] == 'None'):
                 aux_args = jnp.array([self.cfg.model.root_node_aux[self.node]]*design_args.shape[0])
             else:
                 aux_args = jnp.empty((design_args.shape[0], 0))
@@ -242,7 +243,7 @@ class network_simulator(ABC):
                 else:
                     inputs = jnp.empty((decisions.shape[0], u_p.shape[0], 0))
             else:
-                inputs = jnp.concatenate([jnp.copy(self.graph.edges[predecessor, node]['input_data_store'])[:,:,0].reshape(-1,1,1) for predecessor in self.graph.predecessors(node)], axis=-1)
+                inputs = jnp.concatenate([jnp.copy(self.graph.edges[predecessor, node]['input_data_store'])[:,:,:] for predecessor in self.graph.predecessors(node)], axis=-1)
 
             unit_nd = self.graph.nodes[node]['n_design_args']
             outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, u_p)
@@ -348,7 +349,7 @@ class network_simulator(ABC):
                 else:
                     inputs = jnp.empty((decisions.shape[0], u_p.shape[0], 0))
             else:
-                inputs = jnp.concatenate([jnp.copy(self.graph.edges[predecessor, node]['input_data_store'])[:,:,0].reshape(-1,1,1) for predecessor in self.graph.predecessors(node)], axis=-1)
+                inputs = jnp.concatenate([jnp.copy(self.graph.edges[predecessor, node]['input_data_store'])[:,:,:] for predecessor in self.graph.predecessors(node)], axis=-1)
 
             unit_nd = self.graph.nodes[node]['n_design_args']
             outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, u_p)

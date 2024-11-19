@@ -100,7 +100,10 @@ def unit_params_fn(cfg, G):
     
 
 def aux_filter(cfg, G):
-    return {edge: lambda x: [x[0][:,:-G.G.graph['n_aux_args']], x[1][:,:-G.G.graph['n_aux_args']]] for edge in G.G.edges}
+    if G.G.graph['n_aux_args'] == 0:
+        return {edge: lambda x: x for edge in G.G.edges}
+    else:
+        return {edge: lambda x: [x[0][:,:-G.G.graph['n_aux_args']], x[1][:,:-G.G.graph['n_aux_args']]] for edge in G.G.edges}
 
 def solver_constructor(cfg, G):
 

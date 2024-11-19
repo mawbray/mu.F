@@ -48,8 +48,7 @@ def main(cfg: DictConfig) -> None:
         precedence_order = list(nx.topological_sort(G))
 
         # run the decomposition
-        decompose_id = decomposition(cfg, G, precedence_order, mode, max_devices).run()
-        G = decompose_id.G
+        G = decomposition(cfg, G, precedence_order, mode, max_devices).run()
         # finished decomposition                    
     elif cfg.method == 'direct':
         # run the decomposition

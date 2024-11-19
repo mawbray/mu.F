@@ -42,8 +42,9 @@ def add_global_aux(bounds, G):
     aux_bounds = G.graph['aux_bounds']
     for j in range(len(aux_bounds)): # iterate over auxiliary args
         for n in aux_bounds[j]: # iterate over variables for each auxiliary arg
-            bounds[f'd{n_index+1}'] = {f'd{n_index+1}': [n[0], n[1]]}
-            n_index +=1
+            if n[0] != 'None': 
+                bounds[f'd{n_index+1}'] = {f'd{n_index+1}': [n[0], n[1]]}
+                n_index +=1
     return bounds
 
 

@@ -45,7 +45,7 @@ vmap_data_transform_cvx = vmap(vmap(data_transform_cvx, in_axes=(0), out_axes=0)
 """ insert case study specific functions for constraints here"""
 CS_edge_holder = {'tablet_press': {(0,1): data_IO_1, (1,2): data_IO_2}, 'serial_mechanism_batch': {(0,1): data_transform}, 'convex_estimator': {(0,5): data_transform_cvx, (1,5): data_transform_cvx, (2,5): data_transform_cvx, 
                                             (3,5): data_transform_cvx, (4,5): data_transform_cvx}}
-vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_IO_2}, 'serial_mechanism_batch': {(0,6): vmap_data_transform},
+vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_IO_2}, 'serial_mechanism_batch': {(0,1): vmap_data_transform},
                        'convex_estimator': {(0,5): vmap_data_transform_cvx, (1,5): vmap_data_transform_cvx, (2,5): vmap_data_transform_cvx, 
                                             (3,5): vmap_data_transform_cvx, (4,5): vmap_data_transform_cvx}}
 
