@@ -167,7 +167,7 @@ outputs/
 /src/multirun/
 /outputs/
 # deus algorithm
-/src/samplers/algorithms/deus*
+#/src/samplers/algorithms/deus*
 /feasible*
 
 /src/memray*
