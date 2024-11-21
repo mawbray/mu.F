@@ -3,7 +3,7 @@ from functools import partial
 import jax.numpy as jnp
 from jax import vmap, jit
 
-from constraints.evaluator import process_constraint_evaluator, forward_constraint_evaluator, backward_constraint_evaluator
+from constraints.evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator
 
 class constraint_evaluator(ABC):
     def __init__(self, cfg, graph, node, pool=None, constraint_type='process'):
@@ -16,6 +16,9 @@ class constraint_evaluator(ABC):
             self.evaluate = self.evaluate_process
         elif constraint_type == 'forward':
             self.constraint_evaluator = forward_constraint_evaluator(cfg, graph, node, pool)
+            self.evaluate = self.evaluate_forward
+        elif constraint_type == 'forward_decentralized':
+            self.constraint_evaluator = forward_constraint_decentralised_evaluator(cfg, graph, node, pool)
             self.evaluate = self.evaluate_forward
         elif constraint_type == 'backward':
             self.constraint_evaluator = partial(backward_constraint_evaluator, cfg=cfg, graph=graph, node=node, pool=pool)
