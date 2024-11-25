@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 
 
 
-
-
 class graph_constructor_base(ABC):
     def __init__(self, cfg, adjacency_matrix):
         self.cfg = cfg
@@ -94,6 +92,5 @@ def load_dag_from_adjacency_matrix(adj_matrix):
             if adj_matrix[i][j] == 1:
                 G.add_edge(i, j)
     return G
-
 
 

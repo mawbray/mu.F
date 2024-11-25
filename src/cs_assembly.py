@@ -6,6 +6,7 @@ from graph.methods import CS_edge_holder, vmap_CS_edge_holder
 from constraints.solvers.constructor import solver_construction
 from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
 
+
 from functools import partial
 import logging
 import jax.numpy as jnp
@@ -92,3 +93,4 @@ def solver_constructor(cfg, G):
 
     return  {'forward_coupling_solver': {node: solver_construction for node in G.G.nodes },  # if G.G.in_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 
             'backward_coupling_solver': {node: solver_construction for node in G.G.nodes}}# if G.G.out_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 
+
