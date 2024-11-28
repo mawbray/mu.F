@@ -70,6 +70,18 @@ class DesignSpaceSolverUsingNS(Subject):
         self.frac_live_in_nominal_ds = None
         self.frac_live_inside_target_pds = None
 
+        # quantities for evidence estimates
+        self.nest_idx = 0
+        self.log_x = 0.0  # x_hat(0) = 1.0
+        self.log_t = None
+        self.log_w0 = None
+
+        self.log_zl = -np.inf
+        self.log_zd = -np.inf
+        self.log_z = -np.inf
+
+        self.hd = 0.0
+
     # Construction
     def set_problem(self, problem):
         # Check is already done by the activity manager.
@@ -188,6 +200,10 @@ class DesignSpaceSolverUsingNS(Subject):
 
             self.collect_output()
             self.notify_observers()
+            lpoints = salgo.get_live_points()
+            self.nlive = len(lpoints)
+            self.log_t = -1.0 / self.nlive
+            self.log_w0 = np.log(1.0 - np.exp(self.log_t))
 
             print("Phase INITIAL is over.")
             self.phase = "DETERMINISTIC"
@@ -619,6 +635,12 @@ class DesignSpaceSolverUsingNS(Subject):
                   % (self.worst_phi, self.n_live, self.n_proposals))
             print("\t *Fraction of live points in DS~nominal: %.4f"
                   % self.frac_live_in_nominal_ds)
+            
+            print('\t *Evidence estimate: %.5f ' %
+              (np.exp(self.log_z)))
+            
+    
+            
         elif self.phase == "TRANSITION":
             print("\t *lowest F value: %.5f "
                   "| # live points: %d "
@@ -631,6 +653,8 @@ class DesignSpaceSolverUsingNS(Subject):
             print("\t *Fraction of live points in DS~%.2f%%: %.4f"
                   % (self.problem['target_reliability']*100,
                      self.frac_live_inside_target_pds))
+            print('\t *Evidence estimate: %.5f ' %
+              (np.exp(self.log_z)))
         else:
             assert False, "Unrecognized phase."
 
@@ -668,6 +692,9 @@ class DesignSpaceSolverUsingNS(Subject):
                 "phase": self.phase,
                 "samples": dpoints,
                 "constraints_info": self.g_info,
+                "nests": [],
+                "log_z": {"hat": None},
+                "post_prior_kldiv": None,
                 "performance": {
                     "n_evals": {
                         "phi": self.main_info["n_phi_evals"],
@@ -687,7 +714,16 @@ class DesignSpaceSolverUsingNS(Subject):
                 lpoints = salgo.get_live_points()
                 the_container["samples"].extend(lpoints)
 
+            if self.settings["log_evidence_estimation"]["enabled"]:
+                new_nests = self.do_nests()
+                the_container["nests"].extend(new_nests)
+
+                self.update_logz_and_kldiv()
+                the_container["log_z"]["hat"] = self.log_z
+                the_container["post_prior_kldiv"] = self.hd
+
             self.output_buffer.append(the_container)
+            
 
         elif self.phase == "NMVP_SEARCH":
             pass
@@ -700,6 +736,9 @@ class DesignSpaceSolverUsingNS(Subject):
                 "phase": self.phase,
                 "samples": lpoints,
                 "constraints_info": self.g_info,
+                "nests": [],
+                "log_z": {"hat": None},
+                "post_prior_kldiv": None,
                 "performance": {
                     "n_evals": {
                         "phi": self.main_info["n_phi_evals"],
@@ -711,7 +750,15 @@ class DesignSpaceSolverUsingNS(Subject):
                     }
                 }
             })
+            if self.settings["log_evidence_estimation"]["enabled"]:
+                new_nests = self.do_nests()
+                the_container["nests"].extend(new_nests)
+
+                self.update_logz_and_kldiv()
+                the_container["log_z"]["hat"] = self.log_z
+                the_container["post_prior_kldiv"] = self.hd
             self.output_buffer.append(the_container)
+            
 
         elif self.phase == "PROBABILISTIC":
             salgo = self.algorithms['sampling']['algorithm']
@@ -723,6 +770,9 @@ class DesignSpaceSolverUsingNS(Subject):
                 "phase": self.phase,
                 "samples": dpoints,
                 "constraints_info": self.g_info,
+                "nests": [],
+                "log_z": {"hat": None},
+                "post_prior_kldiv": None,
                 "performance": {
                     "n_evals": {
                         "phi": {
@@ -754,7 +804,15 @@ class DesignSpaceSolverUsingNS(Subject):
                 lpoints = salgo.get_live_points()
                 the_container["samples"].extend(lpoints)
 
+            if self.settings["log_evidence_estimation"]["enabled"]:
+                new_nests = self.do_nests()
+                the_container["nests"].extend(new_nests)
+
+                self.update_logz_and_kldiv()
+                the_container["log_z"]["hat"] = self.log_z
+                the_container["post_prior_kldiv"] = self.hd
             self.output_buffer.append(the_container)
+        
 
         else:
             assert False, "Unrecognized phase."
@@ -776,4 +834,102 @@ class DesignSpaceSolverUsingNS(Subject):
 
     # Post-solve steps
     def do_post_solve_steps(self, om):
-        print('Solver has no post-solve steps to do.')
+        if self.settings["log_evidence_estimation"]["enabled"]:
+            # log-evidence statistics
+            log_l = om.get_logl()
+            log_z_mean, log_z_sdev = self.compute_log_z_statistics(log_l)
+            om.add_logz_statistics(log_z_mean, log_z_sdev)
+        else:
+            print('Solver has no post-solve steps to do.')
+
+
+    # functions for estimating the size of the DS.
+    def update_logz_and_kldiv(self):
+        sampling_algo = self.algorithms['sampling']['algorithm']
+        lpoints = sampling_algo.get_live_points()
+        
+        self.log_zl = -np.inf
+        log_w_live = self.log_x - np.log(self.n_live)
+        for i, lpoint in enumerate(lpoints):
+            log_l = lpoint.f
+            log_lw = log_l + log_w_live
+            self.log_zl = np.logaddexp(self.log_zl, log_lw)
+        # update log-evidence
+        self.log_z = np.logaddexp(self.log_zd, self.log_zl)
+
+        # Update information H
+        h = self.hd
+        log_z = self.log_zd
+        for i, lpoint in enumerate(lpoints):
+            log_l = lpoint.f
+            log_lw = log_l + log_w_live
+            log_z_new = np.logaddexp(log_z, log_lw)
+
+            term1 = np.exp(log_lw - log_z_new) * log_l
+            factor1 = np.exp(log_z - log_z_new)
+            factor2 = (h + log_z)
+            if factor1 == 0 and factor2 == -np.inf:
+                term2 = 0.0
+            else:
+                term2 = factor1 * factor2
+            h = term1 + term2 - log_z_new
+            log_z = log_z_new
+
+    def do_nests(self):
+        sampling_algo = self.algorithms["sampling"]["algorithm"]
+        dpoints = sampling_algo.get_dead_points()
+        nests = []
+        if dpoints is not None:
+            for i, dpoint in enumerate(dpoints):
+                self.nest_idx += 1
+
+                log_w = self.log_x + self.log_w0
+                log_l = dpoint.f
+                log_lw = log_l + log_w
+                log_zd_new = np.logaddexp(self.log_zd, log_lw)
+
+                term1 = np.exp(log_lw - log_zd_new) * log_l
+                factor1 = np.exp(self.log_zd - log_zd_new)
+                factor2 = self.hd + self.log_zd
+                if factor1 == 0 and factor2 == -np.inf:
+                    term2 = 0.0
+                else:
+                    term2 = factor1 * factor2
+                # updates
+                self.hd = term1 + term2 - log_zd_new
+                self.log_zd = log_zd_new
+                self.log_x += self.log_t
+
+                # store
+                nest = {
+                    "idx": self.nest_idx,
+                    "log_x": self.log_x,
+                    "log_w": log_w,
+                    "log_lw": log_lw,
+                    "log_zd": log_zd_new
+                }
+                nests.append(nest)
+        return nests
+    
+
+    def compute_log_z_statistics(self, log_l):
+        nlive = self.n_live
+        nsamples = len(log_l)
+        nrepeats = 30
+
+        log_z = [-np.inf]*nrepeats
+        for r in range(nrepeats):
+            unif = np.random.random(nsamples)
+            t_samples = [u**(1.0/float(nlive)) for u in unif]
+            log_x = 0.0
+            for i in range(nsamples):
+                log_w = log_x + np.log(1.0 - t_samples[i])
+                log_lw = log_l[i] + log_w
+                log_z[r] = np.logaddexp(log_z[r], log_lw)
+                log_x += np.log(t_samples[i])
+
+        log_z_mean = np.mean(log_z)
+        log_z_sdev = np.std(log_z)
+        return log_z_mean, log_z_sdev
+    
+    

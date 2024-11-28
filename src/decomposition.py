@@ -1,12 +1,17 @@
 
 from functools import partial
 import pandas as pd
+import networkx as nx
+import jax 
+import logging
+
 from integration import apply_decomposition
 from initialisation.methods import initialisation
 from reconstruction.constructor import reconstruction
 from unit_evaluators.constructor import network_simulator
 from constraints.constructor import constraint_evaluator
 from samplers.space_filling import sobol_sampler
+from samplers.algorithms.bo.alg import bayesian_optimization
 from samplers.appproximators import calculate_box_outer_approximation  
 from visualisation.visualiser import visualiser
 from utils import *
@@ -52,16 +57,16 @@ class decomposition:
 
         return operations, visualisations
     
-    def run(self):
+    def run(self, iterations=0):
 
         for i in range(len(self.mode)):
             operations, visualisations = self.define_operations(i)
             for key in operations.keys():
                 self.G = operations[key](self.cfg, self.G).run()
                 visualisations[key](self.cfg, self.G).run()
-                save_graph(self.G.copy(), self.mode[i] + '_iterate_' + str(i))
+                save_graph(self.G.copy(), self.mode[i] + '_iterate_' + str(i+iterations))
             if self.cfg.reconstruction.reconstruct[i]:
-                self.reconstruct(self.mode[i], i)
+                self.reconstruct(self.mode[i], i+iterations)
             self.update_precedence_order(self.mode[i])
 
         return self.G
@@ -89,18 +94,72 @@ class decomposition:
     
     def update_precedence_order(self, m):
         precedence_order = self.original_precedence_order.copy()
-
-        if m == 'backward' or 'forward-backward':
-            for node in self.G.nodes():
-                if self.G.in_degree(node) == 0:
-                    precedence_order.remove(node)
-        elif m == 'forward' or 'backward-forward':
-            for node in self.G.nodes():
-                if self.G.out_degree(node) == 0:
-                    precedence_order.remove(node)
-
+        if self.cfg.method == 'decomposition':
+            if m == 'backward' or 'forward-backward':
+                for node in self.G.nodes():
+                    if self.G.in_degree(node) == 0:
+                        precedence_order.remove(node)
+            elif m == 'forward' or 'backward-forward':
+                for node in self.G.nodes():
+                    if self.G.out_degree(node) == 0:
+                        precedence_order.remove(node)
+        else: pass
         self.precedence_order = precedence_order
 
         return
         
 
+
+def update_constraint_tuning_parameters(G, xi):
+    """
+    Update the constraint tuning parameters in the graph.
+    """
+
+    for k, node in enumerate(G.nodes()):
+        xi_input  = jnp.array(xi[k]).squeeze()
+        G.nodes[node]['constraint_backoff'] = xi_input
+
+    return G
+
+
+def run_a_single_evaluation(xi, cfg, G):
+    # Set the maximum number of devices
+    max_devices = len(jax.devices('cpu'))   
+
+    # update the constraint parmeters.
+    G = update_constraint_tuning_parameters(G, xi)
+
+    # getting precedence order
+    precedence_order = list(nx.topological_sort(G))
+    m = ['backward-forward']
+    # run the decomposition
+    G = decomposition(cfg, G, precedence_order, m, max_devices).run()
+    G.graph['iterate'] += 1
+
+    return -sum([G.nodes[node]['log_evidence'] for node in G.nodes()]) # minimise negative log evidence
+
+
+def decomposition_constraint_tuner(cfg, G, max_devices):
+    # getting precedence order
+    precedence_order = list(nx.topological_sort(G))
+    # run the backward decomposition
+    G = decomposition(cfg, G, precedence_order, ['backward'], max_devices).run()
+
+    # build up to the forward pass for BO
+    G_init = G.copy()
+    G.graph['iterate'] = 1
+
+    fn = partial(run_a_single_evaluation, cfg=cfg, G=G) 
+    
+    lower_bound = [cfg.samplers.bo.bounds.min]*len(G.nodes())
+    upper_bound = [cfg.samplers.bo.bounds.max]*len(G.nodes())
+    num_initial_points = cfg.samplers.bo.num_initial_points
+    num_iterations = cfg.samplers.bo.num_iterations
+
+    xi_opt, best_index = bayesian_optimization(fn, lower_bound, upper_bound, num_initial_points, num_iterations)
+
+
+    logging.info("------- Finished -------")
+    logging.info("Best candidate: {}".format(xi_opt))
+    logging.info("Best index: {}".format(best_index + 1))
+    logging.info("------------------------")

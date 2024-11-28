@@ -91,6 +91,7 @@ the_activity_form = {
     "solver": {
         "name": "dsc-ns",
         "settings": {
+            "log_evidence_estimation": {"enabled": False},
             "score_evaluation": {
                 "method": "serial",
                 "score_type": "sigmoid",  # "indicator",

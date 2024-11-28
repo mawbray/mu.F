@@ -308,7 +308,7 @@ class ParameterEstimationSolverUsingNS(Subject):
     def update_logz_and_kldiv(self):
         sampling_algo = self.algorithms['sampling']['algorithm']
         lpoints = sampling_algo.get_live_points()
-
+        
         self.log_zl = -np.inf
         log_w_live = self.log_x - np.log(self.nlive)
         for i, lpoint in enumerate(lpoints):

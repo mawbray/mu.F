@@ -16,6 +16,7 @@ class DesignSpaceOutputManager:
                 "initial_phase": {
                     "samples": {
                         "coordinates": [],
+                        "log_l": [],
                         "phi": []
                     },
                     "constraints_info": []
@@ -23,6 +24,7 @@ class DesignSpaceOutputManager:
                 "deterministic_phase": {
                     "samples": {
                         "coordinates": [],
+                        "log_l": [],
                         "phi": []
                     },
                     "constraints_info": [],
@@ -31,6 +33,7 @@ class DesignSpaceOutputManager:
                 "transition_phase": {
                     "samples": {
                         "coordinates": [],
+                        "log_l": [],
                         "phi": []
                     },
                     "constraints_info": []
@@ -38,10 +41,12 @@ class DesignSpaceOutputManager:
                 "probabilistic_phase": {
                     "samples": {
                         "coordinates": [],
+                        "log_l": [],
                         "phi": []
                     },
-                    "constraints_info": []
-                }
+                    "constraints_info": [],
+                },
+                'log_z': {}
             },
             "performance": {
                 "initial_phase": [],
@@ -63,6 +68,17 @@ class DesignSpaceOutputManager:
         self.add_to_solution(out_content)
         self.add_to_performance(out_content)
         return None
+    
+    def add_logz_statistics(self, mean, sdev):
+        root = self.output["solution"]["log_z"]
+        root["mean"] = mean
+        root["sdev"] = sdev
+    
+    def get_logl(self):
+        log_l = []
+        for key in list(self.output["solution"].keys()):
+            if key not in ['initial_phase', 'log_z'] : log_l += self.output["solution"][key]["samples"]["log_l"]
+        return log_l
 
     def add_to_solution(self, out_content):
         for container in out_content:
@@ -76,6 +92,7 @@ class DesignSpaceOutputManager:
 
                 fvalues = XFPoint.fvalues_of(container["samples"]).tolist()
                 snk_root["samples"]["phi"].extend(fvalues)
+                snk_root["samples"]["log_l"].extend(fvalues)
 
                 g_info = container["constraints_info"]
                 snk_root["constraints_info"].extend(g_info)

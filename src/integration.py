@@ -64,6 +64,7 @@ class apply_decomposition:
             # solve extended DS using NS
             solver =  construct_deus_problem(DEUS, problem_sheet, model)
             solver.solve()
+            if cfg.method == 'decomposition_constraint_tuner': graph.nodes[node]['log_evidence'] = solver.get_log_evidence()
             feasible, infeasible = solver.get_solution()
             feasible_set, feasible_set_prob = feasible[0], feasible[1]
             # update the graph with the number of function evaluations
@@ -314,16 +315,30 @@ class subproblem_model(ABC):
         if mode == 'forward':
             self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
             self.backward_constraints = None
+            self.forward_decentralised = None
         elif mode == 'backward':
             self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
             self.forward_constraints = None
+            self.forward_decentralised = None
         elif (mode in ['forward-backward','backward-forward']):
             self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
-            self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
+            if self.cfg.method == 'decomposition': 
+                self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
+            else: self.backward_constraints = None
+            if self.cfg.method == 'decomposition_constraint_tuner': 
+                self.forward_decentralised = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward_decentralized')
+            else: self.forward_decentralised = None
         else:
             raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward', 'forward-backward' or 'backward-forward' .")
+        
+        # decentralised?
+
         # subproblem unit construction
         self.unit_forward_evaluator = subproblem_unit_wrapper(cfg, G, unit_index)
+        if (cfg.method == 'decomposition_constraint_tuner') and (mode != 'backward'):
+            self.unit_forward_evaluator.get_constraints = lambda d, p: None
+        else:
+            pass
 
         # dataset initialisation 
         self.input_output_data = None 
@@ -360,7 +375,10 @@ class subproblem_model(ABC):
         unit_design, unit_inputs, aux_args = self.unit_forward_evaluator.get_auxilliary_input_decision_split(d) # decisions, inputs (both rank 2 tensors)
 
         # evaluate process constraints 
-        process_constraint_evals = self.process_constraints.evaluate(unit_design, unit_inputs, aux_args, outputs) # process constraints (rank 3 tensor n_d \times n_theta \times n_g)
+        if outputs is not None:
+            process_constraint_evals = self.process_constraints.evaluate(unit_design, unit_inputs, aux_args, outputs) # process constraints (rank 3 tensor n_d \times n_theta \times n_g)
+        else:
+            process_constraint_evals = None
 
         # evaluate feasibility upstream
         if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
@@ -374,11 +392,9 @@ class subproblem_model(ABC):
                 forward_constraint_evals = forward_constraint_evals.reshape(-1,1)
             if forward_constraint_evals.ndim == 2:
                 forward_constraint_evals = np.expand_dims(forward_constraint_evals, axis=1)
-            forward_constraint_evals = np.repeat(forward_constraint_evals, outputs.shape[1], axis=1)
+            forward_constraint_evals = np.repeat(forward_constraint_evals, len(p), axis=1)
         else:
             forward_constraint_evals = None
-        
-        
         
         # evaluate feasibility downstream
         if (self.backward_constraints is not None) and (self.G.out_degree(self.unit_index) > 0):
@@ -390,15 +406,23 @@ class subproblem_model(ABC):
         else:
             backward_constraint_evals = None
 
-        
+        # evaluate feasibility decentralised
+        if self.forward_decentralised is not None and self.G.out_degree(self.unit_index) > 0:
+            start_time = time.time()
+            decentralised_constraint_evals = self.forward_decentralised.evaluate(unit_inputs, aux_args) 
+            end_time = time.time()
+            execution_time = end_time - start_time
+            logging.info(f'execution_time_decentralised_constraints: {execution_time}')
+        else:
+            decentralised_constraint_evals = None
 
         # update input output data for forward surrogate model
-
+        # TODO check all this works, turn off data collection for forward on decentrlaised and check backoffs
         if self.cfg.surrogate.forward_evaluation_surrogate:
             self.input_output_data = update_data(self.input_output_data, d, p, outputs)  # updating dataset for surrogate model of forward unit evaluation
 
         # concatenate constraint evaluations
-        concat_obj = [process_constraint_evals, forward_constraint_evals, backward_constraint_evals]
+        concat_obj = [process_constraint_evals, forward_constraint_evals, backward_constraint_evals, decentralised_constraint_evals]
         cons_g = jnp.concatenate([c for c in concat_obj if c is not None], axis=-1)  # return raw constraint values (n_d \times n_theta \times n_g)
 
         # storing classifier data and updating function evaluations
@@ -407,8 +431,7 @@ class subproblem_model(ABC):
         if self.cfg.surrogate.probability_map:
             self.probability_map_data = update_data(self.probability_map_data, d, p, self.SAA(cons_g))  # updating dataset for surrogate model of forward unit evaluation
 
-        del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs
-
+        del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs, decentralised_constraint_evals
 
         return cons_g
 
@@ -443,6 +466,7 @@ class subproblem_model(ABC):
             
         return prob_feasible.reshape(g.shape[0],1)
     
+
     
 def update_data(data, *args):
     """ Method to update the data holder with new data"""

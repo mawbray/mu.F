@@ -52,6 +52,11 @@ class construct_deus_problem(construct_base):
         self.sampler.solve()
         logging.info(f"Time taken to solve the problem: {time.time() - t0} seconds")
         return 
+    
+    def get_log_evidence(self):
+        pd = self.problem_description
+        output = self.load_study(pd)
+        return output["solution"]["log_z"]
 
     def get_solution(self):
         pd = self.problem_description

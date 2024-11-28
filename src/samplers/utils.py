@@ -118,6 +118,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
         "solver": {
             "name": "dsc-ns",
             "settings": {
+            "log_evidence_estimation": {"enabled": cfg.samplers.ns.log_evidence_estimation}, # must ve a boolean
             "score_evaluation": {
                 "method": "serial",
                 "score_type": "sigmoid",  # "indicator",
@@ -264,6 +265,7 @@ def create_problem_description_deus_direct(cfg: DictConfig, G:nx.DiGraph):
         "solver": {
             "name": "dsc-ns",
             "settings": {
+            "log_evidence_estimation": {"enabled": cfg.samplers.ns.log_evidence_estimation}, 
             "score_evaluation": {
                 "method": "serial",
                 "score_type": "sigmoid",  # "indicator",

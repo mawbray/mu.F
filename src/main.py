@@ -9,7 +9,7 @@ from visualisation.visualiser import visualiser
 
 
 from direct import apply_direct_method
-from decomposition import decomposition
+from decomposition import decomposition, decomposition_constraint_tuner
 from cs_assembly import case_study_constructor
 from utils import *
 
@@ -25,6 +25,7 @@ TODO :
 - test and debugging
 - documentation
 """
+
 
 
 @hydra.main(config_path="config", config_name="integrator")
@@ -54,7 +55,12 @@ def main(cfg: DictConfig) -> None:
         # run the decomposition
         feasible, infeasible = apply_direct_method(cfg, G)
         save_graph(G.copy(), 'direct_complete')
-
+    elif cfg.method == 'decomposition_constraint_tuner':
+        decomposition_constraint_tuner(cfg, G, max_devices)
+    else:
+        # raise an error
+        raise ValueError("Method not recognised")
+        
     # Log the function evaluations for each node in the graph.
     for node in G.nodes():
         logging.info(f"Function evaluations for node {node}: {G.nodes[node]['fn_evals']}")

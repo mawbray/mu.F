@@ -535,7 +535,6 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
             evals += j+1
 
         del solver_batches, results
-    
 
         return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
 
@@ -682,7 +681,8 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
         problem_data = {pred: {} for pred in self.graph.predecessors(self.node)}
         # node specific preparation
         problem_data['objective_func'] = {'f1':self.graph.nodes[self.node]["classifier_serialised"]}
-        problem_data['objective_func']['obj_fn']= partial(lambda x, f1, f2, v: - f1(jnp.hstack([v, f2(x.reshape(1,-1)).reshape(1,-1)])).reshape(-1,1), v=jnp.hstack(decisions).reshape(1,-1))
+        node_backoff = self.graph.nodes[self.node]['constraint_backoff']
+        problem_data['objective_func']['obj_fn']= partial(lambda x, f1, f2, v, b: - f1(jnp.hstack([v, f2(x.reshape(1,-1)).reshape(1,-1)])).reshape(-1,1) + b, v=jnp.hstack(decisions).reshape(1,-1), b=node_backoff)
         
         if self.cfg.solvers.standardised:
             decisions = self.standardise_model_decisions([v for v in decisions[0]], self.node) 
@@ -698,7 +698,8 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
                 #forward_constraints[pred][p] = partial(lambda x, up, inputs: surrogate(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=pred_inputs[pred], up=jnp.array(pred_uncertain_params[pred][p]['c']))
             elif self.cfg.formulation == 'deterministic':
                 # load the forward objective
-                problem_data[pred]['ineqc_rhs'] = jnp.zeros((1,1))
+                node_j_backoff = self.graph.nodes[pred]['constraint_backoff']
+                problem_data[pred]['ineqc_rhs'] = -jnp.array(node_j_backoff).reshape(1,1)
             # load the standardised bounds
             decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"].copy()
             if self.cfg.solvers.standardised: decision_bounds = self.standardise_model_decisions(decision_bounds, pred)

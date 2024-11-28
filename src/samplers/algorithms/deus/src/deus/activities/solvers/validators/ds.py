@@ -117,6 +117,10 @@ class ValidatorForDSSolver:
             else:
                 assert False, "Invalid entry. Allowed values:\n " \
                               "'user_given', 'auto'."
+            spec_name = "log_evidence_estimation"
+            spec = settings[spec_name]
+            assert spec["enabled"] in [True, False], \
+                "Log evidence is computed or not: {log_evidence_estimation: {'enabled': x} }  x must be a boolean."
 
     @staticmethod
     def check_algorithms(algos):
