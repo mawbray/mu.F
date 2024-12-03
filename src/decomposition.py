@@ -94,15 +94,14 @@ class decomposition:
     
     def update_precedence_order(self, m):
         precedence_order = self.original_precedence_order.copy()
-        if self.cfg.method == 'decomposition':
-            if m == 'backward' or 'forward-backward':
-                for node in self.G.nodes():
-                    if self.G.in_degree(node) == 0:
-                        precedence_order.remove(node)
-            elif m == 'forward' or 'backward-forward':
-                for node in self.G.nodes():
-                    if self.G.out_degree(node) == 0:
-                        precedence_order.remove(node)
+        if m == 'backward' or 'forward-backward':
+            for node in self.G.nodes():
+                if self.G.in_degree(node) == 0:
+                    precedence_order.remove(node)
+        elif m == 'forward' or 'backward-forward':
+            for node in self.G.nodes():
+                if self.G.out_degree(node) == 0:
+                    precedence_order.remove(node)
         else: pass
         self.precedence_order = precedence_order
 
@@ -130,7 +129,7 @@ def run_a_single_evaluation(xi, cfg, G):
     G = update_constraint_tuning_parameters(G, xi)
 
     # getting precedence order
-    precedence_order = list(nx.topological_sort(G))
+    precedence_order = G.graph['precedence_order']
     m = ['backward-forward']
     # run the decomposition
     G = decomposition(cfg, G, precedence_order, m, max_devices).run()
@@ -143,7 +142,9 @@ def decomposition_constraint_tuner(cfg, G, max_devices):
     # getting precedence order
     precedence_order = list(nx.topological_sort(G))
     # run the backward decomposition
-    G = decomposition(cfg, G, precedence_order, ['backward'], max_devices).run()
+    G_obj = decomposition(cfg, G, precedence_order, ['backward'], max_devices)
+    G = G_obj.run()
+    G.graph['precedence_order'] = G_obj.precedence_order
 
     # build up to the forward pass for BO
     G_init = G.copy()

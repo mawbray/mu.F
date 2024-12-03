@@ -409,7 +409,7 @@ class subproblem_model(ABC):
         # evaluate feasibility decentralised
         if self.forward_decentralised is not None and self.G.out_degree(self.unit_index) > 0:
             start_time = time.time()
-            decentralised_constraint_evals = self.forward_decentralised.evaluate(unit_inputs, aux_args) 
+            decentralised_constraint_evals = self.forward_decentralised.evaluate(unit_design, aux_args) 
             end_time = time.time()
             execution_time = end_time - start_time
             logging.info(f'execution_time_decentralised_constraints: {execution_time}')
