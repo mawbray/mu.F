@@ -129,8 +129,18 @@ def purity_unit_1_brn_ub(dynamic_profile, cfg):
     return cfg.constraint.purity_u1 - purity_c(dynamic_profile, cfg)
 
 
+# -------------------------------------------------------------------------------- #
+# ---------------------------- RL Constraints ------------------------------------ #
+# -------------------------------------------------------------------------------- #
+
+@partial(jit, static_argnums=(1))
+def in_out_transform(x, cfg):
+    return x[:, -2:]
+
 
 
 """ insert case study specific functions for constraints here"""
+rl_constraints = {key: [in_out_transform] for key in range(12)}
 CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_composition_lb, tablet_composition_ub], 2: [tablet_hardness_lb, tablet_hardness_ub, tablet_size_lb, tablet_size_ub]}, 
-             'serial_mechanism_batch': {0: [purity_unit_1_ub], 1: [purity_unit_2_lb]}}
+             'serial_mechanism_batch': {0: [purity_unit_1_ub], 1: [purity_unit_2_lb]},
+             'constrained_rl': rl_constraints}

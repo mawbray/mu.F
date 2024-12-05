@@ -1,0 +1,46 @@
+root_node_inputs:
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+
+
+pcgym:
+  # time step
+  nsteps: 12
+  # time horizaon
+  T: 26
+  # environment name
+  model: cstr
+  # penalty scale
+  r_scale: 
+    Ca: 5e2
+  # set point
+  SP:
+    Ca: [0.80, 0.8, 0.8, 0.8, 0.8, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85]
+  # Control variable
+  action_space:
+    low: [295]
+    high: [305]
+  # state variable (Ca, T, Ca_sp)
+  obs_space:
+    low: [0.75,310,0.8]
+    high: [0.9,350,0.85]
+  # initial guess
+  x0: [0.8,329,0.8]
+  # noise
+  noise_percentage: 0.0
+  # reward function
+  cons:
+    T: [320, 330]
+  cons_type:
+    T: ['>=', '<=']
+  integrator: 'casadi'

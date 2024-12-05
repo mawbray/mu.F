@@ -375,5 +375,88 @@ def unit_3_dynamics(
     return jnp.array([H, V_pre, V_main]).reshape(1, -1)
 
 
+import numpy as np
+from pcgym import make_env
+from functools import partial
 
-case_studies = {'tablet_press': {0: unit_1_dynamics, 1: unit_2_dynamics, 2: unit_3_dynamics}}
+
+
+def pcgym_fn_constructor(cfg, nodes):
+    """
+    Constructs a dictionary of functions that evaluate the constraints of the PCGym environment at each node of the graph.
+    """
+    config = cfg.model.pcgym
+    T = config.T
+    nsteps = config.nsteps 
+
+    cons = {
+        'T': config.cons.T
+    } # list of constraints for each state variable
+    
+    cons_type = {
+        'T': config.cons_type.T
+    } # list of constraints type for each state variable
+    
+    SP = {
+        'Ca': config.SP.Ca, # list of set points for each time step
+    }
+
+    r_scale = {
+        'Ca': config.r_scale.Ca
+    } # list of scales for each state variable
+
+    action_space = {
+        'low': np.array(config.action_space.low),
+        'high':np.array(config.action_space.high)
+    }
+
+    #Continuous box observation space
+    observation_space = {
+        'low' : np.array(config.obs_space.low),
+        'high' : np.array(config.obs_space.high),  
+    }
+    
+    env_params = {
+        'N': nsteps, # Number of time steps
+        'tsim':T, # Simulation Time
+        'SP':SP, # Setpoint
+        'o_space' : observation_space, # Observation space
+        'a_space' : action_space, # Action space
+        'x0': np.array(config.x0), # Initial conditions 
+        'model': str(config.model), # Select the model
+        'r_scale': r_scale, # Scale the norm used for reward (|x-x_sp|*r_scale)
+        'normalise_a': True, # Normalise the actions
+        'normalise_o':True, # Normalise the states,
+        'noise':False, # Add noise to the states
+        'integration_method': 'casadi', # Select the integration method
+        'noise_percentage':config.noise_percentage, # Noise percentage (scalar)
+        'done_on_cons_vio':False,
+        'constraints': cons, 
+        'integration_method': str(config.integrator), # Select the integration method
+        'cons_type': cons_type,
+        'r_penalty': False
+    }
+    
+    
+    def fn_evaluator(cfg, params, collected_p, node, env):
+        
+        def evaluator(x, u, node, env):
+            _ = env.reset()
+            env.t = node
+            if node > 0: # if not the initial state
+                env.x = np.hstack([x.reshape(1,-1), np.array(env.SP['Ca'][node]).reshape(1,-1)]).reshape(-1,)
+            x_, _, _, _, info = env.step(u)
+
+            return np.expand_dims(np.hstack([x_.reshape(1,-1), - info["cons_info"][:, node, :].reshape(1,-1)]), axis=1) ## this works because the node is the time step and therefore the graph is serial in structure with all nodes having a single parent
+        
+        if params.ndim < 2:
+            params = np.expand_dims(params, axis=1)
+        u = params[:,:env.action_space.shape[0]]
+        x = collected_p[:,:]
+        return np.vstack([evaluator(x[i,:], u[i,:], node, env) for i in range(x.shape[0])])
+    
+    return {node: partial(fn_evaluator, node=node, env=make_env(env_params)) for node in range(nodes)}
+
+
+
+case_studies = {'tablet_press': {0: unit_1_dynamics, 1: unit_2_dynamics, 2: unit_3_dynamics}, 'constrained_rl': pcgym_fn_constructor}

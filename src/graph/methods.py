@@ -7,7 +7,6 @@ from jax import vmap, jit
 
 
 """ tablet press methods """
-
 @jit
 def data_IO_1(steady_state_outputs):
     # get mass flowrate of api and exipient
@@ -24,7 +23,6 @@ vmap_data_IO_1 = vmap(vmap(data_IO_1, in_axes=(0), out_axes=0), in_axes=(1), out
 vmap_data_IO_2 = vmap(vmap(data_IO_2, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
 
 
-
 """ batch reactor methods """
 @jit
 def data_transform(dynamic_profile):
@@ -35,9 +33,12 @@ def data_transform(dynamic_profile):
 
 vmap_data_transform = vmap(vmap(data_transform, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
 
-
+@jit
+def in_out_transform(x):
+    return jnp.expand_dims(x[:,:-3], axis=1)
 
 """ insert case study specific functions for constraints here"""
-CS_edge_holder = {'tablet_press': {(0,1): data_IO_1, (1,2): data_IO_2}, 'serial_mechanism_batch': {(0,1): data_transform}}
-vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_IO_2}, 'serial_mechanism_batch': {(0,1): vmap_data_transform}}
+rl_dict = {(key,key+1): in_out_transform for key in range(12)}
+CS_edge_holder = {'tablet_press': {(0,1): data_IO_1, (1,2): data_IO_2}, 'serial_mechanism_batch': {(0,1): data_transform}, 'constrained_rl': rl_dict}
+vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_IO_2}, 'serial_mechanism_batch': {(0,1): vmap_data_transform}, 'constrained_rl': {key: vmap(vmap(value, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1) for key, value in rl_dict.items()}}
 

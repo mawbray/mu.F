@@ -1,13 +1,13 @@
 
 defaults:
-  - case_study: tablet_press # serial_batch_reactor # tablet_press #
-  - model: tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
-  - surrogate: tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
-  - solvers: tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
-  - samplers: tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
-  - reconstruction: tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
-  - init: tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
-  - graph: tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
+  - case_study: rl_pcgym #tablet_press # serial_batch_reactor # tablet_press #
+  - model: rl_pcgym #tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
+  - surrogate: rl_pcgym #tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
+  - solvers: rl_pcgym #tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
+  - samplers: rl_pcgym #tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
+  - reconstruction: rl_pcgym #tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
+  - init: rl_pcgym #tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
+  - graph: rl_pcgym #tablet_press # serial_batch_reactor #tablet_press #serial_batch_reactor
 
 max_devices: 10
 formulation: deterministic # probabilistic #  # 

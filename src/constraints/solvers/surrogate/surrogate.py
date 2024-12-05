@@ -61,9 +61,6 @@ class surrogate(surrogate_base):
         return self.predictor.get_serialised_model_data()
     
 
-    
-
-
 class surrogate_reconstruction(ABC):
     def __init__(self, cfg: DictConfig, model_type: str, problem_data: dict) -> None:
         self.cfg = cfg

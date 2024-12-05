@@ -23,7 +23,10 @@ def unit_steady_state(design_params, u, dd_params, uncertain_params, cfg, node):
     collected_p = jnp.concatenate([u, dd_params], axis=-1)
 
     # defining the dynamics
-    term = case_studies[cfg.case_study.case_study][node]
+    if cfg.case_study.case_study != 'constrained_rl':
+        term = case_studies[cfg.case_study.case_study][node]
+    else:
+        term = case_studies[cfg.case_study.case_study](cfg, len(cfg.case_study.fn_evals))[node]
 
     return term(cfg, params, collected_p).squeeze()
 

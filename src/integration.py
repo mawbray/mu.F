@@ -52,7 +52,7 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         # estimate box for bounds for DS downstream
         process_data_forward(cfg, graph, node, model, feasible_set)
         # train constraints for DS downstream using data now stored in the graph
-        if (mode in ['forward', 'forward-backward', 'backward-forward']) or (mode in ['backward'] and graph.in_degree(node) == 0): surrogate_training_forward(cfg, graph, node)
+        if (mode in ['forward', 'forward-backward', 'backward-forward']): surrogate_training_forward(cfg, graph, node)
         # classifier construction for current unit
         if cfg.surrogate.classifier: classifier_construction(cfg, graph, node, iterate)
         if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
@@ -60,9 +60,6 @@ def apply_decomposition(cfg, graph, precedence_order, mode:str="forward", iterat
         del model, problem_sheet, solver
         
         graph = del_data(graph, node)
-
-
-
 
     return graph
 
@@ -72,9 +69,11 @@ def del_data(graph, node):
     del graph.nodes[node]["classifier_training"]
     graph.nodes[node]["classifier_training"] = None
 
+    
     for successor in graph.successors(node):
-        del graph.edges[node, successor]["surrogate_training"]
-        graph.edges[node, successor]["surrogate_training"] = None
+        if 'surrogate_training' in graph.edges[node, successor]:
+            del graph.edges[node, successor]["surrogate_training"]
+            graph.edges[node, successor]["surrogate_training"] = None
     
     return graph
 
@@ -181,27 +180,30 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
                 x_io = x_io[:,:n_args]
            
         
-        # --- apply the function to the selected output data --- #
-        # ensure the output data is rank 2
-        if y_io.ndim > 2: y_io= y_io.squeeze()
-        if selected_y_io.ndim < 2: selected_y_io= selected_y_io.reshape(-1,1)
-        # --- select the approximation method
-        if cfg.samplers.ku_approximation == 'box': 
-             feasible_outer_approx = calculate_box_outer_approximation
-        elif cfg.samplers.ku_approximation == 'ellipsoid':
-            raise NotImplementedError("Ellipsoid approximation not implemented yet.")
+            # --- apply the function to the selected output data --- #
+            # ensure the output data is rank 2
+            if y_io.ndim > 2: y_io= y_io.squeeze()
+            if selected_y_io.ndim < 2: selected_y_io= selected_y_io.reshape(-1,1)
+            # --- select the approximation method
+            if cfg.samplers.ku_approximation == 'box': 
+                feasible_outer_approx = calculate_box_outer_approximation
+            elif cfg.samplers.ku_approximation == 'ellipsoid':
+                raise NotImplementedError("Ellipsoid approximation not implemented yet.")
 
-        # --- find box bounds on inputs
-        graph.edges[node, successor][
-            "input_data_bounds"
-        ] = feasible_outer_approx(selected_y_io, cfg, ndim=2)
+            # --- find box bounds on inputs
+            graph.edges[node, successor][
+                "input_data_bounds"
+            ] = feasible_outer_approx(selected_y_io, cfg, ndim=2)
 
-        # store the forward evaluations on the graph for surrogate training
-        forward_evals = dataset(X=x_io, y=y_io)
-        graph.edges[node, successor]["surrogate_training"] = forward_evals 
+            # store the forward evaluations on the graph for surrogate training
+            forward_evals = dataset(X=x_io, y=y_io)
+            graph.edges[node, successor]["surrogate_training"] = forward_evals 
+
+            del x_io, y_io, selected_y_io, forward_evals
 
     # Store the classifier data and the live set data to the node
     update_node_bounds_iplus1(graph, node, cfg)
+    del x_classifier, y_classifier, feasible_indices, live_set
 
     return
 
@@ -319,7 +321,7 @@ class subproblem_model(ABC):
 
         # evaluate process constraints 
         process_constraint_evals = self.process_constraints.evaluate(unit_design, unit_inputs, outputs) # process constraints (rank 3 tensor n_d \times n_theta \times n_g)
-
+        process_constraint_evals = np.expand_dims(process_constraint_evals.squeeze(), axis=1)
         # evaluate feasibility upstream
         if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
             start_time = time.time()

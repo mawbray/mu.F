@@ -101,6 +101,7 @@ def create_problem_description_deus(cfg: DictConfig, the_model: object, G:nx.DiG
         "solver": {
             "name": "dsc-ns",
             "settings": {
+            "log_evidence_estimation": {"enabled": True},
             "score_evaluation": {
                 "method": "serial",
                 "score_type": "sigmoid",  # "indicator",

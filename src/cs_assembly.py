@@ -3,6 +3,7 @@ from unit_evaluators.constructor import unit_evaluation
 from constraints.functions import CS_holder
 from graph.graph_assembly import graph_constructor
 from graph.methods import CS_edge_holder, vmap_CS_edge_holder
+from unit_evaluators.implicit_fn import pcgym_fn_constructor
 from constraints.solvers.constructor import solver_construction
 from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
 
@@ -18,7 +19,7 @@ def case_study_constructor(cfg):
     :return: The graph construction object
     """
 
-    # Create a sample constraint dictionary
+    # create constraint dictionary
     constraint_dictionary = CS_holder[cfg.case_study.case_study]
 
     # create edge functions
@@ -86,8 +87,8 @@ def unit_params_fn(cfg, G):
         return {node: partial(arrhenius_kinetics_fn_2,Ea=jnp.array(cfg.model.arrhenius.EA[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
     elif cfg.case_study.case_study == 'serial_mechanism_batch':
         return {node: partial(arrhenius_kinetics_fn,Ea=jnp.array(cfg.model.arrhenius.EA[node]), A=jnp.array(cfg.model.arrhenius.A[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
-    elif cfg.case_study.case_study == 'tablet_press':
-        return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
+    elif cfg.case_study.case_study in ['tablet_press', 'constrained_rl']:
+        return {node: lambda x, y: jnp.empty((x.shape[0],0)) for node in G.G.nodes}
 
 def solver_constructor(cfg, G):
 

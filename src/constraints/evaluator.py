@@ -52,6 +52,8 @@ class process_constraint_evaluator(constraint_evaluator_base):
         super().__init__(cfg, graph, node)
         if cfg.case_study.vmap_evaluations:
             self.vmap_evaluation()
+        else:
+            self.prepare_constraint_partials()
 
     def __call__(self, dynamics_profile):
         return self.evaluate(dynamics_profile)
@@ -77,6 +79,19 @@ class process_constraint_evaluator(constraint_evaluator_base):
         Loads the constraints from the graph 
         """
         return list(self.graph.nodes[self.node]['constraints'].copy())
+    
+    def prepare_constraint_partials(self):
+        """
+        Vectorizes the the constraints and then loads them back onto the graph
+        """
+        # get constraints from the graph
+        constraints = self.graph.nodes[self.node]['constraints']
+        # vectorize each constraint
+        cons = [partial(constraint, cfg=self.cfg.model) for constraint in constraints]
+        # load the vectorized constraints back onto the graph
+        self.graph.nodes[self.node]['constraints'] = cons
+
+        return 
     
     def vmap_evaluation(self):
         """
@@ -664,7 +679,7 @@ def backward_constraint_evaluator(outputs, cfg, graph, node, pool):
     # evaluate the constraints
     results = []
     for i, output_batch in enumerate(output_batches):
-        results.append(backward_surrogate_pmap_batch_evaluator(output_batch, cfg, graph, node))
+        results.append(backward_surrogate_pmap_batch_evaluator(jnp.expand_dims(output_batch, axis=1), cfg, graph, node))
     # concatenate the results
     return jnp.vstack(results)
 

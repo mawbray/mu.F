@@ -172,9 +172,9 @@ class unit_cfg:
         else: 
             # --- set the unit evaluation fn
             if graph.nodes[node]['unit_op'] == 'dynamic':
-                self.evaluator = lambda x, y, z: jit(partial(unit_dynamics, cfg=cfg, node=node))(x.squeeze(), y.squeeze(), z.squeeze())
+                self.evaluator = lambda w, x, y, z: jit(partial(unit_dynamics, cfg=cfg, node=node))(w.squeeze(), x.squeeze(), y.squeeze(), z.squeeze())
             elif graph.nodes[node]['unit_op'] == 'steady_state':
-                self.evaluator = lambda x, y, z: jit(partial(unit_steady_state, cfg=cfg, node=node))(x.squeeze(), y.squeeze(), z.squeeze())
+                self.evaluator = lambda w, x, y, z: partial(unit_steady_state, cfg=cfg, node=node)(w.squeeze(), x.squeeze(), y.squeeze(), z.squeeze())
             else:
                 raise NotImplementedError(f'Unit corresponding to node {node} is a {graph.nodes[node]["unit_op"]} operation, which is not yet implemented.')
 
