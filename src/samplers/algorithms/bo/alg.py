@@ -53,7 +53,7 @@ def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_i
     logging.info(f"Shape of train_x: {train_x.shape}")
 
     # Evaluate the objective function for each candidate in train_x
-    train_y = torch.stack([f(train_x[:, i]).squeeze() for i in range(train_x.shape[1])])
+    train_y = torch.vstack([f(train_x[:, i]).reshape(1,1) for i in range(train_x.shape[1])]).squeeze()
 
     likelihood = GaussianLikelihood()
     
@@ -150,7 +150,7 @@ def fit_gpytorch_model(likelihood, model, train_x, train_y):
         def closure():
             optimizer.zero_grad()
             output = model(train_x)
-            loss = -mll(output, train_y)
+            loss = -mll(output, train_y.squeeze())
             loss.backward()
             return loss
         

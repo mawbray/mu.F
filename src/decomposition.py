@@ -4,6 +4,7 @@ import pandas as pd
 import networkx as nx
 import jax 
 import logging
+import torch
 
 from integration import apply_decomposition
 from initialisation.methods import initialisation
@@ -94,14 +95,16 @@ class decomposition:
     
     def update_precedence_order(self, m):
         precedence_order = self.original_precedence_order.copy()
-        if m == 'backward' or 'forward-backward':
-            for node in self.G.nodes():
-                if self.G.in_degree(node) == 0:
-                    precedence_order.remove(node)
-        elif m == 'forward' or 'backward-forward':
-            for node in self.G.nodes():
-                if self.G.out_degree(node) == 0:
-                    precedence_order.remove(node)
+        if self.cfg.method != 'decomposition_constraint_tuner': 
+            if m == 'backward' or 'forward-backward':
+                for node in self.G.nodes():
+                    if (self.G.in_degree(node) == 0) and (node in precedence_order):
+                        precedence_order.remove(node)
+            elif m == 'forward' or 'backward-forward':
+                for node in self.G.nodes():
+                    if (self.G.out_degree(node) == 0) and (node in precedence_order):
+                        precedence_order.remove(node)
+            else: pass
         else: pass
         self.precedence_order = precedence_order
 
@@ -135,7 +138,7 @@ def run_a_single_evaluation(xi, cfg, G):
     G = decomposition(cfg, G, precedence_order, m, max_devices).run()
     G.graph['iterate'] += 1
 
-    return -sum([G.nodes[node]['log_evidence'] for node in G.nodes()]) # minimise negative log evidence
+    return -torch.tensor(sum([G.nodes[node]['log_evidence']['mean'] for node in G.nodes()])).reshape(1,1) # minimise negative log evidence
 
 
 def decomposition_constraint_tuner(cfg, G, max_devices):

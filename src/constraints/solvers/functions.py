@@ -177,7 +177,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     bounds: list
     initial_guess: numpy array
     """
-
+    # TODO update this to handle the case where the problem_data is a dictionary and the contraints are inequality constraints
 
     initial_guess, bounds = \
       problem_data['initial_guess'], problem_data['bounds']

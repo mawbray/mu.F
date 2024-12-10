@@ -70,13 +70,13 @@ class apply_decomposition:
             # update the graph with the number of function evaluations
             graph.nodes[node]["fn_evals"] += model.function_evaluations
             # estimate box for bounds for DS downstream
-            process_data_forward(cfg, graph, node, model, feasible_set)
+            process_data_forward(cfg, graph, node, model, feasible_set, mode)
             # train constraints for DS downstream using data now stored in the graph
-            if (mode in ['forward', 'backward-forward'] and graph.out_degree(node) != 0) or (mode in ['forward-backward','backward'] and graph.in_degree(node) == 0 and total_iterates-1>iterate): 
+            if (mode in ['forward'] and graph.out_degree(node) != 0) or (mode in ['forward-backward','backward'] and graph.in_degree(node) == 0): 
                 if cfg.surrogate.forward_evaluation_surrogate: surrogate_training_forward(cfg, graph, node)
             # classifier construction for current unit
-            if cfg.surrogate.classifier: classifier_construction(cfg, graph, node, iterate)
-            if cfg.surrogate.probability_map: probability_map_construction(cfg, graph, node, iterate)
+            if (cfg.surrogate.classifier and mode != 'backward-forward'): classifier_construction(cfg, graph, node, iterate)
+            if (cfg.surrogate.probability_map and mode != 'backward-forward'): probability_map_construction(cfg, graph, node, iterate)
 
             del model, problem_sheet, solver, infeasible, feasible_set_prob, feasible_set, feasible
             
@@ -165,7 +165,7 @@ def probability_map_construction(cfg, graph, node, iterate):
     return
 
 
-def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibility='positive'):
+def process_data_forward(cfg, graph, node, model, live_set, mode, notion_of_feasibility='positive'):
     """
     Process the data in the forward direction.
 
@@ -179,59 +179,59 @@ def process_data_forward(cfg, graph, node, model, live_set, notion_of_feasibilit
     Returns:
     None
     """
-    # Select a subset of the data based on the classifier  
-    x_d, y_d = model.constraint_data.d[cfg.surrogate.index_on:], model.constraint_data.y[cfg.surrogate.index_on:]
-    x_classifier, y_classifier, feasible_indices = apply_feasibility(x_d , y_d , cfg, node, cfg.formulation).get_feasible(return_indices = True)
-    graph.nodes[node]["classifier_training"] = dataset(X=x_classifier, y=y_classifier) 
+    # Select a subset of the data based on the classifier
+    if mode != 'backward-forward':
+        x_d, y_d = model.constraint_data.d[cfg.surrogate.index_on:], model.constraint_data.y[cfg.surrogate.index_on:]
+        x_classifier, y_classifier, feasible_indices = apply_feasibility(x_d , y_d , cfg, node, cfg.formulation).get_feasible(return_indices = True)
+        graph.nodes[node]["classifier_training"] = dataset(X=x_classifier, y=y_classifier) 
 
-    if cfg.surrogate.probability_map:
-        # in the case of probabistic constraints, this will provide feasible data with P level set by the user.
-        graph.nodes[node]["probability_map_training"] = dataset(X=x_classifier, y=y_classifier) # saves the whole probability map training data
-    
-    # add live set to the node    
-    graph.nodes[node]["live_set_inner"] = live_set
+        if cfg.surrogate.probability_map:
+            # in the case of probabistic constraints, this will provide feasible data with P level set by the user.
+            graph.nodes[node]["probability_map_training"] = dataset(X=x_classifier, y=y_classifier) # saves the whole probability map training data
 
-    # Apply the selected function to the y data and store forward evaluations on the graph for surrogate training
-    for successor in graph.successors(node):
+        # Apply the selected function to the y data and store forward evaluations on the graph for surrogate training
+        for successor in graph.successors(node):
 
-        # --- apply edge function to output data --- #
-        io_fn = graph.edges[node, successor]["edge_fn"]
+            # --- apply edge function to output data --- #
+            io_fn = graph.edges[node, successor]["edge_fn"]
 
-        # --- select the approximation method
-        if cfg.surrogate.forward_evaluation_surrogate:
-            # Extract the input-output and classifier data from the model
-            x_io, y_io, selected_y_io = data_processor(model.input_output_data, index_on = cfg.surrogate.index_on).transform_data_to_matrix(io_fn, feasible_indices) 
-            if cfg.formulation == 'deterministic':
-                n_args = graph.nodes[node]['n_design_args'] + graph.nodes[node]['n_input_args']
-                x_io = x_io[:,:n_args]
-           
-        
-            # --- apply the function to the selected output data --- #
-            # ensure the output data is rank 2
-            if y_io.ndim > 2: y_io= y_io.squeeze()
-            if selected_y_io.ndim < 2: selected_y_io= selected_y_io.reshape(-1,1)
             # --- select the approximation method
-            if cfg.samplers.ku_approximation == 'box': 
-                feasible_outer_approx = calculate_box_outer_approximation
-            elif cfg.samplers.ku_approximation == 'ellipsoid':
-                raise NotImplementedError("Ellipsoid approximation not implemented yet.")
+            if cfg.surrogate.forward_evaluation_surrogate:
+                # Extract the input-output and classifier data from the model
+                x_io, y_io, selected_y_io = data_processor(model.input_output_data, index_on = cfg.surrogate.index_on).transform_data_to_matrix(io_fn, feasible_indices) 
+                if cfg.formulation == 'deterministic':
+                    n_args = graph.nodes[node]['n_design_args'] + graph.nodes[node]['n_input_args']
+                    x_io = x_io[:,:n_args]
+            
+            
+                # --- apply the function to the selected output data --- #
+                # ensure the output data is rank 2
+                if y_io.ndim > 2: y_io= y_io.squeeze()
+                if selected_y_io.ndim < 2: selected_y_io= selected_y_io.reshape(-1,1)
+                # --- select the approximation method
+                if cfg.samplers.ku_approximation == 'box': 
+                    feasible_outer_approx = calculate_box_outer_approximation
+                elif cfg.samplers.ku_approximation == 'ellipsoid':
+                    raise NotImplementedError("Ellipsoid approximation not implemented yet.")
 
-            # --- find box bounds on inputs
-            graph.edges[node, successor][
-                "input_data_bounds"
-            ] = feasible_outer_approx(selected_y_io, cfg, ndim=2)
+                # --- find box bounds on inputs
+                graph.edges[node, successor][
+                    "input_data_bounds"
+                ] = feasible_outer_approx(selected_y_io, cfg, ndim=2)
 
-            # store the forward evaluations on the graph for surrogate training
-            forward_evals = dataset(X=x_io, y=y_io)
-            graph.edges[node, successor]["surrogate_training"] = forward_evals 
+                # store the forward evaluations on the graph for surrogate training
+                forward_evals = dataset(X=x_io, y=y_io)
+                graph.edges[node, successor]["surrogate_training"] = forward_evals 
 
-            del x_io, y_io, selected_y_io, forward_evals
-
+                del x_io, y_io, selected_y_io, forward_evals
+        del x_classifier, y_classifier, feasible_indices
+    # add live set to the node    
+    graph.nodes[node]["live_set_inner"] = live_set    
     # Store the classifier data and the live set data to the node
     update_aux_bounds(live_set, graph, node, cfg)
     update_node_bounds_iplus1(graph, node, cfg)
 
-    del x_classifier, y_classifier, feasible_indices, live_set
+    del live_set
 
     return
 
@@ -316,18 +316,25 @@ class subproblem_model(ABC):
             self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
             self.backward_constraints = None
             self.forward_decentralised = None
+            self.root_node_constraint = None
         elif mode == 'backward':
             self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
             self.forward_constraints = None
             self.forward_decentralised = None
+            self.root_node_constraint = None
         elif (mode in ['forward-backward','backward-forward']):
             self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
-            if self.cfg.method == 'decomposition': 
-                self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
-            else: self.backward_constraints = None
             if self.cfg.method == 'decomposition_constraint_tuner': 
+                self.backward_constraints = None
                 self.forward_decentralised = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward_decentralized')
-            else: self.forward_decentralised = None
+                if (mode == 'backward-forward'):
+                    self.root_node_constraint = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='root_node_decentralized')
+                else:
+                    self.root_node_constraint = None
+            else: 
+                self.backward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.backward, constraint_type='backward')
+                self.forward_decentralised = None
+                self.root_node_constraint = None
         else:
             raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward', 'forward-backward' or 'backward-forward' .")
         
@@ -407,7 +414,7 @@ class subproblem_model(ABC):
             backward_constraint_evals = None
 
         # evaluate feasibility decentralised
-        if self.forward_decentralised is not None and self.G.out_degree(self.unit_index) > 0:
+        if self.forward_decentralised is not None and self.G.in_degree(self.unit_index) > 0:
             start_time = time.time()
             decentralised_constraint_evals = self.forward_decentralised.evaluate(unit_design, aux_args) 
             end_time = time.time()
@@ -416,19 +423,35 @@ class subproblem_model(ABC):
         else:
             decentralised_constraint_evals = None
 
+        # evaluate root node feasibility 
+        if self.root_node_constraint is not None and self.G.in_degree(self.unit_index) == 0:
+            start_time = time.time()
+            decentralised_root_constraint_evals = self.root_node_constraint.evaluate(unit_design, aux_args) 
+            if decentralised_root_constraint_evals.ndim == 1:
+                decentralised_root_constraint_evals = decentralised_root_constraint_evals.reshape(-1,1)
+            if decentralised_root_constraint_evals.ndim == 2:
+                decentralised_root_constraint_evals = np.expand_dims(decentralised_root_constraint_evals, axis=1)
+            decentralised_root_constraint_evals= np.repeat(decentralised_root_constraint_evals, len(p), axis=1)
+            end_time = time.time()
+            execution_time = end_time - start_time
+            logging.info(f'execution_time_decentralised_constraints: {execution_time}')
+        else:
+            decentralised_root_constraint_evals = None
+
+
         # update input output data for forward surrogate model
         # TODO check all this works, turn off data collection for forward on decentrlaised and check backoffs
-        if self.cfg.surrogate.forward_evaluation_surrogate:
+        if (self.cfg.surrogate.forward_evaluation_surrogate and self.mode != 'backward-forward'):
             self.input_output_data = update_data(self.input_output_data, d, p, outputs)  # updating dataset for surrogate model of forward unit evaluation
 
         # concatenate constraint evaluations
-        concat_obj = [process_constraint_evals, forward_constraint_evals, backward_constraint_evals, decentralised_constraint_evals]
+        concat_obj = [process_constraint_evals, forward_constraint_evals, backward_constraint_evals, decentralised_constraint_evals, decentralised_root_constraint_evals]
         cons_g = jnp.concatenate([c for c in concat_obj if c is not None], axis=-1)  # return raw constraint values (n_d \times n_theta \times n_g)
 
         # storing classifier data and updating function evaluations
-        if self.cfg.surrogate.classifier:
+        if (self.cfg.surrogate.classifier and self.mode != 'backward-forward'):
             self.constraint_data = update_data(self.constraint_data, d, p, cons_g)  # updating dataset for surrogate model of forward unit evaluation
-        if self.cfg.surrogate.probability_map:
+        if (self.cfg.surrogate.probability_map and self.mode != 'backward-forward'):
             self.probability_map_data = update_data(self.probability_map_data, d, p, self.SAA(cons_g))  # updating dataset for surrogate model of forward unit evaluation
 
         del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs, decentralised_constraint_evals
