@@ -3,10 +3,6 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 
-
-
-
-
 class graph_constructor_base(ABC):
     def __init__(self, cfg, adjacency_matrix):
         self.cfg = cfg
@@ -39,8 +35,6 @@ class graph_constructor_base(ABC):
     def add_edge_object(self, i, j, edge_object, edge_object_name):
         self.G.edges[i, j][edge_object_name] = edge_object
         return
-
-    
 
 class graph_constructor(graph_constructor_base):
     def __init__(self, cfg, adjacency_matrix):
@@ -89,11 +83,6 @@ class graph_constructor(graph_constructor_base):
                 raise ValueError('Invalid auxiliary variable structure')
         return
     
-    
-    
-
-
-
 
 def case_study_uncertain_parameters_dummy(G):
     """
@@ -113,7 +102,6 @@ def case_study_uncertain_parameters_dummy(G):
         P_S[node] = p_samples
 
     return P_BE, P_S
-
 
 
 def load_dag_from_adjacency_matrix(adj_matrix):

@@ -120,7 +120,7 @@ def surrogate_training_forward(cfg, graph, node, iterate:int=0):
     
     for successor in graph.successors(node):
         # train the model
-        forward_evaluator_surrogate = surrogate(graph, node, cfg, ('regression', 'ANN', 'forward_evaluation_surrogate'), iterate)
+        forward_evaluator_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.regressor_selection, 'forward_evaluation_surrogate'), iterate)
         forward_evaluator_surrogate.fit(node=successor)
         if cfg.solvers.standardised:
             query_model = forward_evaluator_surrogate.get_model('standardised_model')

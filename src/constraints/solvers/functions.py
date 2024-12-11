@@ -2,10 +2,12 @@ from casadi import SX, MX, nlpsol, Function, vertcat, Sparsity
 import casadi 
 import numpy as np
 from scipy.stats import qmc
+import jax.numpy as jnp
 from jax.experimental import jax2tf
 import multiprocessing as mp
 import tensorflow.compat.v1 as tf # .compat.v1
 import ray
+from functools import partial
 
 from constraints.solvers.surrogate.surrogate import surrogate_reconstruction
 
@@ -131,7 +133,7 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
 
 
 
-def casadi_multi_start(initial_guess, objective_func, equality_constraints, bounds):
+def casadi_multi_start(initial_guess, objective_func, constraints, bounds):
     """
     objective: casadi callback
     equality_constraints: casadi callback
@@ -143,7 +145,7 @@ def casadi_multi_start(initial_guess, objective_func, equality_constraints, boun
     # store for solutions
     solutions = []
     for i in range(n_starts):
-        solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, equality_constraints, bounds, np.array(initial_guess[i,:]).squeeze())
+        solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, constraints, bounds, np.array(initial_guess[i,:]).squeeze())
         if solver.stats()['success']:
           solutions.append((solver, solution))
           if np.array(solution['f']) <= 0: break
@@ -157,16 +159,16 @@ def casadi_multi_start(initial_guess, objective_func, equality_constraints, boun
     except: 
         return solver, solution, len(solutions)
 
-def construct_model(problem_data, cfg):
+def construct_model(problem_data, cfg, supervised_learner:str, model_type:str, model_surrogate:str):
     """
     problem_data : dict    
+    cfg : DictConfig
+    supervised_learner : str [classification, regression]
+    model_type : str
+    model_surrogate : str
     """
 
-    objective_func = surrogate_reconstruction(cfg, ('classification', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['objective_func']).rebuild_model()
-    equality_constraints = surrogate_reconstruction(cfg, ('regression', cfg['surrogate']['classifier_selection'], 'live_set_surrogate'), problem_data['equality_constraints']).rebuild_model()   # TODO update this notation to select different REGRESSOR.
-
-
-    return objective_func, equality_constraints
+    return surrogate_reconstruction(cfg, (supervised_learner, model_type, model_surrogate), problem_data).rebuild_model()
    
 
 @ray.remote(num_cpus=1)
@@ -178,23 +180,44 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     initial_guess: numpy array
     """
     # TODO update this to handle the case where the problem_data is a dictionary and the contraints are inequality constraints
-
     initial_guess, bounds = \
       problem_data['initial_guess'], problem_data['bounds']
     n_starts = initial_guess.shape[0]
 
-    obf, eqc = construct_model(problem_data, cfg)
-    if problem_data['uncertain_params'] == None:
-      equality_constraints = partial(lambda x, inputs : eqc(x.reshape(1,-1)).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['eqc_rhs'])
-    else: 
-      equality_constraints= partial(lambda x, up, inputs: eqc(jnp.hstack([x.reshape(1,-1), up.reshape(1,-1)])).reshape(-1,1) - inputs.reshape(-1,1), inputs=problem_data['eqc_rhs'], up=jnp.array(problem_data['uncertain_params']))
+    # get constraint functions and define masking of the inputs
+    g_fn = {}
+    for i, cons_data in enumerate(problem_data['constraints'].values()):
+      fn = construct_model(cons_data['params'], cfg, 
+                            supervised_learner=cons_data['model_class'],
+                            model_class=cons_data['model_subclass'],
+                            model_surrogate=cons_data['model_surrogate'])
+      if problem_data['uncertain_params'] == None:
+        g_fn[i] = partial(lambda x, v : fn(x.reshape(1,-1)[:,v]).reshape(-1,1), v = cons_data['args'])
+      else:
+         raise NotImplementedError("Uncertain parameters not yet implemented for inequality constraints")
+    
+    # define the constraints function
+    constraints = partial(lambda x, g: jnp.vstack([g[i](x) for i in range(len(g))]), g=g_fn)
 
-    objective_func = partial(lambda x: obf(x.reshape(1,-1)).reshape(-1,1))
-
+    # get objective function
+    obj_data = problem_data['objective_func']
+    n_f = len([k for k in list(obj_data.keys()) if 'f' in k])
+    obf = construct_model(obj_data['f0']['params'], cfg, supervised_learner=obj_data['f0']['model_class'], model_class=obj_data['f0']['model_subclass'], model_surrogate=obj_data['f0']['model_surrogate'])
+    if n_f > 1:
+      obj_terms = {}
+      for i in range(1,n_f):
+        eqc = construct_model(obj_data[f'f{i}']['params'], cfg, supervised_learner=obj_data[f'f{i}']['model_class'], model_class=obj_data[f'f{i}']['model_subclass'], model_surrogate=obj_data[f'f{i}']['model_surrogate'])
+        obj_terms[i] = partial(lambda x, v : eqc(x.reshape(1,-1)[:,v]).reshape(-1,1), v = obj_data[f'f{i}']['args'])
+      # construct objective from constituent functions
+      obj_in = partial(lambda x, g: jnp.hstack([g[i](x) for i in range(len(g))]), g=obj_terms)
+      objective_func = partial(obj_data['obj_fn'], f1=obf, f2=obj_in)
+    else:
+      objective_func = partial(obj_data['obj_fn'], f1=obf)
+    # TODO update this to import lhs and rhs from the problem_data
     # store for solutions
     solutions = []
     for i in range(n_starts):
-        solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, equality_constraints, bounds, np.array(initial_guess[i,:]).squeeze())
+        solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, constraints, bounds, np.array(initial_guess[i,:]).squeeze(), lhs, rhs)
         if solver.stats()['success']:
           solutions.append((solver, solution))
           if np.array(solution['f']) <= 0: break

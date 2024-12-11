@@ -25,6 +25,7 @@ surrogate_forward:
     
 classifier: true
 classifier_selection: 'ANN' # or 'SVM'
+regressor_selection: 'ANN' # or 'GP' 
 probability_map: false
 
 index_on: 1

@@ -168,19 +168,19 @@ class casadi_box_eq_nlp_solver(solver_base):
 """
 
 class parallel_casadi_box_eq_nlp_solver(solver_base):
-    def __init__(self, cfg, objective_func, equality_constraints, bounds):
+    def __init__(self, cfg, objective_func, constraints, bounds):
         super().__init__(cfg)
-        self.solver, self.problem_data = self.construct_solver(objective_func, equality_constraints, bounds)
+        self.solver, self.problem_data = self.construct_solver(objective_func, constraints, bounds)
 
     def __call__(self, initial_guesses):
         return self.solve(initial_guesses)
 
-    def construct_solver(self, objective_func, equality_constraints, bounds):
+    def construct_solver(self, objective_func, constraints, bounds):
         # formatting for casadi
         self.n_d = len(bounds[0])
         self.bounds = bounds
         solver = ray_casadi_multi_start
-        problem_data = {'objective_func': objective_func, 'equality_constraints': equality_constraints, 'bounds': bounds}
+        problem_data = {'objective_func': objective_func, 'constraints': constraints, 'bounds': bounds}
         problem = {'data': problem_data}
         return solver, problem
     
