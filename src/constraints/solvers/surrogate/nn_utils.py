@@ -355,7 +355,6 @@ def train(cfg, model, data, valid_data, model_type):
 
         # Train one epoch in parallel
         state, loss = parallel_train_one_epoch(state, minibatches)
-
         logging.info('epoch: %d, loss: %.4f' % (epoch, jnp.mean(loss).squeeze()))
 
         # Add current losses to history
@@ -363,8 +362,7 @@ def train(cfg, model, data, valid_data, model_type):
 
         # update kernel state
         state = jax_utils.unreplicate(state)
-        
-
+    
         # # NOTE removed validation data evaluation to hack around pmap (should be resolved) Evaluate the model on the validation data
         if model_type == 'classifier':
             val_loss = jnp.mean(optax.softmax_cross_entropy_with_integer_labels(jnp.expand_dims(model.apply(state.params, valid_data.X), axis=1), valid_data.y))
@@ -404,8 +402,6 @@ def train(cfg, model, data, valid_data, model_type):
         training_performance = {"mse": mse, "standardised_mape": jnp.mean(jnp.abs((data.y - model.apply(state.params, data.X)) / data.y))}
         logging.info(f"--- {model_type} ---")
         logging.info(f"training_performance: {training_performance}")
-
-
       
     return state.params, model, loss_history
 

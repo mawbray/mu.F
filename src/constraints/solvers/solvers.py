@@ -35,28 +35,29 @@ class solver_base(ABC):
 
 
 class serialms_casadi_box_eq_nlp_solver(solver_base):
-    def __init__(self, cfg, objective_func, equality_constraints, bounds):
+    def __init__(self, cfg, objective_func, constraints, bounds):
         super().__init__(cfg)
-        self.construct_solver(objective_func, equality_constraints, bounds)
+        self.solver, self.problem_data = self.construct_solver(objective_func, constraints, bounds)
 
     def __call__(self, initial_guesses):
         return self.solve(initial_guesses)
 
-    def construct_solver(self, objective_func, equality_constraints, bounds):
+    def construct_solver(self, objective_func, constraints, bounds):
+        # formatting for casadi
         self.n_d = len(bounds[0])
         self.bounds = bounds
-        # formatting for casadi
-        self.solver = partial(casadi_multi_start, objective_func=objective_func, equality_constraints=equality_constraints, bounds=bounds)
-        return
+        solver = ray_casadi_multi_start
+        problem_data = {'objective_func': objective_func, 'constraints': constraints, 'bounds': bounds}
+        problem = {'data': problem_data}
+        return solver, problem
     
     def initial_guess(self):
         return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
     
     def get_message(self, solver):
-        return solver.stats()['return_status']
+        return solver['return_status']
     
-    def solve(self, initial_guesses):
-        solver, result, len_feasible = self.solver(initial_guesses)
+    def solve_digest(self, solver, result, len_feasible):
         message = self.get_message(solver)
         status = self.get_status(solver)
         objective = self.get_objective(result)
@@ -64,19 +65,22 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         t_wall = self.get_time(solver)
 
         if not status:
-            objective = np.max(np.absolute(constraints)).reshape(-1,)
+            objective = np.maximum(np.array([objective]).reshape(-1,), np.max(np.absolute(constraints)).reshape(-1,))
 
-        if t_wall >= self.cfg.max_solution_time:
+        if (t_wall >= self.cfg.max_solution_time) and (not status):
             logging.warning(f'--- Forward solver max time exceeded: {t_wall} s ---')
+        
+        if (not status):
+            logging.warning(f'{message}')
 
         del solver, result, t_wall, len_feasible
 
-        return {'success': status, 'objective': -objective, 'constraints': constraints}
+        return {'success': status, 'objective': -objective, 'constraints': constraints, 'message': message}
     
     
     def get_status(self, solver):
         try:
-            return solver.stats()['success']
+            return solver['success']
         except:
             return False
     
@@ -87,8 +91,7 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         return solution['g']
     
     def get_time(self, solver):
-        return sum([x for k,x in solver.stats().items() if 't_wall_' in k])
-    
+        return sum([x for k,x in solver.items() if 't_wall_' in k])
 
 class jax_box_nlp_solver(solver_base):
     def __init__(self, cfg, objective_func, bounds):
@@ -179,7 +182,7 @@ class parallel_casadi_box_eq_nlp_solver(solver_base):
         # formatting for casadi
         self.n_d = len(bounds[0])
         self.bounds = bounds
-        solver = ray_casadi_multi_start
+        solver = ray.remote(ray_casadi_multi_start) # , num_cpus=1)
         problem_data = {'objective_func': objective_func, 'constraints': constraints, 'bounds': bounds}
         problem = {'data': problem_data}
         return solver, problem

@@ -9,7 +9,7 @@ ku_approximation: 'box'
 vol_scale: 0.01
 
 ns:
-  n_live: 100
+  n_live: 50
   final_sample_live: 100  
   n_replacements: 50 
   n_iter: 15000 

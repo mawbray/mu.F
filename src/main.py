@@ -4,9 +4,7 @@ os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
     multiprocessing.cpu_count()
 )
 
-
 from visualisation.visualiser import visualiser
-
 
 from direct import apply_direct_method
 from decomposition import decomposition, decomposition_constraint_tuner

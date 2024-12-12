@@ -75,7 +75,7 @@ def get_session():
     return tf.Session()
 
 
-def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initial_guess):
+def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initial_guess, lhs, rhs):
     """
     objective: casadi callback
     equality_constraints: casadi callback
@@ -109,8 +109,8 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         ubx = ub
 
         # Define the bounds for the equality constraints
-        lbg = 0
-        ubg = 0
+        lbg = np.array(lhs)
+        ubg = np.array(rhs)
 
         # Define the NLP
         nlp = {'x':x , 'f':F(x), 'g': G(x)}
@@ -121,7 +121,7 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         solver = nlpsol('solver', 'ipopt', nlp, options)
 
         # Solve the NLP
-        solution = solver(x0=initial_guess, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+        solution = solver(x0=np.hstack(initial_guess), lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
   
     session.close()
     
@@ -171,7 +171,7 @@ def construct_model(problem_data, cfg, supervised_learner:str, model_type:str, m
     return surrogate_reconstruction(cfg, (supervised_learner, model_type, model_surrogate), problem_data).rebuild_model()
    
 
-@ray.remote(num_cpus=1)
+
 def ray_casadi_multi_start(problem_id, problem_data, cfg):
     """
     objective: casadi callback
@@ -180,8 +180,8 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     initial_guess: numpy array
     """
     # TODO update this to handle the case where the problem_data is a dictionary and the contraints are inequality constraints
-    initial_guess, bounds = \
-      problem_data['initial_guess'], problem_data['bounds']
+    initial_guess, bounds, lhs, rhs = \
+      problem_data['initial_guess'], problem_data['bounds'], problem_data['eq_lhs'], problem_data['eq_rhs']
     n_starts = initial_guess.shape[0]
 
     # get constraint functions and define masking of the inputs
@@ -189,7 +189,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     for i, cons_data in enumerate(problem_data['constraints'].values()):
       fn = construct_model(cons_data['params'], cfg, 
                             supervised_learner=cons_data['model_class'],
-                            model_class=cons_data['model_subclass'],
+                            model_type=cons_data['model_type'],
                             model_surrogate=cons_data['model_surrogate'])
       if problem_data['uncertain_params'] == None:
         g_fn[i] = partial(lambda x, v : fn(x.reshape(1,-1)[:,v]).reshape(-1,1), v = cons_data['args'])
@@ -202,18 +202,17 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     # get objective function
     obj_data = problem_data['objective_func']
     n_f = len([k for k in list(obj_data.keys()) if 'f' in k])
-    obf = construct_model(obj_data['f0']['params'], cfg, supervised_learner=obj_data['f0']['model_class'], model_class=obj_data['f0']['model_subclass'], model_surrogate=obj_data['f0']['model_surrogate'])
-    if n_f > 1:
+    obf = construct_model(obj_data['f0']['params'], cfg, supervised_learner=obj_data['f0']['model_class'], model_type=obj_data['f0']['model_type'], model_surrogate=obj_data['f0']['model_surrogate'])
+    if n_f > 2:
       obj_terms = {}
       for i in range(1,n_f):
-        eqc = construct_model(obj_data[f'f{i}']['params'], cfg, supervised_learner=obj_data[f'f{i}']['model_class'], model_class=obj_data[f'f{i}']['model_subclass'], model_surrogate=obj_data[f'f{i}']['model_surrogate'])
-        obj_terms[i] = partial(lambda x, v : eqc(x.reshape(1,-1)[:,v]).reshape(-1,1), v = obj_data[f'f{i}']['args'])
+        eqc = construct_model(obj_data[f'f{i}']['params'], cfg, supervised_learner=obj_data[f'f{i}']['model_class'], model_type=obj_data[f'f{i}']['model_type'], model_surrogate=obj_data[f'f{i}']['model_surrogate'])
+        obj_terms[i] = partial(lambda x, v : eqc(x.reshape(1,-1)[v].reshape(-1,)).reshape(-1,1), v = obj_data[f'f{i}']['args'])
       # construct objective from constituent functions
       obj_in = partial(lambda x, g: jnp.hstack([g[i](x) for i in range(len(g))]), g=obj_terms)
       objective_func = partial(obj_data['obj_fn'], f1=obf, f2=obj_in)
     else:
       objective_func = partial(obj_data['obj_fn'], f1=obf)
-    # TODO update this to import lhs and rhs from the problem_data
     # store for solutions
     solutions = []
     for i in range(n_starts):
