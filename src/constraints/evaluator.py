@@ -268,6 +268,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         if len(list(solver_inputs[0].values())) > 1:
             raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
         else:
+
             results = []
             # run solvers in parallel
             for pred in self.graph.predecessors(self.node):
@@ -446,11 +447,19 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
 
         evals = 0
         
-        for i, solve in enumerate(solver_batches):
-            results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
-            for j, result in enumerate(results):
-                result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
-            evals += j+1
+        if self.pool == 'ray':
+            for i, solve in enumerate(solver_batches):
+                results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
+                for j, result in enumerate(results):
+                    result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
+                evals += j+1
+        else:
+            for i, solve in enumerate(solver_batches):
+                results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve] # set off and then synchronize before moving on
+                for j, result in enumerate(results):
+                    result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
+                evals += j+1
+
 
         del solver_batches, results
 
@@ -481,10 +490,7 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
         inputs: samples in the extended design space
         outputs: the constraint evaluations
         """
-        if self.pool == 'mp-ms':
-            return self.serial_wrapper(inputs, aux)
-        elif self.pool == 'ray':
-            return self.ray_wrapper(inputs, aux)
+        return self.ray_wrapper(inputs, aux)
             
     def parallel_wrapper(self, inputs, aux):
         raise NotImplementedError("Method not implemented")
@@ -498,16 +504,15 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
         for i in range(inputs.shape[0]):
             solver_inputs.append(self.evaluate_parallel(i, inputs[i,:].reshape(1,-1)))
 
-        if len(list([solver_inputs[0]])) > 1:
+        if len(list(solver_inputs[0])) > 1:
             raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
         else:
             results = []
-            for pred in self.graph.predecessors(self.node):
-                solver_reshape = []
-                for p in range(len(solver_inputs[0][pred])):
-                    for s_i in solver_inputs:
-                        solver_reshape.append((s_i[pred][p].solver, s_i[pred][p].problem_data))
-                results.append(self.ray_evaluation(solver_reshape, self.cfg.max_devices, s_i[pred][p]))
+            solver_reshape = []
+            for p in range(len(solver_inputs[0])):
+                for s_i in solver_inputs:
+                    solver_reshape.append((s_i[p].solver, s_i[p].problem_data))
+            results.append(self.ray_evaluation(solver_reshape, self.cfg.max_devices, s_i[p]))
 
 
             return jnp.concatenate(results, axis=-1)
@@ -536,9 +541,9 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
         forward_solver.solver.problem_data['data']['eq_lhs'] = jnp.vstack([problem_data[pred]['eq_lhs'] for pred in self.graph.predecessors(self.node)])
         forward_solver.solver.problem_data['data']['cfg'] = dict(self.cfg).copy()
         forward_solver.solver.problem_data['data']['uncertain_params'] = None
-        forward_solver.solver.problem_data['id'] = i
+        forward_solver.solver.problem_data['id'] = i 
 
-        return forward_solver
+        return [forward_solver.solver]
 
     def serial_wrapper(self, inputs):
         results = []
@@ -608,7 +613,7 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
             # load the forward objective
             problem_data['objective_func'][f'f{pred+1}'] = {'params': self.graph.edges[pred,self.node]["forward_surrogate_serialised"], 
                                                             'args': [g for g in range(len_pp,len_pp+len_p,1)],
-                                                            'model_class': 'classification', 'model_surrogate': 'forward_evaluation_surrogate', 
+                                                            'model_class': 'regression', 'model_surrogate': 'forward_evaluation_surrogate', 
                                                             'model_type': self.cfg.surrogate.regressor_selection}
             # increment args tracker
             len_pp += len_p

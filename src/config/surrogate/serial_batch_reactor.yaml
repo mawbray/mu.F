@@ -3,8 +3,8 @@ surrogate_forward:
   ann:
     hidden_size_options:
       - [50, 50]
-      #- [25, 10]
-      #- [10, 5]
+      - [25, 10]
+      - [10, 5]
       #- [100, 25]
     activation_functions:
       - ['tanh', tanh]
@@ -46,8 +46,8 @@ classifier_args:
   ann:
     hidden_size_options:
       - [50, 50]
-      #- [25, 10]
-      #- [10, 10]
+      - [25, 10]
+      - [10, 10]
       #- [100, 50, 25]
     activation_functions:
       - ['tanh', tanh]

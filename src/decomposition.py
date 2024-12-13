@@ -40,8 +40,7 @@ class decomposition:
             self.approximator = calculate_box_outer_approximation
         return
 
-    def define_operations(self, iteration):
-        m = self.mode[iteration]
+    def define_operations(self, m, iteration):
         if m == 'forward' or m == 'backward-forward':
             operations, visualisations = {}, {}
             k = len(operations)
@@ -61,11 +60,11 @@ class decomposition:
     def run(self, iterations=0):
 
         for i in range(len(self.mode)):
-            operations, visualisations = self.define_operations(i)
+            operations, visualisations = self.define_operations(self.mode[i],iterations)
             for key in operations.keys():
                 self.G = operations[key](self.cfg, self.G).run()
                 visualisations[key](self.cfg, self.G).run()
-                save_graph(self.G.copy(), self.mode[i] + '_iterate_' + str(i+iterations))
+                save_graph(self.G.copy(), self.mode[i] + '_iterate_' + str(iterations))
             if self.cfg.reconstruction.reconstruct[i]:
                 self.reconstruct(self.mode[i], i+iterations)
             self.update_precedence_order(self.mode[i])
@@ -128,6 +127,8 @@ def run_a_single_evaluation(xi, cfg, G):
     # Set the maximum number of devices
     max_devices = len(jax.devices('cpu'))   
 
+    logging.info(f"Running iteration {G.graph['iterate']} with xi: {xi}")
+
     # update the constraint parmeters.
     G = update_constraint_tuning_parameters(G, xi)
 
@@ -135,10 +136,10 @@ def run_a_single_evaluation(xi, cfg, G):
     precedence_order = G.graph['precedence_order']
     m = ['backward-forward']
     # run the decomposition
-    G = decomposition(cfg, G, precedence_order, m, max_devices).run()
+    G = decomposition(cfg, G, precedence_order, m, max_devices).run(iterations=G.graph['iterate'])
     G.graph['iterate'] += 1
 
-    return -torch.tensor(sum([G.nodes[node]['log_evidence']['mean'] for node in G.nodes()])).reshape(1,1) # minimise negative log evidence
+    return -torch.tensor(sum([G.nodes[node]['log_evidence']['mean'] for node in G.nodes()]), dtype=torch.float32).reshape(1,1) # minimise negative log evidence
 
 
 def decomposition_constraint_tuner(cfg, G, max_devices):

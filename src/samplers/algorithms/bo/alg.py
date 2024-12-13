@@ -40,7 +40,7 @@ def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_i
     logging.info("Starting Bayesian optimization...")
     logging.info(f"Lower bound: {lower_bound}, Upper bound: {upper_bound}")
     logging.info(f"Num initial points: {num_initial_points}, Num iterations: {num_iterations}")
-
+    torch.set_default_dtype(torch.float32)
     # Generate Sobol points: now treat each as a different candidate
     train_x = torch.tensor(generate_sobol_points(lower_bound, upper_bound, num_initial_points)).float().T
 
@@ -188,7 +188,7 @@ def select_next_point(model, lower_bound, upper_bound, acq:str='ucb'):
 
 def ucb(model, lower_bound, upper_bound):
     # Ensure the bounds are tensors of shape [26]
-    bounds = torch.stack([lower_bound, upper_bound], dim=1)  # Shape [26, 2]
+    bounds = torch.stack([torch.tensor(lower_bound), torch.tensor(upper_bound)], dim=1)  # Shape [26, 2]
 
     # Define the acquisition function (Upper Confidence Bound)
     def acquisition(x):
@@ -207,8 +207,8 @@ def ucb(model, lower_bound, upper_bound):
             return - (mean + 1.96 * torch.sqrt(variance))  # Maximize UCB (negative for minimizing)
 
     # Initial candidate point
-    x0 = (lower_bound + upper_bound) / 2
-    x0 = x0.clone().detach().requires_grad_(True)
+    x0 = (torch.tensor(lower_bound) + torch.tensor(upper_bound)) / 2
+    x0 = x0.clone().detach().requires_grad_(True).float()
 
     # Use LBFGS optimizer to optimize the acquisition function
     optimizer = torch.optim.LBFGS([x0], max_iter=20)
@@ -223,7 +223,7 @@ def ucb(model, lower_bound, upper_bound):
     optimizer.step(closure)
 
     # Ensure x0 stays within bounds after optimization by clipping
-    x0 = torch.clamp(x0, lower_bound, upper_bound)
+    x0 = torch.clamp(x0, torch.tensor(lower_bound), torch.tensor(upper_bound))
 
     # Check the shape after optimization (should be [26])
     logging.info(f"Shape of candidate_x after optimization: {x0.shape}")

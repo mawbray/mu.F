@@ -72,7 +72,7 @@ class apply_decomposition:
             # estimate box for bounds for DS downstream
             process_data_forward(cfg, graph, node, model, feasible_set, mode)
             # train constraints for DS downstream using data now stored in the graph
-            if (mode in ['forward'] and graph.out_degree(node) != 0) or (mode in ['forward-backward','backward'] and graph.in_degree(node) == 0): 
+            if (mode in ['forward'] and graph.out_degree(node) != 0) or (mode in ['backward'] and graph.in_degree(node) == 0): 
                 if cfg.surrogate.forward_evaluation_surrogate: surrogate_training_forward(cfg, graph, node)
             # classifier construction for current unit
             if (cfg.surrogate.classifier and mode != 'backward-forward'): classifier_construction(cfg, graph, node, iterate)
@@ -417,6 +417,11 @@ class subproblem_model(ABC):
         if self.forward_decentralised is not None and self.G.in_degree(self.unit_index) > 0:
             start_time = time.time()
             decentralised_constraint_evals = self.forward_decentralised.evaluate(unit_design, aux_args) 
+            if decentralised_constraint_evals.ndim == 1:
+                decentralised_constraint_evals = decentralised_constraint_evals.reshape(-1,1)
+            if decentralised_constraint_evals.ndim == 2:
+                decentralised_constraint_evals = np.expand_dims(decentralised_constraint_evals, axis=1)
+            decentralised_constraint_evals= np.repeat(decentralised_constraint_evals, len(p), axis=1)
             end_time = time.time()
             execution_time = end_time - start_time
             logging.info(f'execution_time_decentralised_constraints: {execution_time}')
