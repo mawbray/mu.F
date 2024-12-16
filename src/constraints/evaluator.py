@@ -396,7 +396,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         Standardises the decisions
         """
         try:
-            mean, std = self.graph.nodes[in_node]['classifier_x_scalar'].mean, self.graph.nodes[in_node]['classifier_x_scalar'].std
+            mean, std = self.graph.nodes[in_node]['classifier_x_scalar'].mean, self.graph.nodes[in_node]['classifier_x_scalar'].std  #NOTE this indexing needs addressing in probabilistic case
             return [(decision - mean) / std for decision in decisions]
         except:
             try:
@@ -406,7 +406,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                 return decisions
         
 
-class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_base):
+class forward_constraint_decentralised_evaluator(forward_constraint_evaluator):
     """
     A forward surrogate constraint
     - solved using casadi interface with jax and IPOPT
@@ -420,9 +420,8 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
     TODO - think about how best to pass uncertain parameters.
     """
     def __init__(self, cfg, graph, node, pool):
-        super().__init__(cfg, graph, node)
+        super().__init__(cfg, graph, node, pool)
         # pool settings
-        self.pool = pool
         if self.pool is None: 
             raise Warning("No multiprocessing pool provided. Forward surrogate constraints will be evaluated sequentially.")
         if self.pool == 'jax-pmap':
@@ -465,35 +464,6 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
 
         return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
 
-
-
-    def get_predecessors_inputs(self, inputs):
-        """
-        Gets the inputs from the predecessors
-        """
-        pred_inputs = {}
-        for pred in self.graph.predecessors(self.node):
-            input_indices = self.graph.edges[pred, self.node]['input_indices']
-            pred_inputs[pred]= inputs[:,input_indices]
-        return pred_inputs
-
-
-    def load_solver(self):
-        """
-        Loads the solver
-        """
-        return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)
-    
-    def evaluate(self, inputs, aux):
-        """
-        Evaluates the constraints by iterating sequentially over the design and the uncertain params
-        inputs: samples in the extended design space
-        outputs: the constraint evaluations
-        """
-        return self.ray_wrapper(inputs, aux)
-            
-    def parallel_wrapper(self, inputs, aux):
-        raise NotImplementedError("Method not implemented")
     
     def ray_wrapper(self, inputs, aux):
         """ first prepare the problem set up, 
@@ -545,31 +515,6 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
 
         return [forward_solver.solver]
 
-    def serial_wrapper(self, inputs):
-        results = []
-        for i in range(inputs.shape[0]):
-            results.append(self.evaluate_serial(inputs[i,:].reshape(1,-1)))
-        
-
-        return jnp.vstack(results)
-
-            
-
-    def get_predecessors_uncertain(self):
-        """
-        Gets the uncertain parameters from the predecessors dynamics
-        """
-        pred_uncertain_params = {}
-        for pred in self.graph.predecessors(self.node):
-            if self.cfg.formulation == 'probabilistic':
-                pred_uncertain_params[pred] = self.graph.nodes[pred]['parameters_samples']
-            elif self.cfg.formulation == 'deterministic':
-                pred_uncertain_params[pred] = [{'c': self.graph.nodes[pred]['parameters_best_estimate'], 'w':1.0}]
-            else:
-                raise ValueError("Invalid formulation.")
-            
-        return pred_uncertain_params
-    
     def prepare_forward_problem(self, decisions):
         """
         Prepares the forward constraints surrogates and decision variables
@@ -620,34 +565,6 @@ class forward_constraint_decentralised_evaluator(coupling_surrogate_constraint_b
 
         # return the forward surrogates and decision bounds
         return problem_data
-
-    
-    def standardise_inputs(self, inputs, in_node):
-        """
-        Standardises the inputs
-        """
-        try:
-            mean, std = self.graph.edges[in_node, self.node]['y_scalar'].mean, self.graph.edges[in_node,self.node]['y_scalar'].std
-            return (inputs - mean) / std
-        except:
-
-            return inputs
-
-    
-    def standardise_model_decisions(self, decisions, in_node):
-        """
-        Standardises the decisions
-        """
-        try:
-            mean, std = self.graph.nodes[in_node]['classifier_x_scalar'].mean, self.graph.nodes[in_node]['classifier_x_scalar'].std
-            return [(decision - m) / s for i, (m, s, decision) in enumerate(zip([m for m in mean], [s for s in std], decisions)) if i < len(decisions)]
-        except:
-            try:
-                mean, std = self.graph.nodes[in_node]['x_scalar'].mean, self.graph.nodes[in_node]['x_scalar'].std
-                return [(decision - mean) / std for decision in decisions]
-            except:
-                return decisions
-
 
 
 class forward_root_constraint_decentralised_evaluator(coupling_surrogate_constraint_base):
@@ -706,7 +623,7 @@ class forward_root_constraint_decentralised_evaluator(coupling_surrogate_constra
         else:
             inputs = v_2
         # vmap
-        node_constraints =  vmap(partial(lambda x, b: self.graph.nodes[self.node]["classifier"](x) + b, b=self.graph.nodes[self.node]['constraint_backoff']), in_axes=0, out_axes=0)
+        node_constraints =  vmap(partial(lambda x, b: - self.graph.nodes[self.node]["classifier"](x) - b, b=self.graph.nodes[self.node]['constraint_backoff']), in_axes=0, out_axes=0)
 
         # return the forward surrogates and decision bounds
         return node_constraints, inputs
