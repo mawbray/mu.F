@@ -47,6 +47,9 @@ classifier_args:
     hidden_size_options:
       - [50, 50]
       - [25, 10]
+      - [50, 25]
+      - [100, 50]
+      - [50, 5]
       - [10, 10]
       #- [100, 50, 25]
     activation_functions:
