@@ -53,7 +53,7 @@ def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_i
     logging.info(f"Shape of train_x: {train_x.shape}")
 
     # Evaluate the objective function for each candidate in train_x
-    train_y = torch.vstack([f(train_x[:, i]).reshape(1,1) for i in range(train_x.shape[1])]).squeeze()
+    train_y = torch.vstack([f(train_x[:, i].reshape(-1,1)).reshape(1,1) for i in range(train_x.shape[1])]).squeeze()
 
     likelihood = GaussianLikelihood()
     
@@ -63,16 +63,16 @@ def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_i
 
     model = GPRegressionModel(train_x.T, train_y, likelihood)
 
-    fit_gpytorch_model(likelihood, model, train_x.T, train_y)
+    model, _ = fit_gpytorch_model(likelihood, model, train_x.T, train_y)
 
     logging.info('Initial min:', train_y.min().item())
 
     for _ in range(num_iterations):
         candidate_x = select_next_point(model, lower_bound, upper_bound)
         #print(f"Shape of candidate_x: {candidate_x.shape}")
-        candidate_y = f(candidate_x).reshape(-1,)
+        candidate_y = f(candidate_x.reshape(-1,1)).reshape(-1,)
 
-        train_x = torch.cat([train_x, candidate_x.unsqueeze(1)], dim=1)
+        train_x = torch.cat([train_x, candidate_x.T], dim=1)
         train_y = torch.cat([train_y, candidate_y])
 
         model.set_train_data(train_x.T, train_y, strict=False)
@@ -81,7 +81,7 @@ def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_i
         likelihood = GaussianLikelihood()
         model = GPRegressionModel(train_x.T, train_y, likelihood)
         #here
-        fit_gpytorch_model(likelihood, model, train_x.T, train_y)
+        model, _ = fit_gpytorch_model(likelihood, model, train_x.T, train_y)
 
     # Find the best candidate (minimum y value)
     best_index = torch.argmin(train_y)
@@ -92,6 +92,8 @@ def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_i
 
     torch.save(train_y, 'opt_y.pt')
     torch.save(train_x, 'opt_x.pt')
+
+    if train_x.shape[0] ==2 : plot(train_x, train_y, model, likelihood, upper_bound, lower_bound)
 
     return best_candidate, best_index  # Return the best candidate, which will be used to update C
 
@@ -114,7 +116,7 @@ def original_bayesian_optimization(f, lower_bound, upper_bound, num_initial_poin
     model = GPRegressionModel(train_x, train_y, likelihood)
     logging.info(f"Shape of train_x: {train_x.shape}, Shape of train_y: {train_y.shape}")
 
-    fit_gpytorch_model(likelihood, model, train_x, train_y)
+    model, _ = fit_gpytorch_model(likelihood, model, train_x, train_y)
 
     logging.info('initial min:', train_y.min().item())
 
@@ -130,45 +132,118 @@ def original_bayesian_optimization(f, lower_bound, upper_bound, num_initial_poin
         # create a new model and fit it NOTE there is a better way to do this, by reinitializing the model
         likelihood = GaussianLikelihood()
         model = GPRegressionModel(train_x, train_y, likelihood)
-        fit_gpytorch_model(likelihood, model, train_x, train_y)
+        model, likelihood = fit_gpytorch_model(likelihood, model, train_x, train_y)
 
     logging.info('final min:', train_y.min().item())
 
     return model
+
+
 
 def fit_gpytorch_model(likelihood, model, train_x, train_y):
     optimizer = optim.LBFGS(model.parameters(), lr=0.0001, line_search_fn='strong_wolfe')
     model.train()
     likelihood.train()
 
-    mll = ExactMarginalLogLikelihood(likelihood, model)
+    lml = ExactMarginalLogLikelihood(likelihood, model)
 
     tolerance = 1e-6  # Define your tolerance threshold
-    previous_loss = None
-    for k in range(1000):
+    best_loss = float('inf')
+    best_model = None
+    best_likelihood = None
 
-        def closure():
-            optimizer.zero_grad()
-            output = model(train_x)
-            loss = -mll(output, train_y.squeeze())
-            loss.backward()
-            return loss
-        
-        optimizer.step(closure)
+    for start in range(10):  # Multi-start scheme with 10 random initializations
+        model = GPRegressionModel(train_x, train_y, likelihood)  # Reinitialize model parameters
+        previous_loss = None
 
-        loss = -mll(model(train_x), train_y).item()
-        
-        # Check for convergence
-        if previous_loss is not None:
-            change_in_loss = abs(loss - previous_loss)
-            if change_in_loss <= tolerance:
-                logging.info(f"Convergence achieved. after {k+1} iterations.")
-                break  # Exit the loop if convergence is achieved
-        
-        # Update the previous_loss for the next iteration
-        previous_loss = loss
+        for k in range(1000):
+            def closure():
+                optimizer.zero_grad()
+                output = model(train_x)
+                loss = -lml(output, train_y.squeeze())
+                loss.backward()
+                return loss
+
+            optimizer.step(closure)
+
+            loss = -lml(model(train_x), train_y).item()
+            logging.info(f"GP lml, start {start}, iteration {k}, loss: {loss}")
+
+            # Check for convergence
+            if previous_loss is not None:
+                change_in_loss = abs(loss - previous_loss)
+                if change_in_loss <= tolerance:
+                    logging.info(f"Convergence achieved after {k+1} iterations for start {start}.")
+                    break  # Exit the loop if convergence is achieved
+
+            # Update the previous_loss for the next iteration
+            previous_loss = loss
+
+        # Update the best model if the current one is better
+        if loss < best_loss:
+            best_loss = loss
+            best_model = model.state_dict()
+            best_likelihood = likelihood.state_dict()
+
+    # Load the best model and likelihood
+    model.load_state_dict(best_model)
+    likelihood.load_state_dict(best_likelihood)
+
     likelihood.eval()
     model.eval()
+
+    return model, likelihood
+
+def plot(train_x, train_y, model, likelihood, ub, lb):
+    import matplotlib.pyplot as plt
+    def plotting_format():
+        font = {"family": "serif", "weight": "bold", "size": 20}
+        plt.rc("font", **font)  # pass in the font dict as kwargs
+        plt.rc("axes", labelsize=15)  # fontsize of the x and y label
+        plt.rc("axes", linewidth=3)
+        plt.rc("axes", labelpad=20)
+        plt.rc("xtick", labelsize=10)
+        plt.rc("ytick", labelsize=10)
+
+        return
+    
+    plotting_format()
+
+    # Create a dense grid over the input space
+    grid_size = 100  # resolution of the grid
+    x1 = torch.linspace(lb[0], ub[0], grid_size)
+    x2 = torch.linspace(lb[1], ub[1], grid_size)
+
+    # Create meshgrid and flatten for evaluation
+    X1, X2 = torch.meshgrid(x1, x2, indexing='ij')
+    grid_points = torch.stack([X1.reshape(-1), X2.reshape(-1)], dim=-1)  # shape (grid_size^2, 2)
+
+    # Set model and likelihood to evaluation mode
+    model.eval()
+    likelihood.eval()
+
+    # Compute GP predictions over the grid
+    with torch.no_grad(), gpytorch.settings.fast_pred_var():
+        predictions = likelihood(model(grid_points))
+        # Reshape mean predictions to the grid shape
+        mean = predictions.mean.reshape(grid_size, grid_size)
+
+    # Create contour plot of the GP mean predictions
+    plt.figure(figsize=(12, 10))
+    contour = plt.contourf(X1.numpy(), X2.numpy(), mean.numpy(), levels=20, cmap='viridis')
+    plt.colorbar(contour, label='Predicted Mean')
+
+    # Overlay training data points
+    plt.scatter(train_x[0,:].numpy(), train_x[1,:].numpy(), 
+                c='red', marker='x', label='Training Data')
+
+    plt.title('Contour Plot of GP Model Mean')
+    plt.xlabel('Unit 1 Backoff, $\epsilon_1$')
+    plt.ylabel('Unit 2 Backoff , $\epsilon_2$')
+    plt.legend()
+    plt.savefig('Bayesian optimization iterations.svg')
+
+   
 
 def select_next_point(model, lower_bound, upper_bound, acq:str='ucb'):
     # Implement your acquisition function here
@@ -181,7 +256,7 @@ def select_next_point(model, lower_bound, upper_bound, acq:str='ucb'):
     # Return the point with the maximum acquisition value.
 
     if acq == 'ucb':
-        return ucb(model, lower_bound, upper_bound)
+        return original_ucb(model, lower_bound, upper_bound)
     else:
         raise ValueError(f"Invalid acquisition function: {acq}")
 
@@ -203,19 +278,21 @@ def ucb(model, lower_bound, upper_bound):
             mean = pred.mean
             variance = pred.variance
 
-            # UCB formula: mean + beta * variance
-            return - (mean + 1.96 * torch.sqrt(variance))  # Maximize UCB (negative for minimizing)
+            # UCB formula: mean + beta * variance (lower the mean the better the value)
+            return (mean - 1.96 * torch.sqrt(variance))  # Maximize UCB (negative for minimizing)
 
     # Initial candidate point
     x0 = (torch.tensor(lower_bound) + torch.tensor(upper_bound)) / 2
     x0 = x0.clone().detach().requires_grad_(True).float()
 
     # Use LBFGS optimizer to optimize the acquisition function
-    optimizer = torch.optim.LBFGS([x0], max_iter=20)
+    optimizer = torch.optim.LBFGS([x0], max_iter=40)
+
 
     def closure():
         optimizer.zero_grad()
         loss = acquisition(x0)
+        logging.info
         loss.backward()
         return loss
 
@@ -224,6 +301,8 @@ def ucb(model, lower_bound, upper_bound):
 
     # Ensure x0 stays within bounds after optimization by clipping
     x0 = torch.clamp(x0, torch.tensor(lower_bound), torch.tensor(upper_bound))
+
+    
 
     # Check the shape after optimization (should be [26])
     logging.info(f"Shape of candidate_x after optimization: {x0.shape}")
@@ -251,7 +330,7 @@ def original_ucb(model, lower_bound, upper_bound):
     # Create the LBFGS optimizer
     n_multi_start = 10
     n_grad_steps = 50
-    points = generate_sobol_points(lower_bound, upper_bound, n_multi_start).T
+    points = generate_sobol_points(lower_bound, upper_bound, n_multi_start)
     minima = []
     sol_x  = []
     tolerance = torch.tensor([1e-8])  # Define your tolerance threshold
@@ -271,7 +350,7 @@ def original_ucb(model, lower_bound, upper_bound):
                 return acquisition_value
             
             optimizer.step(closure)
-            with torch.no_grad(): next_point[:] = next_point.clamp(lower_bound, upper_bound)
+            with torch.no_grad(): next_point[:] = next_point.clamp(torch.tensor(lower_bound), torch.tensor(upper_bound))
 
             # Get the current acquisition value
             current_acquisition_value = ucb_acquisition(next_point).float().detach().clone().requires_grad_(False)
@@ -280,7 +359,7 @@ def original_ucb(model, lower_bound, upper_bound):
             if previous_acquisition_value is not None:
                 change_in_value = torch.absolute(current_acquisition_value - previous_acquisition_value)
                 if change_in_value <= tolerance:
-                    print(f"Convergence achieved after {j+1} iterations.")
+                    logging.info(f"Multistart {i}: Convergence achieved after {j+1} iterations; UCB: {current_acquisition_value}.")
                     break  # Exit the loop if convergence is achieved
 
             # Update the previous_acquisition_value for the next iteration
@@ -293,4 +372,69 @@ def original_ucb(model, lower_bound, upper_bound):
     minima = torch.tensor(minima)
     min_idx = torch.argmin(minima)
     next_point = sol_x[min_idx]
+
+    # Check if the selected point is NaN and handle it
+    if torch.isnan(next_point).any():
+        logging.warning("Selected point contains NaN values. Selecting a different point.")
+        valid_points = [(point, minima[i]) for i, point in enumerate(sol_x) if not torch.isnan(point).any()]
+        if valid_points:
+            # Select the valid point with the minimum acquisition value
+            next_point, _ = min(valid_points, key=lambda x: x[1])
+        else:
+            raise ValueError("All candidate points contain NaN values.")
     return next_point
+
+
+
+
+if __name__ == '__main__':
+    import unittest
+    
+    class TestBayesianOptimization(unittest.TestCase):
+
+        def test_bayesian_optimization(self):
+            # Define the objective function
+            def objective(x):
+                return torch.sum(x**2)
+
+            # Define the bounds
+            lower_bound = [-1, -1]
+            upper_bound = [1, 1]
+
+            # Define the number of initial points and iterations
+            num_initial_points = 5
+            num_iterations = 20
+
+            # Call the bayesian_optimization method
+            best_candidate, best_index = bayesian_optimization(objective, lower_bound, upper_bound, num_initial_points, num_iterations)
+
+            # Assert that the best candidate is within the bounds
+            self.assertTrue((np.array(lower_bound) <= best_candidate.numpy()).all() and (best_candidate.numpy() <= np.array(upper_bound)).all())
+
+            # Assert that the best candidate is not None
+            self.assertIsNotNone(best_candidate)
+
+            self.assertAlmostEqual(best_candidate.numpy()[0], 0.0, places=1)
+
+
+    #unittest.main()
+
+
+    # Define the objective function
+    def objective(x):
+        return torch.sum(x**2)
+
+    # Define the bounds
+    lower_bound = [-1, -1]
+    upper_bound = [1, 1]
+
+    # Define the number of initial points and iterations
+    num_initial_points = 5
+    num_iterations = 20
+
+    # Call the bayesian_optimization method
+    best_candidate, best_index = bayesian_optimization(objective, lower_bound, upper_bound, num_initial_points, num_iterations)
+
+    print(f"Best candidate: {best_candidate}")
+    print(f"Best function value: {objective(best_candidate)}")
+

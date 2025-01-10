@@ -46,7 +46,7 @@ class decomposition:
             k = len(operations)
             operations[k] = partial(apply_decomposition, precedence_order=self.precedence_order, mode=m, max_devices=self.max_devices)
             visualisations[k] = partial(visualiser, string='decomposition', path=f'decomposition_{m}_iterate_{iteration}')
-        elif m == 'backward' or m == 'forward_backward':
+        elif m == 'backward' or m == 'forward-backward':
             operations, visualisations = {}, {}
             if iteration == 0:
                 operations[0] = partial(initialisation, network_simulator=network_simulator, constraint_evaluator=constraint_evaluator, sampler=self.sampler, approximator=self.approximator)
@@ -126,7 +126,6 @@ def update_constraint_tuning_parameters(G, xi):
 def run_a_single_evaluation(xi, cfg, G):
     # Set the maximum number of devices
     max_devices = len(jax.devices('cpu'))   
-
     logging.info(f"Running iteration {G.graph['iterate']} with xi: {xi}")
 
     # update the constraint parmeters.

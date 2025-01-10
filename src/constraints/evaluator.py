@@ -462,7 +462,7 @@ class forward_constraint_decentralised_evaluator(forward_constraint_evaluator):
 
         del solver_batches, results
 
-        return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
+        return -jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
 
     
     def ray_wrapper(self, inputs, aux):

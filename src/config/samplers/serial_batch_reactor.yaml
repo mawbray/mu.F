@@ -6,12 +6,12 @@ deus:
 
 notion_of_feasibility: 'positive'
 ku_approximation: 'box'
-vol_scale: 0.01
+vol_scale: 0.0001
 
 ns:
-  n_live: 2500
+  n_live: 2000
   final_sample_live: 100  
-  n_replacements: 100
+  n_replacements: 50
   n_iter: 15000 
   f0: 0.3
   alpha: 0.3
@@ -22,7 +22,7 @@ ns:
 
 bo:
   bounds: 
-    max: 0.49999
+    max: 0.5
     min: 0
-  num_initial_points: 4
-  num_iterations: 4 # subsequent to initial samples
+  num_initial_points: 3
+  num_iterations: 7 # subsequent to initial samples
