@@ -26,3 +26,4 @@ bo:
     min: 0
   num_initial_points: 3
   num_iterations: 7 # subsequent to initial samples
+  acq: 'ei'

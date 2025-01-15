@@ -160,8 +160,7 @@ def decomposition_constraint_tuner(cfg, G, max_devices):
     num_initial_points = cfg.samplers.bo.num_initial_points
     num_iterations = cfg.samplers.bo.num_iterations
 
-    xi_opt, best_index = bayesian_optimization(fn, lower_bound, upper_bound, num_initial_points, num_iterations)
-
+    xi_opt, best_index = bayesian_optimization(fn, lower_bound, upper_bound, num_initial_points, num_iterations, acq=cfg.samplers.bo.acq)
 
     logging.info("------- Finished -------")
     logging.info("Best candidate: {}".format(xi_opt))
