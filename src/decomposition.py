@@ -166,3 +166,5 @@ def decomposition_constraint_tuner(cfg, G, max_devices):
     logging.info("Best candidate: {}".format(xi_opt))
     logging.info("Best index: {}".format(best_index + 1))
     logging.info("------------------------")
+
+    return

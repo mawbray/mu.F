@@ -54,48 +54,47 @@ class apply_decomposition:
         
 
         # Iterate over the nodes and apply nested sampling
-        try:
-            for node in nodes:
-                #if cfg.solvers.evaluation_mode.forward == 'ray':  ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']})
-                logging.info(f'------- Characterising node {node} according to precedence order -------')
-                # define model for deus
-                model = subproblem_model(node, cfg, graph, mode=mode, max_devices=max_devices)
-                # create problem sheet according to cfg 
-                problem_sheet = create_problem_description_deus(cfg, model, graph, node, mode) 
-                # solve extended DS using NS
-                solver =  construct_deus_problem(DEUS, problem_sheet, model)
-                solver.solve()
-                if cfg.method == 'decomposition_constraint_tuner': graph.nodes[node]['log_evidence'] = solver.get_log_evidence()
-                feasible, infeasible = solver.get_solution()
-                feasible_set, feasible_set_prob = feasible[0], feasible[1]
-                # update the graph with the number of function evaluations
-                graph.nodes[node]["fn_evals"] += model.function_evaluations
-                # estimate box for bounds for DS downstream
-                process_data_forward(cfg, graph, node, model, feasible_set, mode)
-                # train constraints for DS downstream using data now stored in the graph
-                if (mode in ['forward'] and graph.out_degree(node) != 0) or (mode in ['backward'] and graph.in_degree(node) == 0): 
-                    if cfg.surrogate.forward_evaluation_surrogate: surrogate_training_forward(cfg, graph, node)
-                # classifier construction for current unit
-                if (cfg.surrogate.classifier and mode != 'backward-forward'): classifier_construction(cfg, graph, node, iterate) # NOTE this is a study specific condition
-                if (cfg.surrogate.probability_map and mode != 'backward-forward'): probability_map_construction(cfg, graph, node, iterate) #  NOTE this is a study specific condition
+        for node in nodes:
+            #if cfg.solvers.evaluation_mode.forward == 'ray':  ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']})
+            logging.info(f'------- Characterising node {node} according to precedence order -------')
+            # define model for deus
+            model = subproblem_model(node, cfg, graph, mode=mode, max_devices=max_devices)
+            # create problem sheet according to cfg 
+            problem_sheet = create_problem_description_deus(cfg, model, graph, node, mode) 
+            # solve extended DS using NS
+            solver =  construct_deus_problem(DEUS, problem_sheet, model)
+            solver.solve()
+            if cfg.method == 'decomposition_constraint_tuner': graph.nodes[node]['log_evidence'] = solver.get_log_evidence()
+            feasible, infeasible = solver.get_solution()
+            feasible_set, feasible_set_prob = feasible[0], feasible[1]
+            # update the graph with the number of function evaluations
+            graph.nodes[node]["fn_evals"] += model.function_evaluations
+            # estimate box for bounds for DS downstream
+            process_data_forward(cfg, graph, node, model, feasible_set, mode)
+            # train constraints for DS downstream using data now stored in the graph
+            if (mode in ['forward'] and graph.out_degree(node) != 0) or (mode in ['backward'] and graph.in_degree(node) == 0): 
+                if cfg.surrogate.forward_evaluation_surrogate: surrogate_training_forward(cfg, graph, node)
+            # classifier construction for current unit
+            if (cfg.surrogate.classifier and mode != 'backward-forward'): classifier_construction(cfg, graph, node, iterate) # NOTE this is a study specific condition
+            if (cfg.surrogate.probability_map and mode != 'backward-forward'): probability_map_construction(cfg, graph, node, iterate) #  NOTE this is a study specific condition
 
-                del model, problem_sheet, solver, infeasible, feasible_set_prob, feasible_set, feasible
-                
-                
-                save_graph(graph.copy(), mode + '_iterate_' + str(iterate)+ '_node_' + str(node))
-                graph = del_data(graph, node)
-                gc.collect()
-                profiler.save_device_memory_profile(f"memory{node}.prof")
-                clear_caches()
-                clear_backends()
-                profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")
-        except: 
-            if cfg.method == 'decomposition_constraint_tuner': graph.nodes[node]['log_evidence'] = {'mean':-10, 'std':0}
+            del model, problem_sheet, solver, infeasible, feasible_set_prob, feasible_set, feasible
+            
+            
+            save_graph(graph.copy(), mode + '_iterate_' + str(iterate)+ '_node_' + str(node))
+            graph = del_data(graph, node)
             gc.collect()
             profiler.save_device_memory_profile(f"memory{node}.prof")
             clear_caches()
             clear_backends()
             profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")
+        """ except: 
+            if cfg.method == 'decomposition_constraint_tuner': graph.nodes[node]['log_evidence'] = {'mean':-10, 'std':0}
+            gc.collect()
+            profiler.save_device_memory_profile(f"memory{node}.prof")
+            clear_caches()
+            clear_backends()
+            profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")"""
 
         return graph
 

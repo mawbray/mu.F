@@ -42,10 +42,8 @@ def main(cfg: DictConfig) -> None:
     if cfg.method == 'decomposition':
         # iterate over the modes defined in the config file
         mode = cfg.case_study.mode
-
         # getting precedence order
         precedence_order = list(nx.topological_sort(G))
-
         # run the decomposition
         G = decomposition(cfg, G, precedence_order, mode, max_devices).run()
         # finished decomposition                    

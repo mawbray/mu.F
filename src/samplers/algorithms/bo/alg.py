@@ -27,7 +27,7 @@ def generate_sobol_points(lower_bound, upper_bound, num_points=10):
 class GPRegressionModel(ExactGP):
     def __init__(self, train_x, train_y, likelihood):
         super(GPRegressionModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
+        self.mean_module = gpytorch.means.ConstantMean(C=train_y.mean())
         self.covar_module = RBFKernel()
 
     def forward(self, x):
@@ -80,8 +80,8 @@ def bayesian_optimization(f, lower_bound, upper_bound, num_initial_points, num_i
         # Reinitialize and fit the model
         likelihood = GaussianLikelihood()
         model = GPRegressionModel(train_x.T, train_y, likelihood)
-        #here
         model, _ = fit_gpytorch_model(likelihood, model, train_x.T, train_y)
+        print(model.mean_module.constant.item(), train_y.mean().item())
 
     # Find the best candidate (minimum y value)
     best_index = torch.argmin(train_y)

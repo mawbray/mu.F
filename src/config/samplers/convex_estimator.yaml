@@ -17,3 +17,4 @@ ns:
   alpha: 0.2
   prior: Uniform
   rejector: suob-ellipsoid
+  log_evidence_estimation: True

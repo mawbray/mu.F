@@ -30,3 +30,33 @@ class visualiser(ABC):
 
 
 
+if __name__ == '__main__':
+    """ 
+    plot of the bayesian optimization progress
+    """ 
+
+    import torch as t
+    import numpy as np
+    from methods import plotting_format
+    import matplotlib.pyplot as plt
+
+    root = './multirun/'
+    date = '2025-01-14'
+    time = '11-14-28'
+    iteration = 0
+    x_train = 'opt_x.pt'
+    y_train = 'opt_y.pt'
+
+    x = t.load(root + date + '/' + time + '/' + str(iteration) + '/' + x_train)
+    y = t.load(root + date + '/' + time + '/' + str(iteration) + '/' + y_train)
+
+    plotting_format()
+    plt.figure(figsize=(10, 8))
+    plt.plot(np.array(list(range(1,11,1))), y, label='Evaluations', linewidth=2, marker='o', linestyle='--', markersize=10)
+    plt.xlabel('Iteration', fontsize=20)
+    plt.ylabel('Objective value', fontsize=20)
+    plt.xlim(1, 10)
+    plt.legend()
+    plt.savefig(root + date + '/' + time + '/' + str(iteration) + '/bo_progress.svg')
+
+    
