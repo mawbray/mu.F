@@ -61,6 +61,8 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     G.add_arg_to_nodes('constraints', constraint_dictionary)
     G.add_arg_to_nodes('forward_coupling_solver', solvers['forward_coupling_solver'])
     G.add_arg_to_nodes('backward_coupling_solver', solvers['backward_coupling_solver'])
+    if cfg.method != 'decomposition_constraint_tuner':
+        G.add_arg_to_nodes('constraint_backoff', [0 for _ in range(len(cfg.case_study.adjacency_matrix))])
 
 
     # add miscellaneous information to the graph

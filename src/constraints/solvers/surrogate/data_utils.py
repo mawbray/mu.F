@@ -69,18 +69,15 @@ def binary_classifier_data_preparation(
         selected_indices = jax.random.choice(Key, neg_indices, shape=(num_pos - num_neg,))
         support = jnp.concatenate([support.squeeze(), support[selected_indices].squeeze()], axis=0)
         labels = jnp.concatenate([labels, labels[selected_indices]], axis=0)
-    elif num_neg > num_pos:
+    elif (num_neg > num_pos) and (min(num_pos, num_neg) > 0):
         # Randomly select positive samples to match the number of negative samples
         pos_indices = jnp.where(labels == 1)[0]
         selected_indices = jax.random.choice(Key, pos_indices, shape=(num_neg - num_pos,))
         support = jnp.concatenate([support.squeeze(), support[selected_indices].squeeze()], axis=0)
         labels = jnp.concatenate([labels, labels[selected_indices]], axis=0)
-
-
-    # TODO think about this
-    #support, labels = return_subsample_of_data(support, labels, cfg.surrogate.subsample_size)
+    else:
+        support = support.squeeze()
     
-
     return support, labels
 
 

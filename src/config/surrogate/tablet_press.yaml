@@ -22,9 +22,12 @@ surrogate_forward:
     normalize_y: True
     noise: 'gaussian'
     
+
 classifier: true
+classifier_selection: 'ANN' # or 'SVM'
+regressor_selection: 'ANN' # or 'GP' 
 probability_map: false
-classifier_selection: ANN
+
 subsample_size: 100000
 num_folds: 2
 

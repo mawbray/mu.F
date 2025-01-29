@@ -5,6 +5,7 @@ root_node_inputs:
 
 
 constraint:
+  auxiliary: 'None'
   unit1_volume: 0.2
   unit2_volume: 1.9
   die_radius: 0.017
@@ -55,3 +56,12 @@ unit_3_args:
   initial_volume_in_die: 0.00002025
   critical_density: 0.99 # 0.01
   hardness_zero_porosity: 5 # NOTE can change
+
+
+node_aux: 
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None

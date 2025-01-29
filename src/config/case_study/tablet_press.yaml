@@ -7,6 +7,16 @@ adjacency_matrix:
   - [0, 0, 1]
   - [0, 0, 0]
 
+n_aux_args:
+  # auxiliary arguments per edge
+  (0,1): 0
+  (1,2): 0
+  # auxiliary arguments per node
+  node_0: 0
+  node_1: 0
+  node_2: 0
+
+
 n_design_args:
   - 3
   - 2
@@ -17,6 +27,7 @@ n_input_args:
   (1,2): 1
 
 KS_bounds:
+  design_args: # unit, arg, b
   - - - 2.7
       - 3.3
     - - 25
@@ -31,6 +42,13 @@ KS_bounds:
       - 300
     - - 300
       - 500
+  aux_args:
+  - - - None    
+      - None
+  - - - None
+      - None
+  - - - None
+      - None
 
 
 fn_evals: 
@@ -74,6 +92,7 @@ parameters_best_estimate: # list of lists [node][[param1]] most likely estimate
 
 extendedDS_bounds: [None, None, None]
 
+global_n_aux_args: 0
 
 design_space_dimensions: 
 - 'U1: API (kg/h)'
@@ -93,8 +112,8 @@ process_space_names: # create unit wise list
 
 
 mode:
-  - backward 
-  - backward-forward
+  - forward 
+  #- backward-forward
   
 
 evaluation_mode: 'jax-pmap' #serial

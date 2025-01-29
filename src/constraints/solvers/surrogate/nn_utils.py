@@ -390,7 +390,13 @@ def train(cfg, model, data, valid_data, model_type):
         
         accuracy = score(state.params, data.X, data.y)
         # get classifier false positive rates
-        tn, fp, fn, tp = confusion_matrix(y_pred=jnp.astype(model_predict(state.params, data.X), jnp.int32), y_true=jnp.astype(data.y, jnp.int32).squeeze()).ravel()
+        try:
+            tn, fp, fn, tp = confusion_matrix(y_pred=jnp.astype(model_predict(state.params, data.X), jnp.int32), y_true=jnp.astype(data.y, jnp.int32).squeeze()).ravel()
+        except:
+            if data.y.all() == 0:
+                tn, fp, fn, tp = len(data.y), 0, 0, 0
+            else:
+                tn, fp, fn, tp = 0, 0, 0, len(data.y)
         # metrics compression
         training_performance = {"acc": accuracy, "tn": tn, "fp": fp, "fn": fn, "tp": tp}
         logging.info(f"--- {model_type} ---")

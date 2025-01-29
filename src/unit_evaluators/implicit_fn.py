@@ -54,7 +54,7 @@ def mean_residence_time_u1(cfg, design_args, input_args, *args):
 
     """
     cfg_args = cfg.model.unit_1_args.mean_residence_time
-    cfg_d_args = cfg.case_study.KS_bounds[0][2]
+    cfg_d_args = cfg.case_study.KS_bounds.design_args[0][2]
     exp_term = -cfg_args[1] / (design_args[2] - cfg_d_args[0]) - cfg_args[2] / (
         design_args[0] + design_args[1]
     )
@@ -80,7 +80,7 @@ def unit_1_dynamics(
         outputs - hold up mass, hold_up volume, mass outflow rate, mass fraction of api, mass fraction of excipient
 
     """
-
+    design_args = design_args.squeeze()
     bulk_density = bulk_density_u1(cfg, design_args, input_args, *args) + design_args[-1] - design_args[-2] 
     tau_cm = mean_residence_time_u1(cfg, design_args, input_args, *args)
     hold_up = (design_args[0] + design_args[1]) * tau_cm
@@ -227,6 +227,7 @@ def unit_2_dynamics(
 
     """
     input_args = input_args.squeeze()
+    design_args= design_args.squeeze()
 
     mass_hold_up = hold_up_mass_u2(cfg, design_args, input_args, *args) + design_args[-1] - design_args[-2] 
     porosity, bulk_density = porosity_estimate_u2(cfg, design_args, input_args, *args)
