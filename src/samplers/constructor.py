@@ -94,6 +94,9 @@ class construct_deus_problem(construct_base):
                 outside_samples_coords = np.append(outside_samples_coords,
                                                 [samples["coordinates"][i]], axis=0)
                 outside_sample_prob.append(samples["phi"][i])
+
+        if inside_samples_coords.shape[0] == 0:
+            logging.warning("Warning!! ---- No feasible samples found")
                 
         return (inside_samples_coords, np.array(inside_samples_prob)), (outside_samples_coords, np.array(outside_sample_prob))
 

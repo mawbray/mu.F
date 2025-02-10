@@ -128,7 +128,7 @@ class subproblem_unit_wrapper(unit_evaluation):
                 aux_args = jnp.empty((design_args.shape[0], 0))
             
         input_args = expand_input_args(input_args, uncertain_params)
-        aux_args = expand_input_args(aux_args, uncertain_params)
+        #aux_args = expand_input_args(aux_args, uncertain_params)
         
         return self.evaluate(design_args, input_args, aux_args, uncertain_params)
     
@@ -233,9 +233,11 @@ class network_simulator(ABC):
         u_p = None
         n_d = 0
         aux_args = decisions[:, sum([self.graph.nodes[node]['n_design_args'] for node in self.graph.nodes]):]
+        
         for node in self.graph.nodes:
             if not (uncertain_params == None) :
                 u_p = uncertain_params[node]
+            
 
             if self.graph.in_degree()[node] == 0:
                 if not (self.cfg.model.root_node_inputs[node] == 'None'):
