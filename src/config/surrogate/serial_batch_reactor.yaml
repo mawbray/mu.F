@@ -23,10 +23,10 @@ surrogate_forward:
     normalize_y: True
     noise: 'gaussian'
     
-classifier: true
+classifier: False
 classifier_selection: 'ANN' # or 'SVM'
 regressor_selection: 'ANN' # or 'GP' 
-probability_map: false
+probability_map: True
 
 index_on: 1
 subsample_size: 10000000
@@ -65,6 +65,31 @@ classifier_args:
 
 
 probability_map_args:
-  drop_uncertain_params: true
+  standardised: true
+  drop_uncertain_params: False
+  svm: # these parameters must be provided as lists for Sklearn's GridSearchCV
+    kernel: ['rbf']
+    C: [10, 5]
+    gamma: [10, 4 ,0.2, 1, 0.5]
+    probability: [False]
+  ann:
+    hidden_size_options:
+      - [50, 50]
+      - [25, 10]
+      - [50, 25]
+      - [100, 50]
+      - [50, 5]
+      - [10, 10]
+      #- [100, 50, 25]
+    activation_functions:
+      - ['tanh', tanh]
+
+    decaying_lr_and_clip_param: True
+    learning_rate: 0.01
+    terminal_lr: 0.00001  
+    num_epochs: 1000 # 10 #50 # 50 # 500
+    min_delta: 0.00001
+    patience: 50
+    batch_size: 264 #64
 
 forward_evaluation_surrogate: true

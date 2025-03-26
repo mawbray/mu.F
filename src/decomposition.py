@@ -21,6 +21,7 @@ class decomposition:
     def __init__(self, cfg, G, precedence_order, mode='forward', max_devices=1):
         self.cfg = cfg
         self.G = G
+        self.G.graph['terminate'] = False
         self.original_precedence_order = precedence_order.copy()
         self.precedence_order = precedence_order.copy()
         self.total_iterations = len(mode)
@@ -63,6 +64,8 @@ class decomposition:
             operations, visualisations = self.define_operations(self.mode[i],iterations)
             for key in operations.keys():
                 self.G = operations[key](self.cfg, self.G).run()
+                if self.G.graph['terminate']:
+                    return self.G
                 visualisations[key](self.cfg, self.G).run()
                 save_graph(self.G.copy(), self.mode[i] + '_iterate_' + str(iterations))
             if self.cfg.reconstruction.reconstruct[i]:

@@ -30,7 +30,7 @@ node_aux:
 
 constraint:
   purity_u1: 0.2
-  purity_u2: 0.725
+  purity_u2: 0.1
   auxiliary: 'None'
 
 integration:

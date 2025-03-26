@@ -67,6 +67,10 @@ class apply_decomposition:
             if cfg.method == 'decomposition_constraint_tuner': graph.nodes[node]['log_evidence'] = solver.get_log_evidence()
             feasible, infeasible = solver.get_solution()
             feasible_set, feasible_set_prob = feasible[0], feasible[1]
+            if feasible_set.size == 0:
+                logging.warning(f"No feasible set found for node {node}. Terminating simulation.")
+                graph.graph['terminate'] = True
+                return graph
             # update the graph with the number of function evaluations
             graph.nodes[node]["fn_evals"] += model.function_evaluations
             # estimate box for bounds for DS downstream
@@ -171,6 +175,19 @@ def probability_map_construction(cfg, graph, node, iterate):
 
     return
 
+def get_classifier_data(graph, node, model, cfg):
+    x_d, y_d = model.constraint_data.d[cfg.surrogate.index_on:], model.constraint_data.y[cfg.surrogate.index_on:]
+    x_classifier, y_classifier, feasible_indices = apply_feasibility(x_d , y_d , cfg, node, cfg.formulation).get_feasible(return_indices = True)
+    graph.nodes[node]["classifier_training"] = dataset(X=x_classifier, y=y_classifier) 
+
+    return x_classifier, y_classifier, feasible_indices
+
+def get_probability_map_data(graph, node, model, cfg):
+    x_d, y_d = model.probability_map_data.d[cfg.surrogate.index_on:], model.probability_map_data.y[cfg.surrogate.index_on:]
+    x_classifier, y_classifier, feasible_indices = apply_feasibility(x_d , y_d, cfg, node, cfg.formulation).probabilistic_feasibility(return_indices = True)
+    graph.nodes[node]["probability_map_training"] = dataset(X=x_classifier, y=y_classifier) 
+
+    return graph
 
 def process_data_forward(cfg, graph, node, model, live_set, mode, notion_of_feasibility='positive'):
     """
@@ -187,14 +204,13 @@ def process_data_forward(cfg, graph, node, model, live_set, mode, notion_of_feas
     None
     """
     # Select a subset of the data based on the classifier
-    if mode != 'backward-forward':
-        x_d, y_d = model.constraint_data.d[cfg.surrogate.index_on:], model.constraint_data.y[cfg.surrogate.index_on:]
-        x_classifier, y_classifier, feasible_indices = apply_feasibility(x_d , y_d , cfg, node, cfg.formulation).get_feasible(return_indices = True)
-        graph.nodes[node]["classifier_training"] = dataset(X=x_classifier, y=y_classifier) 
-
-        if cfg.surrogate.probability_map:
-            # in the case of probabistic constraints, this will provide feasible data with P level set by the user.
-            graph.nodes[node]["probability_map_training"] = dataset(X=x_classifier, y=y_classifier) # saves the whole probability map training data
+    if (mode != 'backward-forward' and cfg.method != 'decomposition_constraint_tuner'):
+        if cfg.surrogate.classifier:
+            graph = get_classifier_data(graph, node, model, cfg)
+        elif cfg.surrogate.probability_map:
+            graph = get_probability_map_data(graph, node, model, cfg)
+        else:
+            pass
 
         # Apply the selected function to the y data and store forward evaluations on the graph for surrogate training
         for successor in graph.successors(node):
@@ -231,7 +247,6 @@ def process_data_forward(cfg, graph, node, model, live_set, mode, notion_of_feas
                 graph.edges[node, successor]["surrogate_training"] = forward_evals 
 
                 del x_io, y_io, selected_y_io, forward_evals
-        del x_classifier, y_classifier, feasible_indices
     # add live set to the node    
     graph.nodes[node]["live_set_inner"] = live_set    
     # Store the classifier data and the live set data to the node

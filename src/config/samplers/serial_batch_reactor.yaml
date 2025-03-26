@@ -1,6 +1,6 @@
 
 target_reliability: 1.
-unit_wise_target_reliability: [1., 1.]
+unit_wise_target_reliability: [0.5, 0.5]
 deus: 
   activity_type: 'dsc'
 

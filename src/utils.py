@@ -183,7 +183,7 @@ class apply_feasibility(feasibility_base):
     def get_feasible(self, return_indices=True):
         return self.feasible_function(self.dataset_X, self.dataset_Y, return_indices)
 
-    def probabilistic_feasibility(self, X, Y, return_indices=True):
+    def probabilistic_feasibility(self, return_indices=True):
         """
         Method to evaluate the probabilistic feasibility of the data
 
@@ -191,6 +191,7 @@ class apply_feasibility(feasibility_base):
         Y : N x n_p x n_g matrix
 
         """
+        X, Y = self.dataset_X, self.dataset_Y
 
         Y_s = []
         for x, y in zip(X, Y):

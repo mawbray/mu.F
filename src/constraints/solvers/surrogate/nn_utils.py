@@ -73,6 +73,23 @@ def serialise_model(params, model, x_scalar, y_scalar, model_type, model_data):
         print(f"Error: {e}")
     return model_data
 
+def check_dims(D):
+
+    x, y = D.X, D.y
+
+    if x.ndim < 2:
+        x = x.reshape(1,-1)
+    if y.ndim < 2:
+        y = y.reshape(1,-1)
+
+    if x.ndim > 2: 
+        x = x.reshape(x.shape[0], -1)
+    if y.ndim > 2:
+        y = y.reshape(y.shape[0], -1)
+
+    D.X, D.y = x, y
+
+    return D
 
 def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng_key: random.PRNGKey=jax.random.PRNGKey(0)): 
     # Define the hyperparameters to search over
@@ -83,6 +100,8 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
     # Initialize the best hyperparameters and the best average validation loss
     best_hyperparams = {}
     best_avg_loss = float('inf')
+
+    D = check_dims(D)
 
     x_scalar = StandardScaler().fit(D.X)
     if model_type == 'regressor':
