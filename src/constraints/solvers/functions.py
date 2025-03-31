@@ -192,7 +192,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
                             model_type=cons_data['model_type'],
                             model_surrogate=cons_data['model_surrogate'])
       if problem_data['uncertain_params'] == None:
-        g_fn[i] = partial(lambda x, v : fn(x.reshape(1,-1)[:,v]).reshape(-1,1), v = cons_data['args'])
+        g_fn[i] = partial(cons_data['g_fn'], fn = fn)
       else:
          raise NotImplementedError("Uncertain parameters not yet implemented for inequality constraints")
     
