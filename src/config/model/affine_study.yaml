@@ -1,0 +1,40 @@
+# dynamics definition
+
+affine_case_study_args:
+  # dynamics definition (these parameters will be loaded from matlab)
+  A: 
+    - [[1,1]] # R1
+    - [[1,1]] # R2
+    - [[1,1],[1,1]] # R3
+    - [[1,1]] # R4
+    - [[1,1]] # R5
+  B:
+    - [1] # R1
+    - [1] # R2
+    - [[1],[1]] # R3
+    - [1] # R4
+    - [1] # R5
+  
+
+
+
+root_node_inputs: 
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+
+node_aux: 
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+
+
+constraint:
+  estimation_bound: 0.001
+  auxiliary: 'global' # or 'local'

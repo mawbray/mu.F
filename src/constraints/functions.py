@@ -9,12 +9,9 @@ from functools import partial
 # ----------------------------------------------------------------------------- #
 
 # --- critical quality attribute constraints --- #
-
-
 @partial(jit, static_argnums=(1))
 def purity_b(dynamic_profile, cfg):
     pb = dynamic_profile[1] / jnp.sum(dynamic_profile[:])
-    # jax.debug.print('pb {x}', x=pb)
     return pb
 
 
@@ -156,7 +153,16 @@ def estimation_bound_lb(dynamic_profile, cfg):
 
 
 
+# -------------------------------------------------------------------------------- #
+# --------------------- Affine constraints for the case study ---------------------#
+# -------------------------------------------------------------------------------- #
+@partial(jit, static_argnums=(1))
+def negative_output_constraint(output, cfg):
+    return output 
+
+
 """ insert case study specific functions for constraints here"""
 CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_composition_lb, tablet_composition_ub], 2: [tablet_hardness_lb, tablet_hardness_ub, tablet_size_lb, tablet_size_ub]}, 
              'serial_mechanism_batch': {0: [purity_unit_1_ub], 1: [purity_unit_2_lb]},
-             'convex_estimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [estimation_bound_lb]},}
+             'convex_estimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [estimation_bound_lb]},
+             'affine_study': {0: [negative_output_constraint], 1: [negative_output_constraint], 2: [negative_output_constraint], 3: [negative_output_constraint], 4: [negative_output_constraint]},}

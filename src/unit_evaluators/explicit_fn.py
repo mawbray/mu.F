@@ -517,4 +517,140 @@ def sub_fn_6(cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:No
 
 
 
-case_studies = {'tablet_press': {0: unit_1_dynamics, 1: unit_2_dynamics, 2: unit_3_dynamics}, 'convex_estimator': {0: sub_fn_1, 1: sub_fn_2, 2: sub_fn_3, 3: sub_fn_4, 4: sub_fn_5, 5: sub_fn_6}}
+# ------------------------------------- #
+# --------- affine case study --------- #
+# ------------------------------------- #
+
+@partial(jit, static_argnums=(0,))
+def affine_case_study_1(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
+):
+    """affine case study for illustration
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs -  1-3
+
+    """
+
+    A = jnp.array(cfg.model.affine_case_study_args.A[0])
+    B = jnp.array(cfg.model.affine_case_study_args.B[0])
+
+    return A @ design_args.T + B 
+
+@partial(jit, static_argnums=(0,))
+def affine_case_study_2(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
+):
+    """affine case study for illustration
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs - 2-3
+
+    """
+
+    A = jnp.array(cfg.model.affine_case_study_args.A[1])
+    B = jnp.array(cfg.model.affine_case_study_args.B[1])
+
+    return A @ design_args.T + B 
+
+
+
+@partial(jit, static_argnums=(0,))
+def affine_case_study_3(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
+):
+    """affine case study for illustration
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs - 3-[4,5]
+
+    """
+
+    A = jnp.array(cfg.model.affine_case_study_args.A[2])
+    B = jnp.array(cfg.model.affine_case_study_args.B[2])
+
+    return A @ design_args.T + B @ input_args
+
+
+@partial(jit, static_argnums=(0,))
+def affine_case_study_4(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
+):
+    """affine case study for illustration
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs
+
+    """
+
+    A = jnp.array(cfg.model.affine_case_study_args.A[3])
+    B = jnp.array(cfg.model.affine_case_study_args.B[3])
+
+    return A @ design_args.T + B @ input_args
+
+
+@partial(jit, static_argnums=(0,))
+def affine_case_study_5(
+    cfg: DictConfig, design_args: jnp.ndarray, input_args: None, aux:None, *args: None
+):
+    """affine case study for illustration
+    Args:
+        cfg: hydra config
+        design_args: design arguments
+        input_args: input arguments
+        *args: additional arguments
+
+    design args - None
+    input args - None
+    args - None
+
+    Output:
+        outputs
+
+    """
+
+    A = jnp.array(cfg.model.affine_case_study_args.A[4])
+    B = jnp.array(cfg.model.affine_case_study_args.B[4])
+
+    return A @ design_args.T + B @ input_args
+
+
+case_studies = {'tablet_press': {0: unit_1_dynamics, 1: unit_2_dynamics, 2: unit_3_dynamics}, 
+                'convex_estimator': {0: sub_fn_1, 1: sub_fn_2, 2: sub_fn_3, 3: sub_fn_4, 4: sub_fn_5, 5: sub_fn_6},
+                'affine_study': {0: affine_case_study_1, 1: affine_case_study_2, 2: affine_case_study_3, 3: affine_case_study_4, 4: affine_case_study_5}}

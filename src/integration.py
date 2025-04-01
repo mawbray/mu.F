@@ -180,7 +180,7 @@ def get_classifier_data(graph, node, model, cfg):
     x_classifier, y_classifier, feasible_indices = apply_feasibility(x_d , y_d , cfg, node, cfg.formulation).get_feasible(return_indices = True)
     graph.nodes[node]["classifier_training"] = dataset(X=x_classifier, y=y_classifier) 
 
-    return x_classifier, y_classifier, feasible_indices
+    return graph, feasible_indices
 
 def get_probability_map_data(graph, node, model, cfg):
     x_d, y_d = model.probability_map_data.d[cfg.surrogate.index_on:], model.probability_map_data.y[cfg.surrogate.index_on:]
@@ -206,7 +206,7 @@ def process_data_forward(cfg, graph, node, model, live_set, mode, notion_of_feas
     # Select a subset of the data based on the classifier
     if (mode != 'backward-forward' and cfg.method != 'decomposition_constraint_tuner'):
         if cfg.surrogate.classifier:
-            graph = get_classifier_data(graph, node, model, cfg)
+            graph, feasible_indices = get_classifier_data(graph, node, model, cfg)
         elif cfg.surrogate.probability_map:
             graph = get_probability_map_data(graph, node, model, cfg)
         else:
