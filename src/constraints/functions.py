@@ -158,7 +158,7 @@ def estimation_bound_lb(dynamic_profile, cfg):
 # -------------------------------------------------------------------------------- #
 @partial(jit, static_argnums=(1))
 def negative_output_constraint(output, cfg):
-    return output 
+    return -output 
 
 
 """ insert case study specific functions for constraints here"""

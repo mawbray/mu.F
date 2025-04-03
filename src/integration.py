@@ -487,7 +487,7 @@ class subproblem_model(ABC):
 
     def s(self, d, p):
         if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
-            ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']}, num_cpus=10)  # , ,
+            ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)  # , ,
         # evaluate feasibility and then update classifier data and number of function evaluations
         g = self.evaluate_subproblem_batch(d, self.max_devices, p)
         # shape parameters for returning constraint evaluations to DEUS

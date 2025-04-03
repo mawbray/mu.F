@@ -15,6 +15,20 @@ def plotting_format():
 
     return
 
+def initializer_cp():
+    plotting_format()
+    fig = plt.figure(figsize=(35, 35))
+    cols = df.columns
+    pp = sns.PairGrid(
+        df[cols],
+        aspect=1.4
+    )
+    pp.map_diag(hide_current_axis)
+    pp.map_upper(hide_current_axis)
+    
+    return pp
+
+
 def initializer_cp(df):
     plotting_format()
     fig = plt.figure(figsize=(35, 35))
@@ -36,13 +50,17 @@ def get_ds_bounds(cfg, G):
     return DS_bounds
 
 def init_plot(cfg, G, pp= None, init=True, save=True):
+
     init_df = G.graph['initial_forward_pass']
     DS_bounds = get_ds_bounds(cfg, G)
 
     if init:
         pp = initializer_cp(init_df)
-
-    pp.map_lower(sns.scatterplot, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5)
+        pp.map_lower(sns.scatterplot, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5)
+    else:
+        pp = initializer_cp(init_df)
+        
+    
     indices = zip(*np.tril_indices_from(pp.axes, -1))
 
     for i, j in indices: 
@@ -59,8 +77,8 @@ def init_plot(cfg, G, pp= None, init=True, save=True):
 
     return pp
 
-def decompose_call(cfg, G, path):
-    pp = init_plot(cfg, G, init=True, save=False)
+def decompose_call(cfg, G, path, init=True):
+    pp = init_plot(cfg, G, init=init, save=False)
     pp = decomposition_plot(cfg, G, pp, save=True, path=path)
     return pp
 
@@ -70,7 +88,7 @@ def decomposition_plot(cfg, G, pp, save=True, path='decomposed_pair_grid_plot'):
     inside_samples_decom = [pd.DataFrame({col:G.nodes[node]['live_set_inner'][:,i] for i, col in enumerate(cfg.case_study.process_space_names[node])}) for node in G.nodes]
 
     # just keep those variables with Ui in the column name # TODO update this to also receive the live set probabilities 
-    inside_samples_decom = [in_[[col for col in in_.columns if f"U{i+1}" in col]] for (i,in_) in enumerate(inside_samples_decom)]
+    inside_samples_decom = [in_[[col for col in in_.columns if f"N{i+1}" in col]] for (i,in_) in enumerate(inside_samples_decom)]
     if cfg.reconstruction.plot_reconstruction == 'probability_map':
         for i, is_ in enumerate(inside_samples_decom):
             is_['probability'] = G.nodes[i]['live_set_inner_prob'] # TODO update this to also receive the live set probabilities

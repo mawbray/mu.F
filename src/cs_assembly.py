@@ -9,6 +9,8 @@ from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
 from functools import partial
 import logging
 import jax.numpy as jnp
+import numpy as np
+import pandas as pd
 
 def case_study_constructor(cfg):
     """
@@ -29,14 +31,17 @@ def case_study_constructor(cfg):
     # Create a graph constructor object
     G = graph_constructor(cfg, cfg.case_study.adjacency_matrix)
 
+    # construct dummy dataframe for initial forward pass
+    init_df_samples = pd.DataFrame({col: np.zeros((2,)) for i,col in enumerate(cfg.case_study.design_space_dimensions)})
+
     # Call the case_study_allocation function
-    G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers=solver_constructor(cfg, G), unit_params_fn=unit_params_fn(cfg, G))
+    G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers=solver_constructor(cfg, G), unit_params_fn=unit_params_fn(cfg, G), initial_forward_pass=init_df_samples)
 
     return G.get_graph()
 
 
 
-def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers, unit_params_fn):
+def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers, unit_params_fn, initial_forward_pass):
     """
     Add miscellaneous information to the graph
     :param G: The graph constructor
@@ -73,6 +78,7 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     # add the args to the graph 
     G.add_arg_to_graph('aux_bounds', cfg.case_study.KS_bounds.aux_args)
     G.add_arg_to_graph('n_aux_args', cfg.case_study.global_n_aux_args)
+    G.add_arg_to_graph('initial_forward_pass', initial_forward_pass)
 
     # add edge properties to the graph
     G.add_arg_to_edges('edge_fn', dict_of_edge_fn)

@@ -12,13 +12,13 @@ penalty_method_coupler:
 
 
 evaluation_mode: 
-  forward: mp-ms
+  forward: ray
   backward: jax-pmap #serial 
 
 
 forward_coupling_solver: general_constrained_nlp
 backward_coupling_solver: box_constrained_nlp
-
+forward_general_constraints: True
 
 forward_coupling:
   max_solution_time: 1. 
@@ -44,7 +44,7 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
-standardised: True
+standardised: False
 
 # TODO: check standardisation is working properly in the backward pass
 backward_coupling:

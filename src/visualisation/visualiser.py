@@ -6,7 +6,7 @@ import pandas as pd
 from visualisation.methods import init_plot, decompose_call, reconstruction_plot, design_space_plot
 
 class visualiser(ABC):
-    def __init__(self, cfg, G, data: pd.DataFrame=None, string:str='design_space', path=None):
+    def __init__(self, cfg, G, data: pd.DataFrame=None, mode:str='forward', string:str='design_space', path=None):
         self.data = data
         self.cfg, self.G = cfg, G
         self.path = path
@@ -21,7 +21,10 @@ class visualiser(ABC):
             assert type(data) != type(None), 'reconstruction plot requires data in the form of a dataframe'
             self.visualiser = partial(reconstruction_plot, reconstructed_df=data, save=True, path=path)
         elif string == 'decomposition':
-            self.visualiser = partial(decompose_call, path=path)
+            if mode =='forward':
+                self.visualiser = partial(decompose_call, init=False, path=path)
+            elif mode == 'backward':
+                self.visualiser = partial(decompose_call, init=True, path=path)
         
 
     def run(self):

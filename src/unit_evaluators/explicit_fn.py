@@ -544,7 +544,7 @@ def affine_case_study_1(
     A = jnp.array(cfg.model.affine_case_study_args.A[0])
     B = jnp.array(cfg.model.affine_case_study_args.B[0])
 
-    return A @ design_args.T + B 
+    return (A @ design_args.T + B).squeeze() 
 
 @partial(jit, static_argnums=(0,))
 def affine_case_study_2(
@@ -596,7 +596,7 @@ def affine_case_study_3(
     A = jnp.array(cfg.model.affine_case_study_args.A[2])
     B = jnp.array(cfg.model.affine_case_study_args.B[2])
 
-    return A @ design_args.T + B @ input_args
+    return A @ design_args.T + B @ input_args.T
 
 
 @partial(jit, static_argnums=(0,))
