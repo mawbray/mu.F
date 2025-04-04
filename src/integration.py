@@ -431,6 +431,10 @@ class subproblem_model(ABC):
             backward_constraint_evals = self.backward_constraints.evaluate(outputs, aux_args) # backward constraints (rank 3 tensor, n_d \times n_theta \times n_g)
             end_time = time.time()
             execution_time = end_time - start_time
+            if backward_constraint_evals.ndim == 1:
+                backward_constraint_evals = backward_constraint_evals.reshape(-1,1)
+            if backward_constraint_evals.ndim == 2:
+                backward_constraint_evals = np.expand_dims(backward_constraint_evals, axis=1)
             logging.info(f'execution_time_backward_constraints: {execution_time}')
         else:
             backward_constraint_evals = None
@@ -486,7 +490,7 @@ class subproblem_model(ABC):
         return cons_g
 
     def s(self, d, p):
-        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0) and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
             ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)  # , ,
         # evaluate feasibility and then update classifier data and number of function evaluations
         g = self.evaluate_subproblem_batch(d, self.max_devices, p)
@@ -495,7 +499,7 @@ class subproblem_model(ABC):
         # adding function evaluations
         self.function_evaluations += g.shape[0]*g.shape[1]
         # return information for DEUS
-        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0):
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0)  and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
             ray.shutdown()
         return [g[i,:,:].reshape(n_theta,n_g) for i in range(g.shape[0])]
         

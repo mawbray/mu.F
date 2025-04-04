@@ -3,7 +3,6 @@ import multiprocessing
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
     multiprocessing.cpu_count()
 )
-
 from visualisation.visualiser import visualiser
 
 from direct import apply_direct_method
@@ -29,7 +28,7 @@ TODO :
 @hydra.main(config_path="config", config_name="integrator")
 def main(cfg: DictConfig) -> None:
     # Set the maximum number of devices
-    
+    print(get_original_cwd())
     max_devices = len(jax.devices('cpu'))
 
     # Construct the case study graph
@@ -67,9 +66,10 @@ def main(cfg: DictConfig) -> None:
 if __name__ == "__main__":
     
     import jax
+    from hydra.utils import get_original_cwd
     jax.config.update('jax_platform_name', 'cpu')
     platform = jax.lib.xla_bridge.get_backend().platform.casefold()
-
+    
     # Enable 64 bit floating point precision
     #jax.config.update("jax_enable_x64", True)
     

@@ -21,8 +21,8 @@ class constraint_evaluator(ABC):
             self.constraint_evaluator = forward_constraint_decentralised_evaluator(cfg, graph, node, pool)
             self.evaluate = self.evaluate_coupling
         elif constraint_type == 'backward':
-            if any([len(self.graph.predecessors(succ))>1 for succ in self.graph.successors(node)]):
-                self.constraint_evaluator = backward_constraint_evaluator_general(cfg, graph, node, pool)
+            if len([prec for succ in self.graph.successors(node) for prec in self.graph.predecessors(succ) if prec > node])>0:
+                self.constraint_evaluator = backward_constraint_evaluator_general(cfg, graph, node, cfg.solvers.evaluation_mode.forward) # use forward constraint pool in the general case/
                 self.evaluate = self.evaluate_coupling
             else:
                 self.constraint_evaluator = partial(backward_constraint_evaluator, cfg=cfg, graph=graph, node=node, pool=pool)

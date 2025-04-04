@@ -15,19 +15,6 @@ def plotting_format():
 
     return
 
-def initializer_cp():
-    plotting_format()
-    fig = plt.figure(figsize=(35, 35))
-    cols = df.columns
-    pp = sns.PairGrid(
-        df[cols],
-        aspect=1.4
-    )
-    pp.map_diag(hide_current_axis)
-    pp.map_upper(hide_current_axis)
-    
-    return pp
-
 
 def initializer_cp(df):
     plotting_format()

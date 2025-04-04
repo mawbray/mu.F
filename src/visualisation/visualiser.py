@@ -32,6 +32,46 @@ class visualiser(ABC):
         return
 
 
+def polytope_plot(vertices, path=None):
+    """
+    Plot the vertices of a polytope in 2D
+    :param vertices: dict of vertices
+    :return: None
+    """
+    import matplotlib.pyplot as plt
+    from scipy.spatial import ConvexHull
+    from methods import plotting_format
+    plotting_format()
+
+
+    fig, ax = plt.subplots(1, len(list(vertices.keys())), figsize=(4 * len(vertices), 4))
+    
+    for i, vertex in vertices.items():
+        x = [v[0] for v in vertex]
+        y = [v[1] for v in vertex]
+        points = np.hstack([np.array(x).reshape(-1,1), np.array(y).reshape(-1,1)]).reshape(-1, 2)
+        hull = ConvexHull(points)
+
+        # Hull vertices come back in a certain order, which we can use directly:
+        hull_vertices = points[hull.vertices]
+
+        # Unzip for plotting
+        x_hull, y_hull = zip(*hull_vertices)
+
+        ax[i].fill(x_hull, y_hull, alpha=0.9, color='red', edgecolor='black', linewidth=1.5)
+        ax[i].set_xlabel(f'N{i+1}: P1')
+        ax[i].set_ylabel(f'N{i+1}: P2')
+        #ax[i].legend()
+        ax[i].set_xlim(-1,1)
+        ax[i].set_ylim(-1,1)
+        ax[i].set_xticks(np.arange(-1, 1.1, 0.5))
+        ax[i].set_yticks(np.arange(-1, 1.1, 0.5))
+        ax[i].set_title(f'Node {i+1}', fontsize=15)
+    plt.tight_layout()
+
+    plt.savefig(path + '.svg', dpi=300)
+
+
 
 if __name__ == '__main__':
     """ 
@@ -42,8 +82,9 @@ if __name__ == '__main__':
     import numpy as np
     from methods import plotting_format
     import matplotlib.pyplot as plt
+    
 
-    root = './multirun/'
+    """root = './multirun/'
     date = '2025-01-14'
     time = '11-14-28'
     iteration = 0
@@ -61,5 +102,23 @@ if __name__ == '__main__':
     plt.xlim(1, 10)
     plt.legend()
     plt.savefig(root + date + '/' + time + '/' + str(iteration) + '/bo_progress.svg')
+    """
 
+    
+    vertices_sim = {0: [(1,-0.501604), (1,-1), (0.543809, -1)], 1: [(-0.671903,-1), (0.343159,-1), (1, -0.326864), (1,0.713381)], 
+                    2: [(-1,-1), (-0.531559,-1), (0.531537,1), (-1,1)], 3: [(-1,-1), (-0.160083,-1), (1,0.713775), (1,1), (-1,1)], 4: [(-0.895464,-1), (1,-1), (1,1), (0.0384752,1)]}
+
+    vertices_forwardbackward = vertices_sim.copy()
+
+    vertices_forward = {0: [(1,-0.501604), (1,-1), (0.543809, -1)], 1: [(-0.671903,-1), (1,-1), (1,0.713381)],
+                        2: [(-1,-1), (-0.531559,-1), (0.531537,1), (-1,1)], 3: [(-1,-1), (-0.160083,-1), (1,0.713775), (1,1), (-1,1)], 4: [(-0.895464,-1), (1,-1), (1,1), (0.0384752,1)]}
+    
+    vertices_backward = {0: [(1,-0.501604), (1,-1), (0.543809, -1)], 1: [(-0.671903,-1), (0.343159,-1), (1, -0.326864), (1,0.713381)],
+                        2: [(-1,-1), (-0.531559,-1), (0.531537,1), (-1,1)], 3: [(-1,-1), (-1,1), (1,1), (1,-1)], 4: [(-1,-1), (1,-1), (1,1), (-0.44417,1), (-1, -0.190292)]}
+
+
+    polytope_plot(vertices_sim, path='vertices_sim')
+    polytope_plot(vertices_forwardbackward, path='vertices_forwardbackward')
+    polytope_plot(vertices_forward, path='vertices_forward')
+    polytope_plot(vertices_backward, path='vertices_backward')
     

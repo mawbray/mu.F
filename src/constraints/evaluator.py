@@ -167,8 +167,6 @@ class coupling_surrogate_constraint_base(constraint_evaluator_base):
     
 
 
-
-
 class forward_constraint_evaluator(coupling_surrogate_constraint_base):
     """
     A forward surrogate constraint
@@ -191,12 +189,32 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         if self.pool == 'jax-pmap':
             raise NotImplementedError("jax-pmap is not supported for this constraint type at the moment.")
         if self.pool == 'mp-ms':
-            self.evaluation_method = self.simple_evaluation # NOTE currently always uses ray which is not helpful for debugging
+            self.evaluation_method = self.serial_evaluation 
         if self.pool == 'ray':
             self.evaluation_method = self.ray_evaluation
         
     def __call__(self, inputs, aux):
         return self.evaluate(inputs, aux)
+    
+    def serial_evaluation(self, solver, max_devices, solver_processing):
+
+        # determine the batch size
+        workers, remainder = determine_batches(len(solver), 1)
+        # split the problems
+        solver_batches = create_batches(workers, solver)
+
+        # parallelise the batch
+        result_dict = {}
+        evals = 0
+        for i, solve in enumerate(solver_batches): 
+            results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve] # set off and then synchronize before moving on
+            for j, result in enumerate(results):
+                result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
+            evals += j+1
+
+        del solver_batches, results
+    
+        return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
     
     def ray_evaluation(self, solver, max_devices, solver_processing):
 
@@ -207,22 +225,14 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
 
         # parallelise the batch
         result_dict = {}
-
         evals = 0
-        
-        if self.pool == 'ray':
-            for i, solve in enumerate(solver_batches):
-                results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
-                for j, result in enumerate(results):
-                    result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
-                evals += j+1
-        else:
-            for i, solve in enumerate(solver_batches): # NOTE this does not work must use 'ray' pool
-                results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve] # set off and then synchronize before moving on
-                for j, result in enumerate(results):
-                    result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
-                evals += j+1
-
+    
+        for i, solve in enumerate(solver_batches):
+            results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
+            for j, result in enumerate(results):
+                result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
+            evals += j+1
+       
         del solver_batches, results
     
         return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
@@ -248,16 +258,18 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         Loads the solver
         """
         return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)
-    
+
+
     def evaluate(self, inputs, aux):
         """
         Evaluates the constraints by iterating sequentially over the design and the uncertain params
         inputs: samples in the extended design space
         outputs: the constraint evaluations
         """
-        return self.ray_wrapper(inputs, aux)
+        return self.wrapper(inputs, aux)
     
-    def ray_wrapper(self, inputs, aux):
+    
+    def wrapper(self, inputs, aux):
         """ first prepare the problem set up, 
         then evaluate the constraints in parallel using ray.
         """
@@ -270,22 +282,21 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         if len(list(si.keys() for si in [list(solver_inputs[0].values())[0]])) > 1:
             raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
         else:
-
             results = []
             # run solvers in parallel
-            for pred in self.graph.predecessors(self.node):
+            for prec in self.graph.predecessors(self.node):
                 solver_reshape = []
-                for p in range(len(solver_inputs[0][pred])):
+                # NOTE currently this iterates over uncertainty realisations (although not actually implemented in the code following) - think about expectations here.)
+                for p in range(len(solver_inputs[0][prec])):
                     for s_i in solver_inputs:
-                        solver_reshape.append((s_i[pred][p].solver, s_i[pred][p].problem_data))
+                        solver_reshape.append((s_i[prec][p].solver, s_i[prec][p].problem_data))
                 # evaluate inputs for in parallel for each evaluation of uncertainty
-                
-                results.append(self.ray_evaluation(solver_reshape, self.cfg.max_devices, s_i[pred][p]))
+                results.append(self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[prec][p]))
 
 
             return jnp.concatenate(results, axis=-1)
-        
-
+            
+    
     def evaluate_parallel(self, i, inputs, auxs):
 
         """
@@ -471,7 +482,7 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
     TODO - think about how best to pass uncertain parameters.
     """
     def __init__(self, cfg, graph, node, pool=None):
-        super().__init__(cfg, graph, node)
+        super().__init__(cfg, graph, node, pool)
         # pool settings
         self.pool = pool
         if self.pool is None: 
@@ -479,14 +490,23 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
         if self.pool == 'jax-pmap':
             raise NotImplementedError("jax-pmap is not supported for this constraint type at the moment.")
         if self.pool == 'mp-ms':
-            self.evaluation_method = self.simple_evaluation 
+            self.evaluation_method = self.serial_evaluation 
         if self.pool == 'ray':
             self.evaluation_method = self.ray_evaluation
     
     def __call__(self, outputs, aux):
         return self.evaluate(outputs)
+
+    def evaluate(self, outputs):
+        """
+        Evaluates the constraints by iterating sequentially over the design and the uncertain params
+        inputs: samples in the extended design space
+        outputs: the constraint evaluations
+        """
+        return self.wrapper(outputs)
     
-    def ray_wrapper(self, outputs):
+    
+    def wrapper(self, outputs):
         """ first prepare the problem set up, 
         then evaluate the constraints in parallel using ray.
         """
@@ -509,17 +529,17 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
                     for s_i in solver_inputs:
                         solver_reshape.append((s_i[succ][p].solver, s_i[succ][p].problem_data))
                 # evaluate inputs for in parallel for each evaluation of uncertainty
-                results.append(self.ray_evaluation(solver_reshape, self.cfg.max_devices, s_i[succ][p]))
+                results.append(self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[succ][p]))
 
 
             return jnp.concatenate(results, axis=-1)
+            
     
     def prepare_forward_problem(self, outputs):
         """
         Prepares the constraints surrogates and decision variables
         """
 
-        
         # get the outputs from the successors of the node
         graph, node, cfg = self.graph, self.node, self.cfg
 
@@ -530,10 +550,12 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
         succ_inputs = get_successor_inputs(graph, node, outputs)
         # prepare the forward surrogates
         problem_data = {succ: {p: {} for p in range(succ_inputs[succ].shape[1])} for succ in self.graph.successors(self.node)}
-        p = 0
 
-        assert succ_inputs[succ].shape[1]  == p, f"Problem data shape mismatch: {succ_inputs[succ].shape[1]} != {p}"
 
+        for succ in self.graph.successors(self.node):
+            assert succ_inputs[succ].shape[1]  == 1, f"Problem data shape mismatch: {succ_inputs[succ].shape[1]} != {1}"
+
+        p=0 
         for succ in self.graph.successors(self.node):
             
             if self.cfg.formulation == 'probabilistic':
@@ -543,6 +565,7 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
                 
                 n_d  = graph.nodes[succ]['n_design_args']
                 input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices']]))
+                edge_input_specific_indices= np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices']]))
                 aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices']]))
                 
                 # standardisation of outputs if required
@@ -554,21 +577,21 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
                 
                 # get the decision bounds
                 if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ)
-                
-                decision_bounds = [jnp.delete(bound, np.hstack([input_indices,aux_indices]).astype(int), axis=1) for bound in decision_bounds]
+                decision_bounds = [jnp.delete(bound, np.hstack([edge_input_specific_indices,aux_indices]).astype(int), axis=1) for bound in decision_bounds]
 
                 # --- equality constraints reduced into objective using output data  --- #
                 problem_data[succ][p]['eq_rhs'] = jnp.empty((0,1))
                 problem_data[succ][p]['eq_lhs'] = jnp.empty((0,1))
-                n_d_k = self.graph.nodes[succ]['n_design_args'] + self.graph.nodes[succ]['n_input_args'] + self.graph.graph['n_aux_args']    
+                n_d_k = self.graph.nodes[succ]['n_design_args'] + sum([self.graph.edges[n,succ]['n_input_args'] for n in self.graph.predecessors(succ) if n!=self.node]) + self.graph.graph['n_aux_args']    
                 
                 # load the objective
                 problem_data[succ][p]['objective_func'] = {'f0': {'params': self.graph.nodes[succ]["classifier_serialised"], 
                                                                   'args': [i for i in range(n_d_k)],
                                                                   'model_class': 'classification', 'model_surrogate': 'live_set_surrogate', 
                                                                   'model_type': self.cfg.surrogate.classifier_selection},
-                                                                  'obj_fn': partial(lambda x, fn, y: mask_classifier(fn, n_d, ndim, input_indices, aux_indices)(x,y).squeeze(), y=succ_inputs[succ].reshape(1,-1))}
-
+                                                                  'obj_fn': partial(lambda x, f1, y: mask_classifier(f1, n_d, ndim, input_indices, aux_indices)(x.reshape(1,-1)[:,:n_d_k],y).reshape(-1,1), y=succ_inputs[succ].reshape(1,-1))}
+                
+                assert len(jnp.delete(jnp.arange(ndim), np.concatenate([input_indices, aux_indices]).astype(int))) == n_d_k, 'shape mismatch in the masking and the decision variables'
 
                 # load the standardised bounds
                 decision_bounds = self.graph.nodes[succ]["extendedDS_bounds"]
@@ -577,7 +600,7 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
                 problem_data[succ][p]['constraints'] = {}
                 k_index = 0
                 last_index = n_d_k
-                for m_prec in self.graph.successors(succ):
+                for m_prec in self.graph.predecessors(succ):
                     if m_prec > self.node: #  if lm comes after the current node in the graph then lets add constraints
                         n_d_m = self.graph.nodes[m_prec]['n_design_args'] + self.graph.nodes[m_prec]['n_input_args'] + self.graph.graph['n_aux_args']
                         n_design_m, n_input_indices_m, n_auxiliary = self.graph.nodes[m_prec]['n_design_args'], self.graph.edges[m_prec, succ]['input_indices'], self.graph.graph['n_aux_args']
@@ -597,7 +620,8 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
                         k_index += 1
                         last_index += n_d_m 
                         problem_data[succ][p]['eq_rhs'] = jnp.vstack([problem_data[succ][p]['eq_rhs'], jnp.zeros(len(n_input_indices_m)+1,).reshape(-1,1)])
-                        problem_data[succ][p]['eq_lhs'] = jnp.vstack([problem_data[succ][p]['eq_rhs'], jnp.zeros(len(n_input_indices_m),).reshape(-1,1), -jnp.inf(1,).reshape(-1,1)])
+                        problem_data[succ][p]['eq_lhs'] = jnp.vstack([problem_data[succ][p]['eq_lhs'], jnp.zeros(len(n_input_indices_m),).reshape(-1,1), -jnp.inf*jnp.ones((1,)).reshape(-1,1)])
+                        
                         # add (un)standardised bounds 
                         db = self.graph.nodes[m_prec]["extendedDS_bounds"].copy()
                         if self.cfg.solvers.standardised: db = self.standardise_model_decisions(db, m_prec) 
@@ -680,12 +704,6 @@ class forward_constraint_decentralised_evaluator(forward_constraint_evaluator):
         if self.pool == 'ray':
             for i, solve in enumerate(solver_batches):
                 results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
-                for j, result in enumerate(results):
-                    result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
-                evals += j+1
-        else:
-            for i, solve in enumerate(solver_batches):
-                results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve] # set off and then synchronize before moving on
                 for j, result in enumerate(results):
                     result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
                 evals += j+1
@@ -1013,7 +1031,7 @@ def construct_input(x, y, fix_ind, aux_ind, ndim):
     opt_ind = jnp.delete(total_indices, np.concatenate([fix_ind, aux_ind]).astype(int))
     
     # Assign values from x to input_ at positions not in fix_ind and aux_ind
-    input_ = input_.at[opt_ind].set(x)
+    input_ = input_.at[opt_ind].set(x.squeeze()) 
     
     # Assign values from y to input_ at positions in fix_ind and aux_ind
     if fix_ind.size != 0: input_ = input_.at[fix_ind].set(y[0,:len(fix_ind)])
