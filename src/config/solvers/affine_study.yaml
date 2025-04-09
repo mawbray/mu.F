@@ -23,11 +23,11 @@ forward_general_constraints: True
 forward_coupling:
   max_solution_time: 1. 
   parallelised: True
-  n_starts: 4
+  n_starts: 8
   casadi_ipopt_options:
     maxiter: 500
     verbose: False
-    tol: 1e-6
+    tol: 1e-8
     options:
       verbose: 0
       maxiter: 1000
@@ -48,7 +48,7 @@ standardised: False
 
 # TODO: check standardisation is working properly in the backward pass
 backward_coupling:
-  n_starts:   4
+  n_starts:   8
   jax_opt_options:
     error_tol: 1e-6
     ftol0: 0.001

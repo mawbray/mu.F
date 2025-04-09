@@ -166,7 +166,7 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         nlp = {'x':x , 'f':F(x), 'g': G(x)}
 
         # Define the IPOPT solver
-        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':0, 'print_time':0, 'ipopt.max_iter': 150} # , 
+        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':1, 'print_time':0, 'ipopt.max_iter': 150} # , 
       
         solver = nlpsol('solver', 'ipopt', nlp, options)
 

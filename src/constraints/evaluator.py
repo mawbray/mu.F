@@ -282,7 +282,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         if len(list(si.keys() for si in [list(solver_inputs[0].values())[0]])) > 1:
             raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
         else:
-            results = []
+            results = {prec: [] for prec in self.graph.predecessors(self.node)}
             # run solvers in parallel
             for prec in self.graph.predecessors(self.node):
                 solver_reshape = []
@@ -291,10 +291,10 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                     for s_i in solver_inputs:
                         solver_reshape.append((s_i[prec][p].solver, s_i[prec][p].problem_data))
                 # evaluate inputs for in parallel for each evaluation of uncertainty
-                results.append(self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[prec][p]))
+                results[prec].append(self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[prec][p]))
 
 
-            return jnp.concatenate(results, axis=-1)
+            return jnp.concatenate([jnp.array(v).reshape(-1,1) for v in results.values()], axis=-1)
             
     
     def evaluate_parallel(self, i, inputs, auxs):
@@ -389,7 +389,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                                                                   'args': [i for i in range(n_d_j)],
                                                                   'model_class': 'classification', 'model_surrogate': 'live_set_surrogate', 
                                                                   'model_type': self.cfg.surrogate.classifier_selection},
-                                                                  'obj_fn': partial(lambda x, f1, b: f1(x).reshape(-1,1) + b, b=prev_node_backoff)}
+                                                                  'obj_fn': partial(lambda x, f1, b, t: f1(x.reshape(1,-1)[:,t]).reshape(-1,1) + b, b=prev_node_backoff, t=[i for i in range(n_d_j)])}
                 
                 # load the standardised bounds
                 decision_bounds = self.graph.nodes[pred]["extendedDS_bounds"]
@@ -407,7 +407,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
                                                                             'model_class': 'regression', 'model_surrogate': 'forward_evaluation_surrogate', 
                                                                             'model_type': self.cfg.surrogate.regressor_selection,
                                                                             'g_fn': partial(lambda x, fn, v, l: fn(x.reshape(1,-1)[:, v]).reshape(-1,1) - x.reshape(-1,1)[l,:], 
-                                                                                            v=[i for i in range(n_d_j)], l=[i +n_d_j + n_design_l for i in n_input_indices_l])}
+                                                                                            v=[i for i in range(n_d_j)], l=[i +last_index + n_design_l for i in n_input_indices_l])}
                             k_index += 1
                             # load the forward surrogate inequality constraint
                             problem_data[pred][p]['constraints'][k_index] = {'params': self.graph.nodes[l_post]["classifier_serialised"], 
@@ -520,7 +520,7 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
             raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
         else:
 
-            results = []
+            results = {succ: [] for succ in self.graph.successors(self.node)}
             # run solvers in parallel
             for succ in self.graph.successors(self.node):
                 solver_reshape = []
@@ -529,10 +529,10 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
                     for s_i in solver_inputs:
                         solver_reshape.append((s_i[succ][p].solver, s_i[succ][p].problem_data))
                 # evaluate inputs for in parallel for each evaluation of uncertainty
-                results.append(self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[succ][p]))
+                results[succ].append(self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[succ][p]))
 
 
-            return jnp.concatenate(results, axis=-1)
+            return jnp.concatenate([jnp.array(v).reshape(-1,1) for v in results.values()], axis=-1)
             
     
     def prepare_forward_problem(self, outputs):

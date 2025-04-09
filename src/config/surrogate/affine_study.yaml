@@ -11,7 +11,7 @@ surrogate_forward:
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
-    num_epochs: 20 # 10 #50 # 50 # 500
+    num_epochs: 1000 # 10 #50 # 50 # 500
     min_delta: 0.00001
     patience: 50
     batch_size: 264 #64
@@ -24,7 +24,7 @@ surrogate_forward:
     
  
 classifier: True
-classifier_selection: 'ANN' # or 'SVM'
+classifier_selection: 'ANN' # 'ANN' # or 'SVM'
 regressor_selection: 'ANN' # or 'GP' 
 probability_map: False
 
@@ -38,28 +38,28 @@ num_folds: 2
 
 
 classifier_args: 
-  standardised: true
+  standardised: False
   drop_uncertain_params: true
   svm: # these parameters must be provided as lists for Sklearn's GridSearchCV
     kernel: ['rbf']
-    C: [10, 5]
+    C: [10, 5, 2, 1]
     gamma: [10, 4 ,0.2, 1, 0.5]
     probability: [False]
   ann:
     hidden_size_options:
-      - [50, 25]
+      - [25, 10]
       #- [100, 50, 25]
-      #- [50, 50]
-      #- [25, 10]
+      - [50, 50]
+      - [25, 10]
     activation_functions:
-      - ['tanh', tanh]
+      - [tanh, tanh]
 
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
-    num_epochs: 20 # 10 #50 # 50 # 500
+    num_epochs: 1000 # 10 #50 # 50 # 500
     min_delta: 0.00001
-    patience: 50
+    patience: 25
     batch_size: 264 #64
 
 

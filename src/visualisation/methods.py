@@ -131,6 +131,44 @@ def design_space_plot(cfg, G, joint_data_direct, path):
     return 
 
 
+def design_space_plot_plus_polytope(cfg, G, pp, joint_data_direct, path, save=True):
+
+    # Pair-wise Scatter Plots
+
+    DS_bounds = get_ds_bounds(cfg, G)
+    
+    indices = zip(*np.tril_indices_from(pp.axes, -1))
+
+    for i, j in indices: 
+        x_var = pp.x_vars[j]
+        y_var = pp.y_vars[i]
+        ax = pp.axes[i, j]
+        if x_var in DS_bounds.columns and y_var in DS_bounds.columns:
+            ax.axvline(x=DS_bounds[x_var].iloc[0], ls='--', linewidth=3, c='black')
+            ax.axvline(x=DS_bounds[x_var].iloc[1], ls='--', linewidth=3, c='black')
+            ax.axhline(y=DS_bounds[y_var].iloc[0], ls='--', linewidth=3, c='black')
+            ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
+
+    pp.map_lower(sns.scatterplot, data=joint_data_direct, edgecolor="k", c="b", linewidth=0.5)
+    # Save the updated figure
+    if save: pp.savefig(path + ".svg", dpi=300)
+
+    return pp
+
+def polytope_plot(pp, polytope):
+
+    indices = zip(*np.tril_indices_from(pp.axes, -1))
+
+    for i, j in indices: 
+        x_var = pp.x_vars[j]
+        y_var = pp.y_vars[i]
+        ax = pp.axes[i, j]
+        if (x_var,y_var) in list(polytope.keys()):
+            ax.fill(polytope[(x_var,y_var)][0], polytope[(x_var,y_var)][1], alpha=0.5, color='red', edgecolor='black', linewidth=1.5)
+    # Save the updated figure
+    return pp
+
+
 def hide_current_axis(*args, **kwds):
     plt.gca().set_visible(False)
     return
