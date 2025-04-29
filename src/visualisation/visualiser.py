@@ -170,9 +170,6 @@ if __name__ == '__main__':
     # pp = decomposition_plot(cfg, graph, pp, save=True, path='decomposed_pair_grid_plot_F')
     """
     
-   
-
-
     
     def load_mat_file(file_path: str):
         '''
@@ -248,13 +245,13 @@ if __name__ == '__main__':
             ax.axvline(x=DS_bounds[x_var].iloc[1], ls='--', linewidth=3, c='black')
             ax.axhline(y=DS_bounds[y_var].iloc[0], ls='--', linewidth=3, c='black')
             ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
-    """
     print([graph2.nodes[node]['extendedDS_bounds'] for node in graph2.nodes])
     #pp = decompose_call(cfg2, graph2, path='decomposed_pair_grid_plot', init=False)
     #init_df = graph2.graph['initial_forward_pass']
     #init_df.columns = [col.replace('N5: G', 'G: ') for col in init_df.columns]
     #print(init_df)
-    """DS_bounds = get_ds_bounds(cfg2, graph)
+    """
+    DS_bounds = get_ds_bounds(cfg2, graph)
     DS_bounds.columns = [col.replace('N5: G', 'G: ') for col in DS_bounds.columns]
     print(DS_bounds)
     print(joint_set2)
@@ -282,7 +279,7 @@ if __name__ == '__main__':
     #pp = decomposition_plot(cfg2, graph2, pp, save=False, path='decomposed_pair_grid_plot')
     pp.map_lower(sns.scatterplot, data=joint_set2, edgecolor="k", c="b",  linewidth=0.5)
 
-    pp.savefig(os.path.join(root, "sim_pair_grid_plot_replot.svg"), dpi=20)"""
+    pp.savefig(os.path.join(root, "sim_pair_grid_plot_replot.svg"), dpi=20)
 
     # Load the .mat file
     """sim_projections = load_mat_file(os.path.join(root, matlab_stem))
@@ -333,13 +330,11 @@ if __name__ == '__main__':
     pp.map_diag(hide_current_axis)
     #pp.map_lower(sns.scatterplot, data=joint_set, edgecolor="k", c="b",  linewidth=0.5)
     pp.savefig(os.path.join(root2, "reconstructed_with_polytope_pair_grid_plot.svg"), dpi=20)
-    """
-
-
-    """ polytope_plot(sim_projections, path='vertices_all')
+    polytope_plot(sim_projections, path='vertices_all')
 
     polytope_plot(vertices_sim, path='vertices_sim')
     polytope_plot(vertices_forwardbackward, path='vertices_forwardbackward')
     polytope_plot(vertices_forward, path='vertices_forward')
-    polytope_plot(vertices_backward, path='vertices_backward')"""
+    polytope_plot(vertices_backward, path='vertices_backward')
+    """
     

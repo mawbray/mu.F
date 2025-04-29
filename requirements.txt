@@ -136,7 +136,6 @@ orbax-checkpoint==0.4.8
 packaging==23.2
 pandas==2.2.0
 parso==0.8.4
--e git+https://github.com/mawbray/feasibility.git@68db49dce188e235b8e4e0f1a8691d09b5c95914#egg=pcgym&subdirectory=src/unit_evaluators/env
 pexpect==4.8.0
 pillow==10.2.0
 platformdirs==4.3.7
