@@ -7,11 +7,11 @@ import seaborn as sns
 def plotting_format():
     font = {"family": "serif", "weight": "bold", "size": 20}
     plt.rc("font", **font)  # pass in the font dict as kwargs
-    plt.rc("axes", labelsize=15)  # fontsize of the x and y label
+    plt.rc("axes", labelsize=35)  # fontsize of the x and y label
     plt.rc("axes", linewidth=3)
-    plt.rc("axes", labelpad=20)
-    plt.rc("xtick", labelsize=10)
-    plt.rc("ytick", labelsize=10)
+    plt.rc("axes", labelpad=30)
+    plt.rc("xtick", labelsize=25)
+    plt.rc("ytick", labelsize=25)
 
     return
 
@@ -43,11 +43,11 @@ def init_plot(cfg, G, pp= None, init=True, save=True):
 
     if init:
         pp = initializer_cp(init_df)
-        pp.map_lower(sns.scatterplot, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5)
     else:
-        pp = initializer_cp(init_df)
-        
+        assert pp is not None, "PairGrid object is None. Please provide a valid PairGrid object."
     
+    pp.map_lower(sns.scatterplot, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5)
+        
     indices = zip(*np.tril_indices_from(pp.axes, -1))
 
     for i, j in indices: 
@@ -73,9 +73,13 @@ def decompose_call(cfg, G, path, init=True):
 def decomposition_plot(cfg, G, pp, save=True, path='decomposed_pair_grid_plot'):
     # load live sets for each subproblem from the graph 
     inside_samples_decom = [pd.DataFrame({col:G.nodes[node]['live_set_inner'][:,i] for i, col in enumerate(cfg.case_study.process_space_names[node])}) for node in G.nodes]
+    print('cols', [{i: col for i, col in enumerate(cfg.case_study.process_space_names[node])} for node in G.nodes])
 
+    print("inside_samples_decom", inside_samples_decom)
     # just keep those variables with Ui in the column name # TODO update this to also receive the live set probabilities 
     inside_samples_decom = [in_[[col for col in in_.columns if f"N{i+1}" in col]] for (i,in_) in enumerate(inside_samples_decom)]
+    
+    print("inside_samples_decom", inside_samples_decom)
     if cfg.reconstruction.plot_reconstruction == 'probability_map':
         for i, is_ in enumerate(inside_samples_decom):
             is_['probability'] = G.nodes[i]['live_set_inner_prob'] # TODO update this to also receive the live set probabilities
@@ -89,6 +93,7 @@ def decomposition_plot(cfg, G, pp, save=True, path='decomposed_pair_grid_plot'):
         ax = pp.axes[i, j]
         for is_ in inside_samples_decom:
             if x_var in is_.columns and y_var in is_.columns:
+                print(f"Plotting {x_var} vs {y_var}")
                 sns.scatterplot(x=x_var, y=y_var, data=is_, edgecolor="k", c='r', alpha=0.8, ax=ax)
         
     if save: pp.savefig(path +'.svg', dpi=300)
@@ -168,6 +173,23 @@ def polytope_plot(pp, polytope):
     # Save the updated figure
     return pp
 
+def polytope_plot_2(pp, polytope):
+    from scipy.spatial import ConvexHull
+    indices = zip(*np.tril_indices_from(pp.axes, -1))
+
+    for i, j in indices: 
+        x_var = pp.x_vars[j]
+        y_var = pp.y_vars[i]
+        ax = pp.axes[i, j]
+        if x_var in list(polytope.keys()) and y_var in list(polytope.keys()) and x_var[:2] == y_var[:2]:
+            points = np.hstack([np.array(polytope[x_var]).reshape(-1,1), np.array(polytope[y_var]).reshape(-1,1)]).reshape(-1, 2)
+            hull = ConvexHull(points)
+            hull_vertices = points[hull.vertices]
+            # Unzip for plotting
+            x_hull, y_hull = zip(*hull_vertices)
+            ax.fill(x_hull, y_hull, alpha=0.5, color='red', edgecolor='black', linewidth=1.5)
+    # Save the updated figure
+    return pp
 
 def hide_current_axis(*args, **kwds):
     plt.gca().set_visible(False)

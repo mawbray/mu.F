@@ -81,7 +81,7 @@ def unit_1_dynamics(
 
     """
     design_args = design_args.squeeze()
-    bulk_density = bulk_density_u1(cfg, design_args, input_args, *args) + design_args[-1] - design_args[-2] 
+    bulk_density = bulk_density_u1(cfg, design_args, input_args, *args) #+ design_args[-1] - design_args[-2] 
     tau_cm = mean_residence_time_u1(cfg, design_args, input_args, *args)
     hold_up = (design_args[0] + design_args[1]) * tau_cm
 
@@ -229,7 +229,7 @@ def unit_2_dynamics(
     input_args = input_args.squeeze()
     design_args= design_args.squeeze()
 
-    mass_hold_up = hold_up_mass_u2(cfg, design_args, input_args, *args) + design_args[-1] - design_args[-2] 
+    mass_hold_up = hold_up_mass_u2(cfg, design_args, input_args, *args) # + design_args[-1] - design_args[-2] 
     porosity, bulk_density = porosity_estimate_u2(cfg, design_args, input_args, *args)
     mass_flow_out = input_args[0] + input_args[1] + design_args[0]
 

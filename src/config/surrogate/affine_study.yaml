@@ -21,21 +21,15 @@ surrogate_forward:
     alpha: 0.1
     normalize_y: True
     noise: 'gaussian'
-    
  
 classifier: True
-classifier_selection: 'ANN' # 'ANN' # or 'SVM'
+classifier_selection: 'SVM' #'ANN' # 'ANN' # or 'SVM'
 regressor_selection: 'ANN' # or 'GP' 
 probability_map: False
 
 index_on: 1
 subsample_size: 10000000
 num_folds: 2
-
-
-
-
-
 
 classifier_args: 
   standardised: False
@@ -48,11 +42,11 @@ classifier_args:
   ann:
     hidden_size_options:
       - [25, 10]
-      #- [100, 50, 25]
+      - [50, 25, 10]
       - [50, 50]
       - [25, 10]
     activation_functions:
-      - [tanh, tanh]
+      - [tanh, tanh, tanh]
 
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
@@ -61,7 +55,6 @@ classifier_args:
     min_delta: 0.00001
     patience: 25
     batch_size: 264 #64
-
 
 probability_map_args:
   drop_uncertain_params: true

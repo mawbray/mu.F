@@ -23,8 +23,6 @@ TODO :
 - documentation
 """
 
-
-
 @hydra.main(config_path="config", config_name="integrator")
 def main(cfg: DictConfig) -> None:
     # Set the maximum number of devices
