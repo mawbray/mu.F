@@ -5,9 +5,9 @@ surrogate_forward:
       - [50, 50]
       - [25, 10]
       - [10, 5]
-      #- [100, 25]
+      - [100, 25, 5]
     activation_functions:
-      - ['tanh', tanh]
+      - ['tanh', tanh, tanh]
 
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
@@ -23,10 +23,10 @@ surrogate_forward:
     normalize_y: True
     noise: 'gaussian'
     
-classifier: False
+classifier: True
 classifier_selection: 'ANN' # or 'SVM'
 regressor_selection: 'ANN' # or 'GP' 
-probability_map: True
+probability_map: False
 
 index_on: 1
 subsample_size: 10000000
@@ -51,9 +51,9 @@ classifier_args:
       - [100, 50]
       - [50, 5]
       - [10, 10]
-      #- [100, 50, 25]
+      - [100, 50, 25]
     activation_functions:
-      - ['tanh', tanh]
+      - ['tanh', tanh, tanh]
 
     decaying_lr_and_clip_param: True
     learning_rate: 0.01

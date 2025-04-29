@@ -368,7 +368,8 @@ def unit_3_dynamics(
         outputs - tablet hardness, pre-compression volume, main compression volume
 
     """
-    input_args = input_args.squeeze() + design_args[-1] - design_args[-2] 
+    input_args = input_args.squeeze() #+ design_args[-1] - design_args[-2]
+    design_args = design_args.squeeze() 
     V_pre = pre_comp_volume_unit_3(cfg, design_args, input_args, *args)
     porosity = porosity_update_u3(cfg, design_args, input_args, *(V_pre,))
     V_main = main_comp_volume_unit_3(cfg, design_args, input_args, *(V_pre, porosity))
