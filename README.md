@@ -11,4 +11,6 @@
 </p>
 
 
-
+- This code base provides a general sampling-based solver for numerical constraint satisfaction problems defined on directed acyclic graphs representative of function composition.
+- The code is agnostic to the sampling scheme used, which may be customised by the user. By default a nested sampling scheme (DEUS) is used.
+- The code exploits graph structure to improve the efficiency of solution identification. 
