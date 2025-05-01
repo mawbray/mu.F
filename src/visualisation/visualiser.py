@@ -185,37 +185,37 @@ if __name__ == '__main__':
         except Exception as e:
             raise RuntimeError(f"An error occurred while loading the .mat file: {e}")
 
-    root    = 'multirun/2025-04-28/10-48-33/0'
-    root2   = 'multirun/2024-09-17/15-10-26/1'
+    root    = 'multirun/2025-04-30/16-03-22/1'
+    root2   = 'multirun/2025-04-30/16-03-22/1'
     config_path = os.path.join(root, '.hydra', 'config.yaml')
     cfg = OmegaConf.load(config_path)
     graph_stem  = 'graph_direct_complete.pickle'
     matlab_stem = 'simultaneous_projections.mat'
-    graph2_stem = 'graph_backward-forward-reconstructed_iterate_1.pickle'
+    graph2_stem = 'graph_backward-reconstructed_iterate_0.pickle'
     config_path = os.path.join(root2, '.hydra', 'config.yaml')
     cfg2 = OmegaConf.load(config_path)
     OmegaConf.set_struct(cfg2, False)
     
 
-    with open(os.path.join(root, graph_stem), 'rb') as file:
+    """with open(os.path.join(root, graph_stem), 'rb') as file:
         sys.path.append(os.getcwd())
-        graph = pkl.load(file)
+        graph = pkl.load(file)"""
 
     with open(os.path.join(root2, graph2_stem), 'rb') as file:
         sys.path.append(os.getcwd())
         graph2 = pkl.load(file)
 
-    graph2 = graph 
+    graph2 = graph2 
     dims = [3,2,2]
 
     #columns = [f'N{j+1}: P{i+1}' for j,n in enumerate(dims) for i in range(n)]
     
     #print(columns)
 
-    joint_set2 =  {col: graph.graph['feasible_set'][0][:,i] for i,col in enumerate(cfg2.case_study.design_space_dimensions)}
+    joint_set2 =  pd.read_excel(os.path.join(root2, "inside_samples_backward_iterate_0.xlsx"), index_col=0) #{col: graph.graph['feasible_set'][0][:,i] for i,col in enumerate(cfg2.case_study.design_space_dimensions)}
     joint_set2 = pd.DataFrame(joint_set2)
     print(joint_set2)
-    #pd.read_excel(os.path.join(root2, "inside_samples_['backward']_iterate_0.xlsx"), index_col=0)
+    #
     # Rename all columns with 'N5: G' to start with 'G'
     #joint_set2.columns = columns
 
@@ -247,15 +247,15 @@ if __name__ == '__main__':
             ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
     print([graph2.nodes[node]['extendedDS_bounds'] for node in graph2.nodes])
     #pp = decompose_call(cfg2, graph2, path='decomposed_pair_grid_plot', init=False)
-    #init_df = graph2.graph['initial_forward_pass']
+    """
+    init_df = graph2.graph['initial_forward_pass']
     #init_df.columns = [col.replace('N5: G', 'G: ') for col in init_df.columns]
     #print(init_df)
-    """
-    DS_bounds = get_ds_bounds(cfg2, graph)
-    DS_bounds.columns = [col.replace('N5: G', 'G: ') for col in DS_bounds.columns]
+    
+    DS_bounds = get_ds_bounds(cfg2, graph2)
+    #DS_bounds.columns = [col.replace('N5: G', 'G: ') for col in DS_bounds.columns]
     print(DS_bounds)
-    print(joint_set2)
-    joint_set2.columns = [col.replace('N5: G', 'G: ') for col in joint_set2.columns]
+    #joint_set2.columns = [col.replace('N5: G', 'G: ') for col in joint_set2.columns]
     print(joint_set2)
     
     pp = initializer_cp(joint_set2)
@@ -271,15 +271,15 @@ if __name__ == '__main__':
             ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
             ax.set_xticks([DS_bounds[x_var].iloc[0], DS_bounds[x_var].iloc[1]])
             ax.set_yticks([DS_bounds[y_var].iloc[0], DS_bounds[y_var].iloc[1]])
-            #sns.scatterplot(x=x_var, y=y_var, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5, ax=ax)
+            sns.scatterplot(x=x_var, y=y_var, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5, ax=ax)
 
 
     
     
-    #pp = decomposition_plot(cfg2, graph2, pp, save=False, path='decomposed_pair_grid_plot')
+    pp = decomposition_plot(cfg2, graph2, pp, save=False, path='decomposed_pair_grid_plot')
     pp.map_lower(sns.scatterplot, data=joint_set2, edgecolor="k", c="b",  linewidth=0.5)
 
-    pp.savefig(os.path.join(root, "sim_pair_grid_plot_replot.svg"), dpi=20)
+    pp.savefig(os.path.join(root, "reconstruction_pair_grid_plot_replot.svg"), dpi=100)
 
     # Load the .mat file
     """sim_projections = load_mat_file(os.path.join(root, matlab_stem))

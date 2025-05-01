@@ -7,11 +7,11 @@ import seaborn as sns
 def plotting_format():
     font = {"family": "serif", "weight": "bold", "size": 20}
     plt.rc("font", **font)  # pass in the font dict as kwargs
-    plt.rc("axes", labelsize=35)  # fontsize of the x and y label
+    plt.rc("axes", labelsize=25)  # fontsize of the x and y label
     plt.rc("axes", linewidth=3)
     plt.rc("axes", labelpad=30)
-    plt.rc("xtick", labelsize=25)
-    plt.rc("ytick", labelsize=25)
+    plt.rc("xtick", labelsize=20)
+    plt.rc("ytick", labelsize=20)
 
     return
 
