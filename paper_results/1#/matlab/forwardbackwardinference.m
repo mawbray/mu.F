@@ -119,7 +119,7 @@ while x
     
     reduction = dictionary([1,2,3,4,5], {K_v_1, K_v_2, K_v_3, K_v_4, K_v_5});
     params = dictionary([1,2,34,35,4,5], {{A1, B1}, {A2, B2}, {A_34, B_314, B_324}, {A_35, B_315, B_325}, {A4, B4}, {A5, B5}});
-    
+    epsilon = dictionary([1,2,3,4,5], {0,0,zeros(2),0,0})
     for i=1:N
         reductionf = forwardpropagation(params,reduction);
         reductionb = backwardpropagation(params, reduction);
