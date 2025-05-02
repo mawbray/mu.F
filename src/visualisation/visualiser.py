@@ -272,13 +272,9 @@ if __name__ == '__main__':
             ax.set_xticks([DS_bounds[x_var].iloc[0], DS_bounds[x_var].iloc[1]])
             ax.set_yticks([DS_bounds[y_var].iloc[0], DS_bounds[y_var].iloc[1]])
             sns.scatterplot(x=x_var, y=y_var, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5, ax=ax)
-
-
-    
     
     pp = decomposition_plot(cfg2, graph2, pp, save=False, path='decomposed_pair_grid_plot')
     pp.map_lower(sns.scatterplot, data=joint_set2, edgecolor="k", c="b",  linewidth=0.5)
-
     pp.savefig(os.path.join(root, "reconstruction_pair_grid_plot_replot.svg"), dpi=100)
 
     # Load the .mat file
