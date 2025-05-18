@@ -204,7 +204,7 @@ def process_data_forward(cfg, graph, node, model, live_set, mode, notion_of_feas
     None
     """
     # Select a subset of the data based on the classifier
-    if (mode != 'backward-forward' and cfg.method != 'decomposition_constraint_tuner'):
+    if (mode != 'backward-forward'):
         if cfg.surrogate.classifier:
             graph, feasible_indices = get_classifier_data(graph, node, model, cfg)
         elif cfg.surrogate.probability_map:

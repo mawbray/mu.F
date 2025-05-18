@@ -151,6 +151,9 @@ def interaction_terms(dynamic_profile, cfg):
 def estimation_bound_lb(dynamic_profile, cfg):
     return cfg.constraint.estimation_bound - jnp.linalg.norm(nonconvex_ground_truth(dynamic_profile, cfg) - dynamic_profile[0])
 
+@partial(jit, static_argnums=(1))
+def underestimation_constraint(dynamic_profile, cfg):
+    return nonconvex_ground_truth(dynamic_profile, cfg) - dynamic_profile[0]  # this quantity must just be non-negative.
 
 
 # -------------------------------------------------------------------------------- #
@@ -165,4 +168,5 @@ def negative_output_constraint(output, cfg):
 CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_composition_lb, tablet_composition_ub], 2: [tablet_hardness_lb, tablet_hardness_ub, tablet_size_lb, tablet_size_ub]}, 
              'serial_mechanism_batch': {0: [purity_unit_1_ub], 1: [purity_unit_2_lb]},
              'convex_estimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [estimation_bound_lb]},
+             'convex_underestimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [underestimation_constraint]},
              'affine_study': {0: [negative_output_constraint], 1: [negative_output_constraint], 2: [negative_output_constraint], 3: [negative_output_constraint], 4: [negative_output_constraint]},}

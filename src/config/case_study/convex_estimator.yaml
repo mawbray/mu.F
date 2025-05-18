@@ -1,4 +1,4 @@
-case_study: convex_estimator
+case_study: convex_underestimator
 
 vmap_evaluations: True
 
@@ -69,10 +69,10 @@ KS_bounds:
         - None
   aux_args:
   # global_auxiliary_args
-    - - - 0.1
-        - 1
-    - - - 0.1
-        - 1
+    - - - -0.25
+        - 0.25
+    - - - 0.25
+        - 0.75
 
 
 

@@ -3,7 +3,7 @@ from typing import List, Tuple
 from functools import partial
 
 import pandas as pd
-from visualisation.methods import init_plot, decompose_call, polytope_plot, decomposition_plot, reconstruction_plot, design_space_plot, polytope_plot_2, design_space_plot_plus_polytope
+from methods import init_plot, decompose_call, polytope_plot, decomposition_plot, reconstruction_plot, design_space_plot, polytope_plot_2, design_space_plot_plus_polytope
 
 class visualiser(ABC):
     def __init__(self, cfg, G, data: pd.DataFrame=None, mode:str='forward', string:str='design_space', path=None):
@@ -25,6 +25,8 @@ class visualiser(ABC):
                 self.visualiser = partial(decompose_call, init=False, path=path)
             elif mode == 'backward':
                 self.visualiser = partial(decompose_call, init=True, path=path)
+        else:
+            raise ValueError('string must be one of "initialisastion", "design_space", "reconstruction", "decomposition" ')
         
 
     def run(self):
@@ -89,14 +91,17 @@ if __name__ == '__main__':
     from methods import plotting_format, get_ds_bounds, hide_current_axis, initializer_cp
     import seaborn as sns
     from itertools import combinations
+    import glob
     plotting_format()
 
-    """root = '../multirun/'
-    date = '2025-01-14'
-    time = '11-14-28'
+    root = 'multirun/'
+    date = '2025-05-16'
+    time = '19-42-10'
     iteration = 0
     x_train = 'opt_x.pt'
     y_train = 'opt_y.pt'
+    graph0 = "graph_backward_iterate_0_node_0.pickle"
+    graph10 = "graph_backward-forward_iterate_10.pickle"
 
     x = t.load(root + date + '/' + time + '/' + str(iteration) + '/' + x_train)
     y = t.load(root + date + '/' + time + '/' + str(iteration) + '/' + y_train)
@@ -110,6 +115,8 @@ if __name__ == '__main__':
     plt.legend()
     plt.savefig(root + date + '/' + time + '/' + str(iteration) + '/bo_progress.svg')
     
+    # TODO plot results from decomposition for affine study and sampling decompsoitons
+    """
     vertices_sim = {0: [(1,-0.501604), (1,-1), (0.543809, -1)], 1: [(-0.671903,-1), (0.343159,-1), (1, -0.326864), (1,0.713381)], 
                     2: [(-1,-1), (-0.531559,-1), (0.531537,1), (-1,1)], 3: [(-1,-1), (-0.160083,-1), (1,0.713775), (1,1), (-1,1)], 4: [(-0.895464,-1), (1,-1), (1,1), (0.0384752,1)]}
     vertices_forwardbackward = vertices_sim.copy()
@@ -185,7 +192,7 @@ if __name__ == '__main__':
         except Exception as e:
             raise RuntimeError(f"An error occurred while loading the .mat file: {e}")
 
-    root    = 'multirun/2025-04-30/16-03-22/1'
+    """root    = 'multirun/2025-04-30/16-03-22/1'
     root2   = 'multirun/2025-04-30/16-03-22/1'
     config_path = os.path.join(root, '.hydra', 'config.yaml')
     cfg = OmegaConf.load(config_path)
@@ -194,12 +201,11 @@ if __name__ == '__main__':
     graph2_stem = 'graph_backward-reconstructed_iterate_0.pickle'
     config_path = os.path.join(root2, '.hydra', 'config.yaml')
     cfg2 = OmegaConf.load(config_path)
-    OmegaConf.set_struct(cfg2, False)
+    OmegaConf.set_struct(cfg2, False)"
     
-
-    """with open(os.path.join(root, graph_stem), 'rb') as file:
+    with open(os.path.join(root, graph_stem), 'rb') as file:
         sys.path.append(os.getcwd())
-        graph = pkl.load(file)"""
+        graph = pkl.load(file)
 
     with open(os.path.join(root2, graph2_stem), 'rb') as file:
         sys.path.append(os.getcwd())
@@ -229,14 +235,14 @@ if __name__ == '__main__':
     print(joint_set2)
 
     
-    """fig = plt.figure(figsize=(35, 35))
+    fig = plt.figure(figsize=(35, 35))
     pp = sns.PairGrid(joint_set2[joint_set2.columns],aspect=1.4)
     pp.map_diag(hide_current_axis)
     pp.map_upper(hide_current_axis)
 
-    indices = zip(*np.tril_indices_from(pp.axes, -1))"""
+    indices = zip(*np.tril_indices_from(pp.axes, -1))
 
-    """ for i, j in indices: 
+     for i, j in indices: 
         x_var = pp.x_vars[j]
         y_var = pp.y_vars[i]
         ax = pp.axes[i, j]
@@ -247,7 +253,7 @@ if __name__ == '__main__':
             ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
     print([graph2.nodes[node]['extendedDS_bounds'] for node in graph2.nodes])
     #pp = decompose_call(cfg2, graph2, path='decomposed_pair_grid_plot', init=False)
-    """
+    
     init_df = graph2.graph['initial_forward_pass']
     #init_df.columns = [col.replace('N5: G', 'G: ') for col in init_df.columns]
     #print(init_df)
@@ -278,8 +284,8 @@ if __name__ == '__main__':
     pp.savefig(os.path.join(root, "reconstruction_pair_grid_plot_replot.svg"), dpi=100)
 
     # Load the .mat file
-    """sim_projections = load_mat_file(os.path.join(root, matlab_stem))
-
+    sim_projections = load_mat_file(os.path.join(root, matlab_stem))
+    
     # Extract the 'sim_projections' variable from the loaded dictionary
     s_p = {}
     
@@ -306,9 +312,19 @@ if __name__ == '__main__':
         # Unzip for plotting
         x_hull, y_hull = zip(*hull_vertices)
         s_p[(key_c[i[0]], key_c[i[1]])] = (x_hull, y_hull)
-        
+    
 
-    print(s_p)
+    root = 'matlab_results/decentralised'
+    # Load all files in the root directory
+    file_paths = glob.glob(os.path.join(root, '*'))
+
+    # Print the loaded file paths for verification
+    print("Loaded files:")
+    x = ['backwards', 'centralised', 'decentralised']
+    for file_path in file_paths:
+        load_mat_file(file_path)
+
+
     # the ultimate plot
     pp = init_plot(cfg2, graph2, pp= None, init=False, save=False)
     pp = polytope_plot(pp, s_p)
@@ -332,5 +348,5 @@ if __name__ == '__main__':
     polytope_plot(vertices_forwardbackward, path='vertices_forwardbackward')
     polytope_plot(vertices_forward, path='vertices_forward')
     polytope_plot(vertices_backward, path='vertices_backward')
-    """
     
+    """

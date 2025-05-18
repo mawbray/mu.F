@@ -1,4 +1,4 @@
 
 
-sobol_samples: 512
+sobol_samples: 8192
 sampler: 'sobol'

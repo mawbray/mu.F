@@ -6,12 +6,12 @@ deus:
 
 notion_of_feasibility: 'positive'
 ku_approximation: 'box'
-vol_scale: 0.01
+vol_scale: 0.02
 
 ns:
-  n_live: 100
+  n_live: 3000
   final_sample_live: 6000 # 6000  
-  n_replacements: 100 
+  n_replacements: 50 
   n_iter: 15000 
   f0: 0.1
   alpha: 0.2

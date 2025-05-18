@@ -9,7 +9,7 @@ ku_approximation: 'box'
 vol_scale: 0.1
 
 ns:
-  n_live: 3500
+  n_live: 2000
   final_sample_live: 3500  
   n_replacements: 50
   n_iter: 15000 
@@ -22,7 +22,7 @@ ns:
 
 bo:
   bounds: 
-    max: 0.5
+    max: 1
     min: 0
   num_initial_points: 3
   num_iterations: 7 # subsequent to initial samples
