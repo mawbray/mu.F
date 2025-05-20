@@ -1,0 +1,3 @@
+- method=decomposition
+- samplers.ns.n_live=3500
+- samplers.ns.final_sample_live=9000
