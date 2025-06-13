@@ -7,11 +7,11 @@ import seaborn as sns
 def plotting_format():
     font = {"family": "serif", "weight": "bold", "size": 20}
     plt.rc("font", **font)  # pass in the font dict as kwargs
-    plt.rc("axes", labelsize=25)  # fontsize of the x and y label
+    plt.rc("axes", labelsize=30)  # fontsize of the x and y label
     plt.rc("axes", linewidth=3)
-    plt.rc("axes", labelpad=30)
-    plt.rc("xtick", labelsize=20)
-    plt.rc("ytick", labelsize=20)
+    plt.rc("axes", labelpad=35)
+    plt.rc("xtick", labelsize=25)
+    plt.rc("ytick", labelsize=25)
 
     return
 
@@ -133,7 +133,7 @@ def design_space_plot(cfg, G, joint_data_direct, path):
     # Save the updated figure
     pp.savefig(path + ".svg", dpi=300)
 
-    return 
+    return pp
 
 
 def design_space_plot_plus_polytope(cfg, G, pp, joint_data_direct, path, save=True):
@@ -169,7 +169,14 @@ def polytope_plot(pp, polytope):
         y_var = pp.y_vars[i]
         ax = pp.axes[i, j]
         if (x_var,y_var) in list(polytope.keys()):
-            ax.fill(polytope[(x_var,y_var)][0], polytope[(x_var,y_var)][1], alpha=0.5, color='red', edgecolor='black', linewidth=1.5)
+            ax.fill(polytope[(x_var,y_var)][0], polytope[(x_var,y_var)][1], alpha=0.1, color='black', edgecolor='black', linewidth=3)
+            ax.plot(
+                list(polytope[(x_var,y_var)][0]) + [polytope[(x_var,y_var)][0][0]],  # Close the polygon
+                list(polytope[(x_var,y_var)][1]) + [polytope[(x_var,y_var)][1][0]],
+                color='black',
+                linewidth=4,
+                alpha=1
+            )
     # Save the updated figure
     return pp
 
@@ -187,7 +194,15 @@ def polytope_plot_2(pp, polytope):
             hull_vertices = points[hull.vertices]
             # Unzip for plotting
             x_hull, y_hull = zip(*hull_vertices)
-            ax.fill(x_hull, y_hull, alpha=0.5, color='red', edgecolor='black', linewidth=1.5)
+            ax.fill(x_hull, y_hull, alpha=0.1, color='black', edgecolor='black', linewidth=3)
+            ax.plot(
+                list(x_hull) + [x_hull[0]],  # Close the polygon
+                list(y_hull) + [y_hull[0]],
+                color='black',
+                linewidth=4,
+                alpha=1
+            )
+            
     # Save the updated figure
     return pp
 
