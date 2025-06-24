@@ -1,6 +1,6 @@
 
 import jax.numpy as jnp
-from unit_evaluators.implicit_fn import case_studies
+from unit_evaluators.explicit_fn import case_studies
 from functools import partial
 
 def unit_steady_state(design_params, u, aux, dd_params, uncertain_params, cfg, node):   

@@ -27,9 +27,9 @@ def apply_direct_method(cfg, graph):
     elif cfg.reconstruction.plot_reconstruction == 'probability_map':
         df = pd.DataFrame({key: feasible_set[:,i] for i, key in enumerate(cfg.case_study.design_space_dimensions)})
         df['probability'] = feasible_set
+
+    graph.graph['feasible_set'] = feasible_set
     visualiser(cfg, graph, data=df, string='design_space', path=f'design_space_direct').run()
     
 
-    print(feasible_set[0].max(axis=0))
-    print(feasible_set[0].min(axis=0))
     return feasible_set, infeasible_set

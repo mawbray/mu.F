@@ -1,0 +1,65 @@
+surrogate_forward:
+  drop_uncertain_params: False
+  ann:
+    hidden_size_options:
+      - [50, 25] #- [100, 25]
+      - [50, 50]
+      - [25, 10]
+    activation_functions:
+      - ['tanh', tanh]
+
+    decaying_lr_and_clip_param: True
+    learning_rate: 0.01
+    terminal_lr: 0.00001  
+    num_epochs: 1000 # 10 #50 # 50 # 500
+    min_delta: 0.00001
+    patience: 50
+    batch_size: 264 #64
+  gp:
+    kernel: 'Matern'
+    n_restarts_optimizer: 10
+    alpha: 0.1
+    normalize_y: True
+    noise: 'gaussian'
+    
+classifier: true
+classifier_selection: 'ANN' # or 'SVM'
+probability_map: false
+
+index_on: 1
+subsample_size: 10000000
+num_folds: 2
+
+
+
+
+classifier_args: 
+  standardised: true
+  drop_uncertain_params: true
+  svm: # these parameters must be provided as lists for Sklearn's GridSearchCV
+    kernel: ['rbf']
+    C: [10, 5]
+    gamma: [10, 4 ,0.2, 1, 0.5]
+    probability: [False]
+  ann:
+    hidden_size_options:
+      - [50, 25]
+      #- [100, 50, 25]
+      #- [50, 50]
+      #- [25, 10]
+    activation_functions:
+      - ['tanh', tanh]
+
+    decaying_lr_and_clip_param: True
+    learning_rate: 0.01
+    terminal_lr: 0.00001  
+    num_epochs: 1000 # 10 #50 # 50 # 500
+    min_delta: 0.00001
+    patience: 50
+    batch_size: 264 #64
+
+
+probability_map_args:
+  drop_uncertain_params: true
+
+forward_evaluation_surrogate: False

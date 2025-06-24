@@ -9,6 +9,8 @@ from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
 from functools import partial
 import logging
 import jax.numpy as jnp
+import numpy as np
+import pandas as pd
 
 def case_study_constructor(cfg):
     """
@@ -29,14 +31,17 @@ def case_study_constructor(cfg):
     # Create a graph constructor object
     G = graph_constructor(cfg, cfg.case_study.adjacency_matrix)
 
+    # construct dummy dataframe for initial forward pass
+    init_df_samples = pd.DataFrame({col: np.zeros((2,)) for i,col in enumerate(cfg.case_study.design_space_dimensions)})
+
     # Call the case_study_allocation function
-    G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers=solver_constructor(cfg, G), unit_params_fn=unit_params_fn(cfg, G))
+    G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers=solver_constructor(cfg, G), unit_params_fn=unit_params_fn(cfg, G), initial_forward_pass=init_df_samples)
 
     return G.get_graph()
 
 
 
-def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers, unit_params_fn):
+def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers, unit_params_fn, initial_forward_pass):
     """
     Add miscellaneous information to the graph
     :param G: The graph constructor
@@ -62,7 +67,9 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     G.add_arg_to_nodes('forward_coupling_solver', solvers['forward_coupling_solver'])
     G.add_arg_to_nodes('backward_coupling_solver', solvers['backward_coupling_solver'])
     if cfg.method != 'decomposition_constraint_tuner':
-        G.add_arg_to_nodes('constraint_backoff', [0 for _ in range(len(cfg.case_study.adjacency_matrix))])
+        b_off = [0 for _ in range(len(cfg.case_study.adjacency_matrix))]
+        G.add_arg_to_nodes('constraint_backoff', b_off)
+
 
 
     # add miscellaneous information to the graph
@@ -73,6 +80,7 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     # add the args to the graph 
     G.add_arg_to_graph('aux_bounds', cfg.case_study.KS_bounds.aux_args)
     G.add_arg_to_graph('n_aux_args', cfg.case_study.global_n_aux_args)
+    G.add_arg_to_graph('initial_forward_pass', initial_forward_pass)
 
     # add edge properties to the graph
     G.add_arg_to_edges('edge_fn', dict_of_edge_fn)
@@ -93,9 +101,7 @@ def unit_params_fn(cfg, G):
         return {node: partial(arrhenius_kinetics_fn_2,Ea=jnp.array(cfg.model.arrhenius.EA[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
     elif cfg.case_study.case_study == 'serial_mechanism_batch':
         return {node: partial(arrhenius_kinetics_fn,Ea=jnp.array(cfg.model.arrhenius.EA[node]), A=jnp.array(cfg.model.arrhenius.A[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
-    elif cfg.case_study.case_study == 'tablet_press':
-        return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
-    elif cfg.case_study.case_study == 'convex_estimator':
+    elif cfg.case_study.case_study in ['tablet_press', 'convex_estimator', 'estimator', 'convex_underestimator', 'affine_study']:
         return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
     else :
         raise ValueError('Invalid case study')

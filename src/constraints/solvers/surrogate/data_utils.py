@@ -41,7 +41,14 @@ def binary_classifier_data_preparation(
 ):
     # access historical support and function values
 
-    data = graph.nodes[unit_index]["classifier_training"]
+    if type(unit_index) is int:
+        # if unit_index is an integer, we are dealing with a single unit
+        assert unit_index in graph.nodes, f"Unit index {unit_index} not found in graph nodes."
+        data = graph.nodes[unit_index]["classifier_training"]
+    else:
+        # if unit index is None, then we are looking at training a classifier to parameterise the centralised DS
+        data = graph.graph["classifier_training"]
+        
     support = data.X
     labels = data.y
     

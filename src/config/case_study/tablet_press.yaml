@@ -94,25 +94,29 @@ extendedDS_bounds: [None, None, None]
 
 global_n_aux_args: 0
 
-design_space_dimensions: 
-- 'U1: API (kg/h)'
-- 'U1: Exc. (kg/h)'
-- 'U1: Blade speed (RPM)'
-- 'U2: Lubricant (kg/h)'
-- 'U2: Blade speed (RPM)'
-- 'U3: P.C.P. (MPa)'
-- 'U3: M.C.P. (MPa)'
-
-
-process_space_names: # create unit wise list
-  - ['U1: API (kg/h)', 'U1: Exc. (kg/h)', 'U1: Blade speed (RPM)']
-  - ['U2: Lubricant (kg/h)', 'U2: Blade speed (RPM)', 'U1: API (kg/h)', 'U1: Exc. (kg/h)']
-  - ['U3: P.C.P. (MPa)', 'U3: M.C.P. (MPa)', 'Porosity']
-
+design_space_dimensions:
+  - 'N1: P1' #'U1: API (kg/h)'
+  - 'N1: P2' #'U1: Exc. (kg/h)'
+  - 'N1: P3' #'U1: Blade speed (RPM)'
+  - 'N2: P1' # 'U2: Lubricant (kg/h)'
+  - 'N2: P2' #'U2: Blade speed (RPM)'
+  - 'N3: P1' #'U3: P.C.P. (MPa)'
+  - 'N3: P2' # 'U3: M.C.P. (MPa)'
+process_space_names:
+  - - 'N1: P1' # 'U1: API (kg/h)'
+    - 'N1: P2' # 'U1: Exc. (kg/h)'
+    - 'N1: P3' # 'U1: Blade speed (RPM)'
+  - - 'N2: P1' # 'U2: Lubricant (kg/h)'
+    - 'N2: P2' #'U2: Blade speed (RPM)'
+    - 'U1: API (kg/h)'
+    - 'U1: Exc. (kg/h)'
+  - - 'N3: P1' #'U3: P.C.P. (MPa)'
+    - 'N3: P2' # 'U3: M.C.P. (MPa)'
+    - Porosity
 
 
 mode:
-  - forward 
+  - backward 
   #- backward-forward
   
 

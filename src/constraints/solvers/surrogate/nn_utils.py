@@ -93,7 +93,12 @@ def check_dims(D):
 
 def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng_key: random.PRNGKey=jax.random.PRNGKey(0)): 
     # Define the hyperparameters to search over
-    surrogate_cfg = cfg.surrogate.surrogate_forward.ann
+    if model_type == 'regressor':
+        surrogate_cfg = cfg.surrogate.surrogate_forward.ann
+    elif model_type == 'classifier':
+        surrogate_cfg = cfg.surrogate.classifier_args.ann
+    else:
+        raise NotImplementedError(f"Model type {model_type} not implemented")
     hidden_sizes = surrogate_cfg.hidden_size_options
     afs = surrogate_cfg.activation_functions
 

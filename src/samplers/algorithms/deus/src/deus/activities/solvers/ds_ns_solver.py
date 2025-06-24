@@ -295,7 +295,7 @@ class DesignSpaceSolverUsingNS(Subject):
             self.obtain_worst_phi()
             self.print_progress_summary()
 
-            if (self.frac_live_inside_target_pds == 1.0) or (self.frac_live_inside_target_pds == 0.0):
+            if (self.frac_live_inside_target_pds == 1.0)  or (self.frac_live_inside_target_pds == 0.0):
                 print("Phase PROBABILISTIC is over.")
                 self.status = "FINISHED"
                 self.collect_output()

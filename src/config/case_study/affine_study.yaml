@@ -1,0 +1,161 @@
+case_study: affine_study
+
+vmap_evaluations: True
+
+adjacency_matrix:
+  - [0, 0, 1, 0, 0]
+  - [0, 0, 1, 0, 0]
+  - [0, 0, 0, 1, 1]
+  - [0, 0, 0, 0, 0]
+  - [0, 0, 0, 0, 0]
+
+n_design_args:
+  - 2
+  - 2
+  - 2
+  - 2
+  - 2
+  
+
+n_aux_args:
+  # auxiliary arguments per edge
+  (0,2): 0
+  (1,2): 0
+  (2,3): 0
+  (2,4): 0
+
+  # auxiliary arguments per node
+  node_0: 0
+  node_1: 0
+  node_2: 0
+  node_3: 0
+  node_4: 0
+  node_5: 0
+
+n_input_args:
+  (0,2): 1
+  (1,2): 1
+  (2,3): 1
+  (2,4): 1
+  
+
+KS_bounds:  
+  design_args:
+  # unit, arg, bounds
+    - - - -1
+        - 1
+      - - -1
+        - 1
+    - - - -1
+        - 1
+      - - -1
+        - 1
+    - - - -1
+        - 1
+      - - -1
+        - 1
+    - - - -1
+        - 1
+      - - -1
+        - 1
+    - - - -1
+        - 1
+      - - -1
+        - 1
+  aux_args:
+  # global_auxiliary_args
+    - - - None
+        - None
+    - - - None
+        - None
+    - - - None
+        - None
+    - - - None
+        - None
+    - - - None
+        - None
+
+
+
+fn_evals: 
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+
+unit_op:
+  - 'steady_state'
+  - 'steady_state'
+  - 'steady_state'
+  - 'steady_state'
+  - 'steady_state'
+
+unit_params_fn:
+  - None
+  - None
+  - None
+  - None
+  - None
+
+n_theta:
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+
+
+
+parameters_samples: # list of list of dicts [node][[{c: [param], w: [param_weight in posteiror distribution]}]]  #  q = multivariate_normal([6.66e-06, 0.0010335], [[0.00001e-06, 0.000001e-08],[0.000001e-08, 0.0000005]])
+  - [{'c': [0.], 'w': 1.},{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.},{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.},{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.},{'c': [0.], 'w': 1.}]
+  - [{'c': [0.], 'w': 1.},{'c': [0.], 'w': 1.}]
+
+
+parameters_best_estimate: # list of lists [node][[param1]] most likely estimate
+  - [0.]
+  - [0.]
+  - [0.]
+  - [0.]
+  - [0.]
+
+
+extendedDS_bounds: [None, None, None, None, None]
+
+
+design_space_dimensions:
+- 'N1: P1'
+- 'N1: P2'
+- 'N2: P1'
+- 'N2: P2'
+- 'N3: P1'
+- 'N3: P2'
+- 'N4: P1'
+- 'N4: P2'
+- 'N5: P1'
+- 'N5: P2'
+
+
+global_n_aux_args: 0
+
+process_space_names:
+  - ['N1: P1', 'N1: P2']
+  - ['N2: P1', 'N2: P2']
+  - ['N3: P1', 'N3: P2']
+  - ['N4: P1', 'N4: P2']
+  - ['N5: P1', 'N5: P2']
+
+
+mode:
+  - backward
+  #- backward-forward
+  #- backward-forward
+  #- forward
+  #- forward-backward
+  #- 'forward-backward'
+
+
+evaluation_mode: 'jax-pmap' #serial

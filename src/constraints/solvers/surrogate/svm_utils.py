@@ -48,7 +48,7 @@ def train(cfg, dataset, num_folds, unit_index, iterate):
     )
 
     if classifier is not None:
-        args = convert_svm_to_jax(classifier.best_estimator_)
+        _, args, model_data = convert_svm_to_jax(classifier.best_estimator_)
     else:
         if jnp.all(labels == -1):
             classifier = all_feasible
@@ -56,7 +56,7 @@ def train(cfg, dataset, num_folds, unit_index, iterate):
             classifier = no_feasible
         args = (classifier, classifier, None)
 
-    return classifier, args
+    return classifier, args, model_data
 
 
 def compute_best_svm_classifier(
@@ -146,8 +146,15 @@ def convert_svm_to_jax(pipeline):
         x = x.reshape(1, -1)
         decision = jnp.dot(coefficients, rbf_kernel(support_vectors, x,epsilon=kernel_param)) + intercept
         return decision.squeeze()
+    
+    model_data = {'standardisation_metrics_input': standardisation_metrics(mean=x_mean, std=x_std), 
+                  'serialized_params': {'support_vectors': support_vectors,
+                                        'coefficients': coefficients,
+                                        'intercept': intercept,
+                                        'kernel_param': kernel_param}}
 
-    return (svm_standardised, svm_unstandardised, standardisation_metrics(mean=x_mean, std=x_std))
+
+    return svm_model, (svm_standardised, svm_unstandardised, standardisation_metrics(mean=x_mean, std=x_std)), model_data
 
 
 

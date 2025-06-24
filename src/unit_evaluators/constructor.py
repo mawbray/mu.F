@@ -359,7 +359,9 @@ class network_simulator(ABC):
             outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, u_p)
             
             for successor in self.graph.successors(node):
-                self.graph.edges[node, successor]['input_data_store'] = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))
+                edge_data = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))
+                if edge_data.ndim==2: edge_data = jnp.expand_dims(edge_data, axis=-1)
+                self.graph.edges[node, successor]['input_data_store'] = edge_data
 
             node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
 

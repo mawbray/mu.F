@@ -18,7 +18,7 @@ evaluation_mode:
 
 forward_coupling_solver: general_constrained_nlp
 backward_coupling_solver: box_constrained_nlp
-
+forward_general_constraints: True
 
 forward_coupling:
   parallelised: true

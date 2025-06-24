@@ -57,7 +57,6 @@ unit_3_args:
   critical_density: 0.99 # 0.01
   hardness_zero_porosity: 5 # NOTE can change
 
-
 node_aux: 
   - None
   - None

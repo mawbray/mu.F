@@ -1,0 +1,404 @@
+case_study:
+  case_study: convex_estimator
+  vmap_evaluations: true
+  adjacency_matrix:
+  - - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+  - - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+  - - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+  - - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+  - - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+  - - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+  n_design_args:
+  - 1
+  - 2
+  - 2
+  - 2
+  - 3
+  - 0
+  n_aux_args:
+    (0,5): 2
+    (2,5): 2
+    (3,5): 2
+    (4,5): 2
+    (1,5): 2
+    node_0: 2
+    node_1: 2
+    node_2: 2
+    node_3: 2
+    node_4: 2
+    node_5: 2
+  n_input_args:
+    (0,5): 1
+    (2,5): 1
+    (3,5): 1
+    (4,5): 1
+    (1,5): 1
+  KS_bounds:
+    design_args:
+    - - - -1
+        - 1
+    - - - 0
+        - 1
+      - - 0
+        - 1
+    - - - 0
+        - 1
+      - - 0
+        - 1
+    - - - -1
+        - 1
+      - - -1
+        - 1
+    - - - -1
+        - 1
+      - - -1
+        - 1
+      - - -1
+        - 1
+    - - - None
+        - None
+    aux_args:
+    - - - 0.1
+        - 1
+    - - - 0.1
+        - 1
+  fn_evals:
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  unit_op:
+  - steady_state
+  - steady_state
+  - steady_state
+  - steady_state
+  - steady_state
+  - steady_state
+  unit_params_fn:
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  n_theta:
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  parameters_samples:
+  - - c:
+      - 0.0
+      w: 1.0
+    - c:
+      - 0.0
+      w: 1.0
+  - - c:
+      - 0.0
+      w: 1.0
+    - c:
+      - 0.0
+      w: 1.0
+  - - c:
+      - 0.0
+      w: 1.0
+    - c:
+      - 0.0
+      w: 1.0
+  - - c:
+      - 0.0
+      w: 1.0
+    - c:
+      - 0.0
+      w: 1.0
+  - - c:
+      - 0.0
+      w: 1.0
+    - c:
+      - 0.0
+      w: 1.0
+  - - c:
+      - 0.0
+      w: 1.0
+    - c:
+      - 0.0
+      w: 1.0
+  parameters_best_estimate:
+  - - 0.0
+  - - 0.0
+  - - 0.0
+  - - 0.0
+  - - 0.0
+  - - 0.0
+  - - 0.0
+  extendedDS_bounds:
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  design_space_dimensions:
+  - 'N1: P1'
+  - 'N2: P1'
+  - 'N2: P2'
+  - 'N3: P1'
+  - 'N3: P2'
+  - 'N4: P1'
+  - 'N4: P2'
+  - 'N5: P1'
+  - 'N5: P2'
+  - 'N5: P3'
+  - 'N5: GAux 1'
+  - 'N5: GAux 2'
+  global_n_aux_args: 2
+  process_space_names:
+  - - 'N1: P1'
+    - 'G: Aux 1'
+    - 'G: Aux 2'
+  - - 'N2: P1'
+    - 'N2: P2'
+    - 'G: Aux 1'
+    - 'G: Aux 2'
+  - - 'N3: P1'
+    - 'N3: P2'
+    - 'G: Aux 1'
+    - 'G: Aux 2'
+  - - 'N4: P1'
+    - 'N4: P2'
+    - 'G: Aux 1'
+    - 'G: Aux 2'
+  - - 'N5: P1'
+    - 'N5: P2'
+    - 'N5: P3'
+    - 'G: Aux 1'
+    - 'G: Aux 2'
+  - - I1
+    - I2
+    - I3
+    - I4
+    - I5
+    - 'N5: GAux 1'
+    - 'N5: GAux 2'
+  mode:
+  - backward
+  evaluation_mode: jax-pmap
+model:
+  arrhenius:
+    EA:
+    - - 1500.2
+      - 5000.1
+    - - 2500.2
+      - 5000.1
+    A:
+    - - 1.66e-07
+      - 0.00050335
+    - - 9.66e-06
+      - 0.0050335
+    R: 8.314
+  root_node_inputs:
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
+  constraint:
+    estimation_bound: 0.001
+    auxiliary: global
+  integration:
+    scheme: tsit5
+    step_size_controller: pid
+    t0: 0
+    tf: 1
+    dt0: 0.1
+    max_steps: 10000
+surrogate:
+  surrogate_forward:
+    drop_uncertain_params: false
+    ann:
+      hidden_size_options:
+      - - 50
+        - 25
+      - - 50
+        - 50
+      - - 25
+        - 10
+      activation_functions:
+      - - tanh
+        - tanh
+      decaying_lr_and_clip_param: true
+      learning_rate: 0.01
+      terminal_lr: 1.0e-05
+      num_epochs: 1000
+      min_delta: 1.0e-05
+      patience: 50
+      batch_size: 264
+    gp:
+      kernel: Matern
+      n_restarts_optimizer: 10
+      alpha: 0.1
+      normalize_y: true
+      noise: gaussian
+  classifier: true
+  classifier_selection: ANN
+  probability_map: false
+  index_on: 1
+  subsample_size: 10000000
+  num_folds: 2
+  classifier_args:
+    standardised: true
+    drop_uncertain_params: true
+    svm:
+      kernel:
+      - rbf
+      C:
+      - 10
+      - 5
+      gamma:
+      - 10
+      - 4
+      - 0.2
+      - 1
+      - 0.5
+      probability:
+      - false
+    ann:
+      hidden_size_options:
+      - - 50
+        - 25
+      activation_functions:
+      - - tanh
+        - tanh
+      decaying_lr_and_clip_param: true
+      learning_rate: 0.01
+      terminal_lr: 1.0e-05
+      num_epochs: 1000
+      min_delta: 1.0e-05
+      patience: 50
+      batch_size: 264
+  probability_map_args:
+    drop_uncertain_params: true
+  forward_evaluation_surrogate: false
+solvers:
+  penalty_method_coupler:
+    n_starts: 4
+    n_iterates: 7
+    mu_increment: 2.5
+    mu_og: 2.5
+    ftol0: 0.001
+    ftol_increment: 0.01
+    augmented_grad_tol: 0.01
+    augmented_constr_tol: 0.01
+    ftol_min: 1.0e-05
+    augmented_obj_tol: 0.001
+  evaluation_mode:
+    forward: ray
+    backward: jax-pmap
+  forward_coupling_solver: general_constrained_nlp
+  backward_coupling_solver: box_constrained_nlp
+  forward_coupling:
+    max_solution_time: 1.0
+    parallelised: true
+    n_starts: 4
+    casadi_ipopt_options:
+      maxiter: 500
+      verbose: false
+      tol: 1.0e-06
+      options:
+        verbose: 0
+        maxiter: 1000
+        disp: false
+    jax_opt_options:
+      n_starts: 4
+      n_iterates: 7
+      mu_increment: 2.5
+      mu_og: 2.5
+      ftol0: 0.001
+      ftol_increment: 0.01
+      augmented_grad_tol: 0.01
+      augmented_constr_tol: 0.01
+      ftol_min: 1.0e-05
+      augmented_obj_tol: 0.001
+  standardised: true
+  backward_coupling:
+    n_starts: 4
+    jax_opt_options:
+      error_tol: 1.0e-06
+      ftol0: 0.001
+      ftol_increment: 0.01
+      augmented_grad_tol: 0.01
+      augmented_constr_tol: 0.01
+      ftol_min: 1.0e-05
+      augmented_obj_tol: 0.001
+samplers:
+  target_reliability: 1.0
+  unit_wise_target_reliability:
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  deus:
+    activity_type: dsc
+  notion_of_feasibility: positive
+  ku_approximation: box
+  vol_scale: 0.01
+  ns:
+    n_live: 3000
+    final_sample_live: 6000
+    n_replacements: 100
+    n_iter: 15000
+    f0: 0.1
+    alpha: 0.2
+    prior: Uniform
+    rejector: suob-ellipsoid
+reconstruction:
+  reconstruct:
+  - true
+  plot_reconstruction: nominal_map
+  reconstruction_scheme: uniform
+init:
+  sobol_samples: 512
+graph: {}
+max_devices: 10
+formulation: deterministic
+method: direct
+max_uncertain_samples: 50

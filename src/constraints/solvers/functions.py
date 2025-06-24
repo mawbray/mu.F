@@ -75,6 +75,56 @@ def get_session():
     return tf.Session()
 
 
+def casadi_nlp_optimizer_no_gcons(objective, bounds, initial_guess):
+    """
+    objective: casadi callback
+    equality_constraints: casadi callback
+    bounds: list
+    initial_guess: numpy array
+    Operates in a session via the casadi callbacks and tensorflow V1
+    """
+    n_d = len(bounds[0].squeeze())
+    lb = [bounds[0].squeeze()[i] for i in range(n_d)]
+    ub = [bounds[1].squeeze()[i] for i in range(n_d)]
+    #tf.keras.backend.clear_session()
+    tf.reset_default_graph()
+    session = tf.Session()
+
+    with session: 
+        # Get the casadi callbacks required 
+        cost_fn   = casadify(objective, n_d, session)
+
+        # casadi work up
+        x = MX.sym('x', n_d,1)
+        j = cost_fn(x)
+
+
+        F = Function('F', [x], [j])
+
+
+        # Define the box bounds
+        lbx = lb
+        ubx = ub
+
+        # Define the NLP
+        nlp = {'x':x , 'f':F(x)}
+
+        # Define the IPOPT solver
+        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':0, 'print_time':0, 'ipopt.max_iter': 150} # , 
+      
+        solver = nlpsol('solver', 'ipopt', nlp, options)
+
+        # Solve the NLP
+        solution = solver(x0=np.hstack(initial_guess), lbx=lbx, ubx=ubx)
+  
+    session.close()
+    
+    del session, cost_fn, nlp, F, x, j, lbx, ubx, options
+    
+      
+    return solver, solution
+
+
 def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initial_guess, lhs, rhs):
     """
     objective: casadi callback
@@ -116,7 +166,7 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         nlp = {'x':x , 'f':F(x), 'g': G(x)}
 
         # Define the IPOPT solver
-        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':0, 'print_time':0, 'ipopt.max_iter': 150} # , 
+        options = {"ipopt": {"hessian_approximation": "limited-memory"}, 'ipopt.print_level':1, 'print_time':0, 'ipopt.max_iter': 150} # , 
       
         solver = nlpsol('solver', 'ipopt', nlp, options)
 
@@ -192,7 +242,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
                             model_type=cons_data['model_type'],
                             model_surrogate=cons_data['model_surrogate'])
       if problem_data['uncertain_params'] == None:
-        g_fn[i] = partial(lambda x, v : fn(x.reshape(1,-1)[:,v]).reshape(-1,1), v = cons_data['args'])
+        g_fn[i] = partial(cons_data['g_fn'], fn = fn)
       else:
          raise NotImplementedError("Uncertain parameters not yet implemented for inequality constraints")
     
@@ -216,7 +266,10 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     # store for solutions
     solutions = []
     for i in range(n_starts):
-        solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, constraints, bounds, np.array(initial_guess[i,:]).squeeze(), lhs, rhs)
+        if len(g_fn) >0:
+          solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, constraints, bounds, np.array(initial_guess[i,:]).squeeze(), lhs, rhs)
+        else: 
+          solver, solution = casadi_nlp_optimizer_no_gcons(objective_func, bounds, np.array(initial_guess[i,:]).squeeze())
         if solver.stats()['success']:
           solutions.append((solver, solution))
           if np.array(solution['f']) <= 0: break

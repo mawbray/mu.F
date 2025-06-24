@@ -74,7 +74,11 @@ class trainer(trainer_base):
 
 
     def train(self, node=None) -> jnp.ndarray:
-        dataset = self.get_data(successor_node=node)
+        if node is None:
+            dataset = self.get_data
+        else:
+            dataset = self.get_data(successor_node=node)
+
         self.load_trainer_methods()
         model, args, serialised_data = self.trainer(self.cfg, dataset, self.cfg.surrogate.num_folds) 
 

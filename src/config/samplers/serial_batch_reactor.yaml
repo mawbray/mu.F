@@ -1,16 +1,16 @@
 
 target_reliability: 1.
-unit_wise_target_reliability: [0.5, 0.5]
+unit_wise_target_reliability: [1., 1.]
 deus: 
   activity_type: 'dsc'
 
 notion_of_feasibility: 'positive'
 ku_approximation: 'box'
-vol_scale: 0.0001
+vol_scale: 0.1
 
 ns:
   n_live: 2000
-  final_sample_live: 4000  
+  final_sample_live: 3500  
   n_replacements: 50
   n_iter: 15000 
   f0: 0.3
@@ -22,7 +22,7 @@ ns:
 
 bo:
   bounds: 
-    max: 0.5
+    max: 1
     min: 0
   num_initial_points: 3
   num_iterations: 7 # subsequent to initial samples

@@ -3,7 +3,7 @@ from functools import partial
 import jax.numpy as jnp
 from jax import vmap, jit
 
-from constraints.evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator, forward_root_constraint_decentralised_evaluator
+from constraints.evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator, backward_constraint_evaluator_general, forward_root_constraint_decentralised_evaluator
 
 class constraint_evaluator(ABC):
     def __init__(self, cfg, graph, node, pool=None, constraint_type='process'):
@@ -21,8 +21,12 @@ class constraint_evaluator(ABC):
             self.constraint_evaluator = forward_constraint_decentralised_evaluator(cfg, graph, node, pool)
             self.evaluate = self.evaluate_coupling
         elif constraint_type == 'backward':
-            self.constraint_evaluator = partial(backward_constraint_evaluator, cfg=cfg, graph=graph, node=node, pool=pool)
-            self.evaluate = self.evaluate_coupling
+            if (len([prec for succ in self.graph.successors(node) for prec in self.graph.predecessors(succ) if prec > node])>0) and False:
+                self.constraint_evaluator = backward_constraint_evaluator_general(cfg, graph, node, cfg.solvers.evaluation_mode.forward) # use forward constraint pool in the general case/
+                self.evaluate = self.evaluate_coupling
+            else:
+                self.constraint_evaluator = partial(backward_constraint_evaluator, cfg=cfg, graph=graph, node=node, pool=pool)
+                self.evaluate = self.evaluate_coupling
         elif constraint_type == 'root_node_decentralized':
             self.constraint_evaluator = forward_root_constraint_decentralised_evaluator(cfg, graph, node, pool)
             self.evaluate = self.evaluate_coupling

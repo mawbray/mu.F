@@ -118,7 +118,7 @@ class data_processing(ABC):
             if feasible_indices is not None:
                 (d, p, y), fe_ind = data_zip
             else:
-                d, p, y = data_zip
+                d, p, y = data_zip[0]
             # preparation
             X, Y, Z = [], [], []
             if p.ndim<2: p=p.reshape(1,-1)
