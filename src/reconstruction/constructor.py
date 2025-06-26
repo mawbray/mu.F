@@ -23,13 +23,20 @@ class reconstruct_base(ABC):
 
 
 class reconstruction(reconstruct_base):
-    def __init__(self, cfg, graph, model):
+    def __init__(self, cfg, graph, model, iterate):
         self.cfg = cfg
         self.graph = graph
         self.model = model
         self.live_sets_nd_proj = construct_cartesian_product_of_live_sets(graph)
         self.ls_holder = live_set(cfg, cfg.samplers.notion_of_feasibility)
         self.feasible = False
+        self.post_process_bool = cfg.reconstruct.post_process[iterate]
+        if self.post_process_bool:
+            self.post_process = self.graph.graph['post_process']
+            assert hasattr(self.post_process, 'run')
+            self.post_process.load_training_methods(self.graph.graph["post_process_training_methods"])
+            self.post_process.load_solver_methods(self.graph.graph["post_process_solver_methods"])
+
 
     def update_live_set(self, candidates, constraint_vals):
         """
@@ -59,8 +66,6 @@ class reconstruction(reconstruct_base):
         # get the livesets
         feasible = False
         ls_holder = self.ls_holder
-
-
         uncertain_params = self.get_uncertain_params()
 
         while not feasible:
@@ -73,6 +78,12 @@ class reconstruction(reconstruct_base):
             feasible = self.update_live_set(candidates, constraint_vals)
 
         joint_live_set, joint_live_set_prob = ls_holder.get_live_set()
+
+        # if post process is defined, run it
+        if self.post_process_bool:
+            # NOTE currently no uncertain parameters are passed to the post process
+            self.post_process.sampler = self.sample_live_sets
+            self.post_process.run(joint_live_set, self.model)
         
 
         return joint_live_set, joint_live_set_prob

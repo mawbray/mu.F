@@ -4,6 +4,8 @@ from constraints.functions import CS_holder
 from graph.graph_assembly import graph_constructor
 from graph.methods import CS_edge_holder, vmap_CS_edge_holder
 from constraints.solvers.constructor import solver_construction
+from constraints.solvers.surrogate.surrogate import surrogate
+from post_processes.constructor import post_process
 from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
 
 from functools import partial
@@ -81,6 +83,12 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     G.add_arg_to_graph('aux_bounds', cfg.case_study.KS_bounds.aux_args)
     G.add_arg_to_graph('n_aux_args', cfg.case_study.global_n_aux_args)
     G.add_arg_to_graph('initial_forward_pass', initial_forward_pass)
+    # post processing
+    G.add_arg_to_graph('post_process', post_process)
+    G.add_arg_to_graph('post_process_training_methods', surrogate)
+    G.add_arg_to_graph('post_process_solver_methods', solver_construction)
+
+
 
     # add edge properties to the graph
     G.add_arg_to_edges('edge_fn', dict_of_edge_fn)

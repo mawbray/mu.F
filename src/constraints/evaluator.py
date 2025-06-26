@@ -569,7 +569,8 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
                 if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ)
                 decision_bounds = [jnp.delete(bound, np.hstack([edge_input_specific_indices,aux_indices]).astype(int), axis=1) for bound in decision_bounds]
 
-                # --- equality constraints reduced into objective using output data  --- #
+                # --- equality constraints 
+                # reduced into objective using output data  --- #
                 problem_data[succ][p]['eq_rhs'] = jnp.empty((0,1))
                 problem_data[succ][p]['eq_lhs'] = jnp.empty((0,1))
                 n_d_k = self.graph.nodes[succ]['n_design_args'] + sum([self.graph.edges[n,succ]['n_input_args'] for n in self.graph.predecessors(succ) if n!=self.node]) + self.graph.graph['n_aux_args']    
@@ -978,6 +979,7 @@ def prepare_backward_problem(outputs, graph, node, cfg):
         n_d  = graph.nodes[succ]['n_design_args']
         input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices']]))
         aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices']]))
+    
         
         # standardisation of outputs if required
         if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ], succ, jnp.hstack([input_indices, aux_indices]).astype(int)))
@@ -985,16 +987,16 @@ def prepare_backward_problem(outputs, graph, node, cfg):
         # load the standardised bounds
         decision_bounds = graph.nodes[succ]["extendedDS_bounds"].copy()
         ndim = graph.nodes[succ]['n_design_args'] + graph.nodes[succ]['n_input_args'] + graph.graph['n_aux_args']
-        
+        decision_indices = jnp.delete(jnp.arange(ndim), np.hstack([input_indices, aux_indices]).astype(int))  # indices of the decision variables
         # get the decision bounds
-        if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ)
+        if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ, decision_indices)
         
         decision_bounds = [jnp.delete(bound, np.hstack([input_indices,aux_indices]).astype(int), axis=1) for bound in decision_bounds]
         backward_bounds[succ] = [decision_bounds.copy() for i in range(succ_inputs[succ].shape[0])]
 
         # load the forward objective
         classifier = graph.nodes[succ]["classifier"]
-        wrapper_classifier = mask_classifier(classifier, n_d, ndim, input_indices, aux_indices)
+        wrapper_classifier = mask_classifier(classifier, ndim, input_indices, aux_indices)
         backward_objective[succ] = [jit(partial(lambda x,y: wrapper_classifier(x,y).squeeze(), y=succ_inputs[succ][i].reshape(1,-1))) for i in range(succ_inputs[succ].shape[0])]
 
     
@@ -1003,23 +1005,99 @@ def prepare_backward_problem(outputs, graph, node, cfg):
     return backward_objective, backward_bounds
 
 
+# TODO make sure that notation is consistent with the rest of the codebase
+
+def prepare_global_problem(inputs, aux, graph, cfg):
+    """
+    Prepares the global problem defined for handling nuisance parameters in the reconstruction 
+        - loads the objective function and bounds from the graph by
+            1: loads the classifier from the graph 
+            2: loads the bounds from the graph
+            3: loads the fixed indices from the graph
+            4: standardises the inputs and decisions if required
+            5: masks the classifier to only use the decision variables
+            6: prepares the global problem for the solver
+    """
+    n_d = graph.graph['n_design_args']
+    n_aux = graph.graph['n_aux_args']
+
+    # get the fixed indices and auxiliary indices
+    dec_ind = np.array(graph.graph['post_process_decision_indices'])
+    total_ind = np.arange(n_d + n_aux)
+    fix_ind = np.delete(total_ind, dec_ind).astype(int)  # indices of the fixed decision variables
+
+    # introduce bounds 
+    bounds = [graph.graph['DS_bounds'][0],  jnp.delete(graph.graph['DS_bounds'][1], np.hstack([fix_ind]).astype(int), axis=1)]
+
+    # standardise the inputs and decisions if required
+    if cfg.solvers.standardised:
+        inputs = standardise_inputs(graph, inputs, None, jnp.hstack([fix_ind]).astype(int))
+        bounds = standardise_model_decisions(graph, bounds, None)
+
+    # mask the classifier to only use the decision variables
+    classifier = mask_classifier(graph.graph['post_process_classifier'], inputs.shape[1], fix_ind, jnp.empty((0,)).astype(int))
+
+    # prepare the objective function
+    objective_func = partial(lambda x, y: classifier(x, y).squeeze(), y=inputs.reshape(1,-1))
+
+    # prepare the bounds
+    bounds = [jnp.delete(bounds[0], np.hstack([fix_ind]).astype(int), axis=1),
+              jnp.delete(bounds[1], np.hstack([fix_ind]).astype(int), axis=1)]
+
+
+    return objective_func, bounds
+
+
+
 def evaluate(outputs, aux, graph, node, cfg):
     """
-    Evaluates the constraints
+    Evaluates the constraints.
+    Handles both graph-wide and node-local (backward) problems.
+    Amenable to jax pmap by using jax.lax.cond for control flow.
     """
+
     evaluate_method = solve
-    objective, bounds = prepare_backward_problem(outputs, graph, node, cfg)
-    succ_fn_evaluations = {}
-    # iterate over successors and evaluate the constraints
-    for succ in graph.successors(node):
-        backward_solver = [construct_solver(objective[succ][i], bounds[succ][i], tol=cfg.solvers.backward_coupling.jax_opt_options.error_tol) for i in range(outputs.shape[0])] # uncertainty realizations evaluated serially
-        initial_guesses = [initial_guess(cfg.solvers.backward_coupling, bounds[succ][i]) for i in range(outputs.shape[0])]
-        succ_fn_evaluations[succ] = evaluate_method(backward_solver, initial_guesses)
 
-    # reshape the evaluations
-    fn_evaluations = [succ_fn_evaluations[succ]['objective'].reshape(-1,1) for succ in graph.successors(node)] # TODO make sure this is compatible with format returned by solver
+    def graph_wide_branch(args):
+        outputs, aux, graph, node, cfg = args
+        if hasattr(graph, "prepare_global_problem"):
+            objective, bounds = prepare_global_problem(outputs, aux, cfg)
+        else:
+            raise NotImplementedError("Graph-wide problem preparation not implemented.")
+        solver = construct_solver(objective, bounds, tol=cfg.solvers.post.jax_opt_options.error_tol)
+        initial_guesses = initial_guess(cfg.solvers.backward_coupling, bounds)
+        result = evaluate_method([solver], [initial_guesses])
+        fn_evaluations = result['objective'].reshape(-1, 1)
+        return shaping_function(fn_evaluations, cfg)
 
-    return shaping_function(jnp.hstack(fn_evaluations), cfg)
+    def node_local_branch(args):
+        outputs, aux, graph, node, cfg = args
+        # note that auxiliary variables are assumed global and propagated through the graph constituent functions
+        objective, bounds = prepare_backward_problem(outputs, graph, node, cfg)
+        succ_fn_evaluations = {}
+        for succ in graph.successors(node):
+            backward_solver = [
+                construct_solver(objective[succ][i], bounds[succ][i], tol=cfg.solvers.backward_coupling.jax_opt_options.error_tol)
+                for i in range(outputs.shape[0])
+            ]
+            initial_guesses = [
+                initial_guess(cfg.solvers.backward_coupling, bounds[succ][i])
+                for i in range(outputs.shape[0])
+            ]
+            succ_fn_evaluations[succ] = evaluate_method(backward_solver, initial_guesses)
+        fn_evaluations = [
+            succ_fn_evaluations[succ]['objective'].reshape(-1, 1)
+            for succ in graph.successors(node)
+        ]
+        return shaping_function(jnp.hstack(fn_evaluations), cfg)
+
+    is_graph_wide = graph.graph.get("solve_post_processing_problem", False)
+    return lax.cond(
+        is_graph_wide,
+        graph_wide_branch,
+        node_local_branch,
+        (outputs, aux, graph, node, cfg)
+    )
 
 def construct_input(x, y, fix_ind, aux_ind, ndim):
     # Initialize input_ with zeros or any placeholder value
@@ -1039,12 +1117,12 @@ def construct_input(x, y, fix_ind, aux_ind, ndim):
     return input_
 
 
-def mask_classifier(classifier, nd, ndim, fix_ind, aux_ind):
+def mask_classifier(classifier, ndim, fix_ind, aux_ind):
     """
     Masks the classifier
     - y corresponds to those indices that are fixed
     - x corresponds to those indices that are optimised
-    # NOTE this is not general to nodes with more than two in-neighbours
+    
     """
 
     def masked_classifier(x, y):
@@ -1057,21 +1135,29 @@ def standardise_inputs(graph, succ_inputs, out_node, input_indices):
     """
     Standardises the inputs
     """
-    standardiser = graph.nodes[out_node]['classifier_x_scalar']
+    if out_node is not None:
+        standardiser = graph.nodes[out_node]['classifier_x_scalar']
+    else:
+        standardiser = graph.graph['classifier_x_scalar']
+
     if standardiser is None: return succ_inputs
     else:
         mean, std = standardiser.mean, standardiser.std
         return (succ_inputs - mean[input_indices].reshape(1,-1)) / std[input_indices].reshape(1,-1)
 
+
 def standardise_model_decisions(graph, decisions, out_node):
     """
     Standardises the decisions
     """
-    standardiser = graph.nodes[out_node]['classifier_x_scalar']
+    if out_node is None:
+        standardiser = graph.graph['classifier_x_scalar']
+    else:
+        standardiser = graph.nodes[out_node]['classifier_x_scalar']
     if standardiser is None: return decisions
     else:
         mean, std = standardiser.mean, standardiser.std
-        return [(decision - mean[:]) / std[:] for decision in decisions]
+        return [(decision - mean[:].reshape(1,-1)) / std[:].reshape(1,-1) for decision in decisions]
 
 
 def jax_pmap_evaluator(outputs, aux, cfg, graph, node):
@@ -1172,6 +1258,7 @@ def upper_bound_fn(
 if __name__ == "__main__":
     
     from constructor import constructor_test
+    from jax import lax
     constructor_test()
 
     

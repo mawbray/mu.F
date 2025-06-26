@@ -9,6 +9,7 @@ import torch
 from integration import apply_decomposition
 from initialisation.methods import initialisation
 from reconstruction.constructor import reconstruction
+from post_processes.constructor import post_process
 from unit_evaluators.constructor import network_simulator
 from constraints.constructor import constraint_evaluator
 from samplers.space_filling import sobol_sampler
@@ -59,7 +60,7 @@ class decomposition:
         return operations, visualisations
     
     def run(self, iterations=0):
-
+        # 
         for i in range(len(self.mode)):
             operations, visualisations = self.define_operations(self.mode[i],iterations)
             for key in operations.keys():
@@ -76,13 +77,14 @@ class decomposition:
         
 
     def reconstruct(self, m, i):
-
+        # network simulator
         network_model = network_simulator(self.cfg, self.G, constraint_evaluator)
-        joint_live_set, joint_live_set_prob = reconstruction(self.cfg, self.G, network_model).run() # TODO update uncertainty evaluations
+        reconstructor = reconstruction(self.cfg, self.G, network_model)
+        # load the post process
+        joint_live_set, joint_live_set_prob = reconstructor.run() # TODO update uncertainty evaluations
         # update the graph with the function evaluations
         for node in self.G.nodes():
             self.G.nodes[node]["fn_evals"] += network_model.function_evaluations[node]
-
         # visualisation of reconstruction
         if self.cfg.reconstruction.plot_reconstruction == 'nominal_map':
             df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(self.cfg.case_study.design_space_dimensions)})
@@ -94,6 +96,12 @@ class decomposition:
         save_graph(self.G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))
 
         return
+    
+    def _post_process(self, m, i):
+        # 
+
+
+        return 
     
     def update_precedence_order(self, m):
         precedence_order = self.original_precedence_order.copy()
