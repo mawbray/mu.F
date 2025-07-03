@@ -94,7 +94,7 @@ if __name__ == '__main__':
     import glob
     plotting_format()
 
-    root = 'multirun/'
+    """root = 'multirun/'
     date = '2025-05-16'
     time = '19-42-10'
     iteration = 0
@@ -114,7 +114,21 @@ if __name__ == '__main__':
     plt.xlim(1, 10)
     plt.legend()
     plt.savefig(root + date + '/' + time + '/' + str(iteration) + '/bo_progress.svg')
-    
+    """
+
+    # root
+    root= 'src/matlab_results/decentralised'
+    bp = 'backwards_propagation_projection.mat'
+    cp = 'centralised_projections.mat'
+    dp = 'decentralised_bf_propagation.mat'
+
+    # load the .mat files
+    bp_data = loadmat(os.path.join(root, bp))
+    cp_data = loadmat(os.path.join(root, cp))
+    dp_data = loadmat(os.path.join(root, dp))
+
+    print("Backwards Propagation Projections:")
+
     # TODO plot results from decomposition for affine study and sampling decompsoitons
     """
     vertices_sim = {0: [(1,-0.501604), (1,-1), (0.543809, -1)], 1: [(-0.671903,-1), (0.343159,-1), (1, -0.326864), (1,0.713381)], 
@@ -185,7 +199,7 @@ if __name__ == '__main__':
         :return: Dictionary containing the .mat file data
         '''
         try:
-            mat_data = loadmat(file_path)
+            mat_data = loadmat(file_path, struct_as_record=False, squeeze_me=True)
             return mat_data
         except FileNotFoundError:
             raise FileNotFoundError(f"The fi at {file_path} was not found.")

@@ -9,7 +9,19 @@ class live_set:
         self.live_set, self.live_set_prob = [], []
         self.notion_of_feasibility = notion_of_feasibility
         self.dead_set, self.dead_set_prob = [], []
+        self.acceptanceratio = 0
+        self.N = 0
     
+    def acceptance_ratio(self, feasible):
+
+        average_ = np.sum(feasible)
+        current = self.acceptanceratio
+        update = average_ + current * self.N
+        update /= (feasible.shape[0] + self.N)
+        self.acceptanceratio = update
+        return 
+        
+
     def evaluate_feasibility(self, x):
         """
         Evaluate the feasibility of the live set
@@ -39,6 +51,7 @@ class live_set:
         feasible, prob = self.evaluate_feasibility(g)
         feasible_points = x[feasible, :]
         feasible_prob = prob[feasible]
+        self.acceptance_ratio(feasible=feasible)
         return feasible_points, feasible_prob
     
     def append_to_live_set(self, x, y):

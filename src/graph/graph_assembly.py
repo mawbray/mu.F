@@ -10,6 +10,9 @@ class graph_constructor_base(ABC):
         self.G = load_dag_from_adjacency_matrix(adjacency_matrix)
         self.num_nodes = len(adjacency_matrix)
 
+    def load_graph(self, G):
+        self.G = G
+
     def get_graph(self):
         return self.G.copy()
     
