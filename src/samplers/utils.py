@@ -61,7 +61,7 @@ def get_unit_bounds(G: nx.DiGraph, unit_index: int):
     else: 
         try:
             G.nodes[unit_index]['extendedDS_bounds'] = [G.nodes[unit_index]['extendedDS_bounds'][i].reshape(1,-1) for i in range(len(G.nodes[unit_index]['extendedDS_bounds']))]
-            bounds = { f'd{index+1}': {f'd{index+1}': [ G.nodes[unit_index]['extendedDS_bounds'][0][0,index].reshape(1,-1),  G.nodes[unit_index]['extendedDS_bounds'][1][0,index].reshape(1,-1)]} for index in range(G.nodes[unit_index]['extendedDS_bounds'][0].shape[1])}
+            bounds = { f'd{index+1}': {f'd{index+1}': [ float(G.nodes[unit_index]['extendedDS_bounds'][0][0,index].reshape(-1,)),  float(G.nodes[unit_index]['extendedDS_bounds'][1][0,index].reshape(-1,))]} for index in range(G.nodes[unit_index]['extendedDS_bounds'][0].shape[1])}
         except:
             logging.error(f"Error in constructing bounds for unit {unit_index}. Extended design space bounds are not correctly defined.")
             logging.error(f"Extended design space bounds: {G.nodes[unit_index]['extendedDS_bounds']}")
