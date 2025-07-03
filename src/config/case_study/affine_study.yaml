@@ -10,11 +10,11 @@ adjacency_matrix:
   - [0, 0, 0, 0, 0]
 
 n_design_args:
-  - 2
-  - 2
-  - 2
-  - 2
-  - 2
+  - 1 #2
+  - 1 #2
+  - 1 #2
+  - 1 #2
+  - 1 #2
   
 
 n_aux_args:
@@ -44,24 +44,24 @@ KS_bounds:
   # unit, arg, bounds
     - - - -1
         - 1
-      - - -1
-        - 1
+      #- - -1
+      #  - 1
     - - - -1
         - 1
-      - - -1
-        - 1
+    # - - -1
+    #   - 1
     - - - -1
         - 1
-      - - -1
-        - 1
+    #  - - -1
+    #    - 1
     - - - -1
         - 1
-      - - -1
-        - 1
+     # - - -1
+     #   - 1
     - - - -1
         - 1
-      - - -1
-        - 1
+    #  - - -1
+    #    - 1
   aux_args:
   # global_auxiliary_args
     - - - None
@@ -128,25 +128,25 @@ extendedDS_bounds: [None, None, None, None, None]
 
 design_space_dimensions:
 - 'N1: P1'
-- 'N1: P2'
+#- 'N1: P2'
 - 'N2: P1'
-- 'N2: P2'
+#- 'N2: P2'
 - 'N3: P1'
-- 'N3: P2'
+#- 'N3: P2'
 - 'N4: P1'
-- 'N4: P2'
+#- 'N4: P2'
 - 'N5: P1'
-- 'N5: P2'
+#- 'N5: P2'
 
 
 global_n_aux_args: 0
 
 process_space_names:
-  - ['N1: P1', 'N1: P2']
-  - ['N2: P1', 'N2: P2']
-  - ['N3: P1', 'N3: P2']
-  - ['N4: P1', 'N4: P2']
-  - ['N5: P1', 'N5: P2']
+  - ['N1: P1'] # ['N1: P1', 'N1: P2']
+  - ['N2: P1'] # ['N2: P1', 'N2: P2']
+  - ['N3: P1'] # ['N3: P1', 'N3: P2']
+  - ['N4: P1'] #  ['N4: P1', 'N4: P2']
+  - ['N5: P1'] # ['N5: P1', 'N5: P2']
 
 
 mode:

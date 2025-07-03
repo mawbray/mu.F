@@ -6,10 +6,10 @@ deus:
 
 notion_of_feasibility: 'positive'
 ku_approximation: 'box'
-vol_scale: 0.15
+vol_scale: 0.0
 
 ns:
-  n_live: 2500
+  n_live: 100
   final_sample_live: 7000 # 6000  
   n_replacements: 50 
   n_iter: 15000 
@@ -18,3 +18,12 @@ ns:
   prior: Uniform
   rejector: suob-ellipsoid
   log_evidence_estimation: True
+
+
+bo:
+  bounds: 
+    max: 1
+    min: 0
+  num_initial_points: 3
+  num_iterations: 5 # subsequent to initial samples
+  acq: 'ei'
