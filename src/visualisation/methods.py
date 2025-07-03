@@ -180,7 +180,7 @@ def polytope_plot(pp, polytope):
     # Save the updated figure
     return pp
 
-def polytope_plot_2(pp, polytope):
+def polytope_plot_2(pp, polytope, color='black', path='polytope_plot', save=True):
     from scipy.spatial import ConvexHull
     indices = zip(*np.tril_indices_from(pp.axes, -1))
 
@@ -188,22 +188,38 @@ def polytope_plot_2(pp, polytope):
         x_var = pp.x_vars[j]
         y_var = pp.y_vars[i]
         ax = pp.axes[i, j]
-        if x_var in list(polytope.keys()) and y_var in list(polytope.keys()) and x_var[:2] == y_var[:2]:
-            points = np.hstack([np.array(polytope[x_var]).reshape(-1,1), np.array(polytope[y_var]).reshape(-1,1)]).reshape(-1, 2)
-            hull = ConvexHull(points)
-            hull_vertices = points[hull.vertices]
-            # Unzip for plotting
-            x_hull, y_hull = zip(*hull_vertices)
-            ax.fill(x_hull, y_hull, alpha=0.1, color='black', edgecolor='black', linewidth=3)
-            ax.plot(
-                list(x_hull) + [x_hull[0]],  # Close the polygon
-                list(y_hull) + [y_hull[0]],
-                color='black',
-                linewidth=4,
-                alpha=1
-            )
+        print('x_var', x_var, 'y_var', y_var)
+        print('polytope keys', list(polytope.keys()))
+        print(x_var in list(polytope.keys()))
+        print(y_var in list(polytope.keys()))
+        print(x_var[:2] == y_var[:2])
+        if x_var in list(polytope.keys()) and y_var in list(polytope.keys()):
+            print('Plotting polytope for', x_var, y_var)
+            # Create a box (rectangle) from the min/max of the points
+            x_points = np.array(polytope[x_var]).flatten()
+            y_points = np.array(polytope[y_var]).flatten()
+            x_min, x_max = x_points.min(), x_points.max()
+            y_min, y_max = y_points.min(), y_points.max()
+            # Define the corners of the box
+            x_box = [x_min, x_max, x_max, x_min, x_min]
+            y_box = [y_min, y_min, y_max, y_max, y_min]
+            ax.fill(x_box, y_box, alpha=0.4, color=color, edgecolor='black', linewidth=3)
+            ax.plot(x_box, y_box, color='black', linewidth=4, alpha=1)
+            #hull = ConvexHull(points)
+            #hull_vertices = points[hull.vertices]
+            ## Unzip for plotting
+            #x_hull, y_hull = zip(*hull_vertices)
+            #ax.fill(x_hull, y_hull, alpha=0.1, color='black', edgecolor='black', linewidth=3)
+            #ax.plot(
+            #    list(x_hull) + [x_hull[0]],  # Close the polygon
+            #    list(y_hull) + [y_hull[0]],
+            #    color='black',
+            #    linewidth=4,
+            #    alpha=1
+            #)
             
     # Save the updated figure
+    pp.savefig(path+ ".svg", dpi=300) if save else None
     return pp
 
 def hide_current_axis(*args, **kwds):

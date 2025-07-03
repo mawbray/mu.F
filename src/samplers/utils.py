@@ -59,8 +59,14 @@ def get_unit_bounds(G: nx.DiGraph, unit_index: int):
             bounds = design_var
         bounds = add_global_aux(bounds, G)
     else: 
-        bounds = { f'd{index+1}': {f'd{index+1}': [ G.nodes[unit_index]['extendedDS_bounds'][0][0,index],  G.nodes[unit_index]['extendedDS_bounds'][1][0,index]]} for index in range(len(G.nodes[unit_index]['extendedDS_bounds'][0].squeeze()))}
-    
+        try:
+            G.nodes[unit_index]['extendedDS_bounds'] = [G.nodes[unit_index]['extendedDS_bounds'][i].reshape(1,-1) for i in range(len(G.nodes[unit_index]['extendedDS_bounds']))]
+            bounds = { f'd{index+1}': {f'd{index+1}': [ G.nodes[unit_index]['extendedDS_bounds'][0][0,index].reshape(1,-1),  G.nodes[unit_index]['extendedDS_bounds'][1][0,index].reshape(1,-1)]} for index in range(G.nodes[unit_index]['extendedDS_bounds'][0].shape[1])}
+        except:
+            logging.error(f"Error in constructing bounds for unit {unit_index}. Extended design space bounds are not correctly defined.")
+            logging.error(f"Extended design space bounds: {G.nodes[unit_index]['extendedDS_bounds']}")
+            logging.error(f"Extended design space bounds shape: {G.nodes[unit_index]['extendedDS_bounds'][0].shape if hasattr(G.nodes[unit_index]['extendedDS_bounds'][0], 'shape') else 'N/A'}")    
+            raise ValueError(f"Extended design space bounds for unit {unit_index} are not correctly defined.")
     return bounds
 
 

@@ -805,7 +805,7 @@ class forward_constraint_decentralised_evaluator(forward_constraint_evaluator):
             decision_bounds[0].extend(decisions[0])
             decision_bounds[1].extend(decisions[1])
 
-        decision_bounds = [jnp.array(decision_bounds[0]), jnp.array(decision_bounds[1])]
+        decision_bounds = [jnp.array(decision_bounds[0]).reshape(1,-1), jnp.array(decision_bounds[1]).reshape(1,-1)]
 
             
         problem_data[0][0]['bounds'] = decision_bounds
