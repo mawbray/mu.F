@@ -30,7 +30,7 @@ def main(cfg: DictConfig) -> None:
     print(get_original_cwd())
     max_devices = len(jax.devices('cpu'))
 
-    # Quering if the case study is a repeated single node
+    # Querying if the case study is a repeated single node
     if hasattr(cfg.case_study, 'serial_graph'):
         if cfg.case_study.serial_graph is True:
             cfg = build_graph_structure(cfg)
