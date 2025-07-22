@@ -1,0 +1,62 @@
+case_study: temporal_study
+
+vmap_evaluations: True
+
+eval_rewards: True
+
+adjacency_matrix: None
+
+n_design_args: 2
+
+n_aux_args:
+  # auxiliary arguments per edge
+  (n,n+1): 0
+  # auxiliary arguments per node
+  node_n: 0
+
+n_input_args: 1
+
+KS_bounds:
+  design_args: 
+    - - - 0
+        - 10
+    - - - 0
+        - 10
+  aux_args: 
+    - - - None
+        - None
+
+parameters_samples: 
+  - [{'c': [0.], 'w': 1.},{'c': [0.], 'w': 1.}]
+
+parameters_best_estimate: 
+  - [0.]
+
+extendedDS_bounds: [None]
+
+design_space_dimensions:
+- 'X'
+- 'Y'
+
+global_n_aux_args: 0
+
+process_space_names:
+  - ['X', 'Y']
+
+mode:
+  - backward
+
+evaluation_mode: 'jax-pmap'
+
+serial_graph: True
+
+number_repeats: 10
+
+unit_op:
+  - 'steady_state'
+
+n_theta:
+  - 1
+
+fn_evals:
+  - 0

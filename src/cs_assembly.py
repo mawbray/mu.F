@@ -22,11 +22,20 @@ def case_study_constructor(cfg):
     # Create a sample constraint dictionary
     constraint_dictionary = CS_holder[cfg.case_study.case_study]
 
+    if 'n' in constraint_dictionary.keys():
+        for i in range(cfg.case_study.number_repeats):
+            constraint_dictionary[i] = constraint_dictionary['n']
+
     # create edge functions
     if cfg.case_study.vmap_evaluations:
-        dict_of_edge_fn = vmap_CS_edge_holder[cfg.case_study.case_study]
+        dict_of_edge_fn = vmap_CS_edge_holder[cfg.case_study.case_study] 
     else:
         dict_of_edge_fn = CS_edge_holder[cfg.case_study.case_study]
+    
+    if ('n','n+1') in dict_of_edge_fn.keys():
+        for i in range(cfg.case_study.number_repeats-1):
+            dict_of_edge_fn[(i,i+1)] = dict_of_edge_fn[('n','n+1')]
+        dict_of_edge_fn.pop(('n','n+1'))
 
     # Create a graph constructor object
     G = graph_constructor(cfg, cfg.case_study.adjacency_matrix)
@@ -101,7 +110,7 @@ def unit_params_fn(cfg, G):
         return {node: partial(arrhenius_kinetics_fn_2,Ea=jnp.array(cfg.model.arrhenius.EA[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
     elif cfg.case_study.case_study == 'serial_mechanism_batch':
         return {node: partial(arrhenius_kinetics_fn,Ea=jnp.array(cfg.model.arrhenius.EA[node]), A=jnp.array(cfg.model.arrhenius.A[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
-    elif cfg.case_study.case_study in ['tablet_press', 'convex_estimator', 'convex_underestimator', 'affine_study']:
+    elif cfg.case_study.case_study in ['tablet_press', 'convex_estimator', 'convex_underestimator', 'affine_study', 'temporal_study']:
         return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
     else :
         raise ValueError('Invalid case study')

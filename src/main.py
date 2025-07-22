@@ -8,6 +8,7 @@ from visualisation.visualiser import visualiser
 from direct import apply_direct_method
 from decomposition import decomposition, decomposition_constraint_tuner
 from cs_assembly import case_study_constructor
+from graph.graph_assembly import build_graph_structure
 from utils import *
 
 import logging
@@ -28,6 +29,12 @@ def main(cfg: DictConfig) -> None:
     # Set the maximum number of devices
     print(get_original_cwd())
     max_devices = len(jax.devices('cpu'))
+
+    # Quering if the case study is a repeated single node
+    if hasattr(cfg.case_study, 'serial_graph'):
+        if cfg.case_study.serial_graph is True:
+            cfg = build_graph_structure(cfg)
+
 
     # Construct the case study graph
     G = case_study_constructor(cfg)   # TODO integration of case study construction G is a networkx graph - need to update case study contructor

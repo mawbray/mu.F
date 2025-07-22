@@ -54,6 +54,14 @@ def affine_cs35(dynamic_profile):
 vmap_cs34 = vmap(vmap(affine_cs34, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
 vmap_cs35 = vmap(vmap(affine_cs35, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
 
+""" temporal study methods """
+
+@jit
+def temporal_study(dynamic_profile):
+    return dynamic_profile[0]
+
+vmap_temporal_study = vmap(vmap(temporal_study, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
+
 
 """ insert case study specific functions for constraints here"""
 CS_edge_holder = {  'tablet_press': {(0,1): data_IO_1, (1,2): data_IO_2}, 'serial_mechanism_batch': {(0,1): data_transform}, 
@@ -61,12 +69,14 @@ CS_edge_holder = {  'tablet_press': {(0,1): data_IO_1, (1,2): data_IO_2}, 'seria
                                             (3,5): data_transform_cvx, (4,5): data_transform_cvx},
                     'convex_underestimator': {(0,5): data_transform_cvx, (1,5): data_transform_cvx, (2,5): data_transform_cvx, 
                                         (3,5): data_transform_cvx, (4,5): data_transform_cvx},
-                    'affine_study': {(0,2): data_transform_cvx, (1,2): data_transform_cvx, (2,3): affine_cs34, (2,4): affine_cs35}}
+                    'affine_study': {(0,2): data_transform_cvx, (1,2): data_transform_cvx, (2,3): affine_cs34, (2,4): affine_cs35},
+                    'temporal_study': {('n','n+1'): temporal_study}}
 
 vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_IO_2}, 'serial_mechanism_batch': {(0,1): vmap_data_transform},
                        'convex_estimator': {(0,5): vmap_data_transform_cvx, (1,5): vmap_data_transform_cvx, (2,5): vmap_data_transform_cvx, 
                                             (3,5): vmap_data_transform_cvx, (4,5): vmap_data_transform_cvx},
                         'convex_underestimator': {(0,5): vmap_data_transform_cvx, (1,5): vmap_data_transform_cvx, (2,5): vmap_data_transform_cvx, 
                                             (3,5): vmap_data_transform_cvx, (4,5): vmap_data_transform_cvx},
-                        'affine_study': {(0,2): vmap_data_transform_cvx, (1,2): vmap_data_transform_cvx, (2,3): vmap_cs34, (2,4): vmap_cs35}}
+                        'affine_study': {(0,2): vmap_data_transform_cvx, (1,2): vmap_data_transform_cvx, (2,3): vmap_cs34, (2,4): vmap_cs35},
+                        'temporal_study': {('n','n+1'): vmap_temporal_study}}
 

@@ -164,9 +164,21 @@ def negative_output_constraint(output, cfg):
     return -output 
 
 
+# -------------------------------------------------------------------------------- #
+# ---------------------------- Temporal Study ------------------------------------- #
+# -------------------------------------------------------------------------------- #
+@partial(jit, static_argnums=(1))
+def temporal_study_1(dynamic_profile, cfg):
+    return dynamic_profile[0] * cfg.coeff.C[0] + dynamic_profile[1] * cfg.coeff.C[1] + cfg.coeff.C[2]
+
+def temporal_study_n(dynamic_profile, cfg):
+    return dynamic_profile[0] * cfg.coeff.C[0] + dynamic_profile[1] * cfg.coeff.C[1] + cfg.coeff.C[2]
+
+
 """ insert case study specific functions for constraints here"""
 CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_composition_lb, tablet_composition_ub], 2: [tablet_hardness_lb, tablet_hardness_ub, tablet_size_lb, tablet_size_ub]}, 
              'serial_mechanism_batch': {0: [purity_unit_1_ub], 1: [purity_unit_2_lb]},
              'convex_estimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [estimation_bound_lb]},
              'convex_underestimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [underestimation_constraint]},
-             'affine_study': {0: [negative_output_constraint], 1: [negative_output_constraint], 2: [negative_output_constraint], 3: [negative_output_constraint], 4: [negative_output_constraint]},}
+             'affine_study': {0: [negative_output_constraint], 1: [negative_output_constraint], 2: [negative_output_constraint], 3: [negative_output_constraint], 4: [negative_output_constraint]},
+             'temporal_study': {0: [temporal_study_1], 'n': [temporal_study_n]}}

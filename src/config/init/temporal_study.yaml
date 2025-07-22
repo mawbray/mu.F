@@ -1,0 +1,2 @@
+sobol_samples: 8192
+sampler: 'sobol'
