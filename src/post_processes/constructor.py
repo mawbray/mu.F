@@ -3,13 +3,17 @@ import jax.numpy as jnp
 import numpy as np
 from jax.random import choice, PRNGKey
 from functools import partial
+import logging
+import ray
+
+from hydra.utils import get_original_cwd
 
 class post_process_base(ABC):
     def __init__(self, cfg, graph, model):
         self.cfg = cfg
         self.graph = graph
         self.model = model
-        pass
+        
 
     def run(self):
         pass
@@ -19,7 +23,7 @@ class post_process_base(ABC):
         self.live_set = live_set
 
     def load_training_methods(self, training_methods):
-        assert hasattr(training_methods, 'train')
+        assert hasattr(training_methods, 'fit')
         self.training_methods = training_methods
 
     def load_solver_methods(self, solver_methods):
@@ -42,25 +46,26 @@ class post_process(post_process_base):
         self.feasible = None
         self.live_set = None
         self.training_methods = graph.graph['post_process_training_methods']
-        self.solver_methods = graph.graph['post_process_solver_methods'](cfg, )
+        self.solver_methods = None
         self.sampler = None
         self.iterate = iterate
     
     def run(self):
         # Implement the main logic for post-processing here
-        decision_vars = self.graph.graph['nusiance_parameters'] 
-        bounds = self.graph.graph['nusiance_parameters_bounds']
+        decision_vars = self.graph.graph['post_process_decision_indices'] 
         assert decision_vars is not None, "Decision variables must be set in the graph."
-        assert bounds is not None, "Bounds for decision variables must be set in the graph."
         assert self.solver_methods is not None, "Solver methods must be set before running the post-process."
         assert self.sampler is not None, "Sampler must be set before running the post-process."
         assert self.training_methods is not None, "Training methods must be set before running the post process."
         assert self.live_set is not None, "Live set must be loaded before running the post"
-
+        # TODO check live set, sampler and solver methods are set correctly
         # Solve for nuisance parameters
-        live_set = self.solve_for_nuisance_parameters(decision_vars, bounds, notion=self.cfg.samplers.notion_of_feasibility)
+        live_set = self.solve_for_nuisance_parameters(decision_vars)
         # Update the graph with the live set
         self.graph.graph['post_processed_live_set'] = live_set
+        # Solve the upper-level problem
+        self.optimize_nuisance_free()
+
         return self.graph
 
     def load_fresh_live_set(self, live_set):
@@ -106,27 +111,52 @@ class post_process(post_process_base):
         return 
 
     def solve_for_nuisance_parameters(self, decision_variables: list[int]) -> list:
+        """
+        Solve the lower level problem of a bilevel program.
+        :param decision_variables: The decision variables to be factored out
+        :return: The solution for the nuisance parameters"""
         # Implement the logic to solve for nuisance parameters
         assert self.solver_methods is not None, "Solver methods must be set before solving for nuisance parameters."
         assert self.sampler is not None, "Sampler must be set before solving for nuisance parameters."
-        assert hasattr(self.solver_methods, 'train'), "Solver methods must have a 'train' method."
 
         # the evaluator takes the decision variables, bounds and the feasibility function and evaluates feasibility of query points.
-        nuisance_constraint_evaluator = self.solver_methods
+        nuisance_constraint_evaluator = self.solver_methods['lower_level_solver']
         # train the model
         self.train_classification_model()
-        evaluation_function = partial(nuisance_constraint_evaluator, cfg=self.cfg, graph=self.graph, node=None, pool=None )
+        evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, node=None, pool=None, constraint_type=self.cfg.reconstruction.post_process_solver.lower_level).evaluate
         
         boolean = False
         while not boolean:
             query_points  = self.sampler()
             query_points  = self.filter_decision_variables(decision_variables, query_points)
-            feasibility_values = evaluation_function(query_points, jnp.empty((query_points.shape[0], 0)))
+            
+            feasibility_values = evaluation_function(jnp.expand_dims(query_points, axis=1), jnp.empty((query_points.shape[0], 1, 0)))
             # repeating evaluation of points
             boolean = self.update_live_set(query_points, feasibility_values)
         # return the live set
         live_set = self.live_set.get_live_set()
-        return live_set
+        # store the data generated in characterizing the live set on the graph
+        self.graph = self.live_set.load_classification_data_to_graph(self.graph, str='post_process_classifier_training')
+        return live_set[0]
+    
+    def optimize_nuisance_free(self):
+        """
+        Second step of the post-processing: 
+        Solve upper-level problem of a bilevel program. 
+        """
+        # get the upper level solver
+        nuisance_constraint_evaluator = self.solver_methods['upper_level_solver']
+        # train the model
+        self.train_classification_model()
+        ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)
+        evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, node=None, pool='ray', constraint_type=self.cfg.reconstruction.post_process_solver.upper_level).evaluate
+        # in the upper level we have no parameters to recursively evaluate, so we just solve to find an optimum.
+        optimum = evaluation_function()
+
+        logging.info(f"Local optimum found: {optimum}")
+        ray.shutdown()
+
+        return optimum
 
     def filter_decision_variables(self, decision_variables: list[int], query_points: jnp.ndarray) -> list[int]:
         """

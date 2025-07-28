@@ -41,10 +41,10 @@ class surrogate_base(ABC):
         
 
 class surrogate(surrogate_base):
-    def __init__(self, graph, unit_index, cfg: DictConfig, model_type: str, iterate:int) -> None:
+    def __init__(self, graph, unit_index, cfg: DictConfig, model_type: tuple[str], iterate:int, data_str: str='classifier_training') -> None:
         super().__init__(graph, unit_index, cfg, model_type, iterate)
         self.model = None
-        self.trainer = trainer(graph, unit_index, cfg, model_type, iterate)
+        self.trainer = trainer(graph, unit_index, cfg, model_type, iterate, data_str)
         self.predictor = predictor(cfg, model_type)
 
     def fit(self, node=None) -> None:
@@ -59,6 +59,10 @@ class surrogate(surrogate_base):
     
     def get_serailised_model_data(self) -> Tuple:
         return self.predictor.get_serialised_model_data()
+    
+    def from_method(cls, graph, data_str) -> None:
+        return surrogate(graph, cls.unit_index, self.cfg, (self.model_class, self.model_subclass, self.model_surrogate), self.iterate, data_str)
+
     
 
 class surrogate_reconstruction(ABC):

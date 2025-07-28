@@ -1,6 +1,6 @@
 
 import numpy as np
-
+from abc import ABC
 
 
 class live_set:
@@ -8,7 +8,7 @@ class live_set:
         self.cfg = cfg
         self.live_set, self.live_set_prob = [], []
         self.notion_of_feasibility = notion_of_feasibility
-        self.dead_set, self.dead_set_prob = [], []
+        self.infeasible_set, self.infeasible_prob = [], []
         self.acceptanceratio = 0
         self.N = 0
     
@@ -48,9 +48,14 @@ class live_set:
         :param x: The input
         :return: The membership
         """
+        # determine those points that are feasible
         feasible, prob = self.evaluate_feasibility(g)
         feasible_points = x[feasible, :]
         feasible_prob = prob[feasible]
+        # store infeasible points within a data holder (should probably be a separate class)
+        self.infeasible_set.append(x[~feasible, :])
+        self.infeasible_prob.append(prob[~feasible].reshape(-1,1))
+        # update acceptance ratio 
         self.acceptance_ratio(feasible=feasible)
         return feasible_points, feasible_prob
     
@@ -83,3 +88,35 @@ class live_set:
             return True
         else:
             return False
+        
+    def load_classification_data_to_graph(self, graph=None, str='classifier_training'):
+        """    Get the classification data for training a classifier
+        :param graph: The graph
+        :param cfg: The configuration
+        :return: The support and labels for the classifier
+        """
+        if graph is None:
+            raise ValueError("Graph must be provided to load classification data.")
+
+        # get samples
+        live_set = np.vstack(self.live_set)
+        infeasible_set = np.vstack(self.infeasible_set)
+        # corresponding labels
+        live_set_labels = np.vstack(self.live_set_prob)
+        infeasible_set_labels = np.vstack(self.infeasible_prob)
+        # create a dataset object
+        all_data = np.vstack([live_set, infeasible_set])    
+        all_labels = np.vstack([live_set_labels, infeasible_set_labels])
+        graph.graph[str] = dataset(all_data, all_labels)
+        return graph
+    
+
+
+class dataset(ABC):
+    def __init__(self, X, y):
+        self.input_rank = len(X.shape)
+        self.output_rank = len(y.shape)
+        self.X = X if self.input_rank >= 2 else np.expand_dims(X,axis=-1)
+        self.y = y if self.output_rank >=2 else np.expand_dims(y, axis=-1)
+            
+        

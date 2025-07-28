@@ -252,17 +252,23 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     # get objective function
     obj_data = problem_data['objective_func']
     n_f = len([k for k in list(obj_data.keys()) if 'f' in k])
-    obf = construct_model(obj_data['f0']['params'], cfg, supervised_learner=obj_data['f0']['model_class'], model_type=obj_data['f0']['model_type'], model_surrogate=obj_data['f0']['model_surrogate'])
-    if n_f > 2:
-      obj_terms = {}
-      for i in range(1,n_f-1):
-        eqc = construct_model(obj_data[f'f{i}']['params'], cfg, supervised_learner=obj_data[f'f{i}']['model_class'], model_type=obj_data[f'f{i}']['model_type'], model_surrogate=obj_data[f'f{i}']['model_surrogate'])
-        obj_terms[i-1] = partial(lambda x, v : eqc(x.reshape(1,-1)[:,v].reshape(-1,)).reshape(-1,1), v = jnp.array(obj_data[f'f{i}']['args']))
-      # construct objective from constituent functions
-      obj_in = partial(lambda x, g: jnp.hstack([g[i](x) for i in range(len(g))]), g=obj_terms)
-      objective_func = partial(obj_data['obj_fn'], f1=obf, f2=obj_in)
+    if n_f > 0:
+      # objective requires some function composition
+      obf = construct_model(obj_data['f0']['params'], cfg, supervised_learner=obj_data['f0']['model_class'], model_type=obj_data['f0']['model_type'], model_surrogate=obj_data['f0']['model_surrogate'])
+      if n_f > 2:
+        obj_terms = {}
+        for i in range(1,n_f-1):
+          eqc = construct_model(obj_data[f'f{i}']['params'], cfg, supervised_learner=obj_data[f'f{i}']['model_class'], model_type=obj_data[f'f{i}']['model_type'], model_surrogate=obj_data[f'f{i}']['model_surrogate'])
+          obj_terms[i-1] = partial(lambda x, v : eqc(x.reshape(1,-1)[:,v].reshape(-1,)).reshape(-1,1), v = jnp.array(obj_data[f'f{i}']['args']))
+        # construct objective from constituent functions
+        obj_in = partial(lambda x, g: jnp.hstack([g[i](x) for i in range(len(g))]), g=obj_terms)
+        objective_func = partial(obj_data['obj_fn'], f1=obf, f2=obj_in)
+      else:
+        objective_func = partial(obj_data['obj_fn'], f1=obf)
     else:
-      objective_func = partial(obj_data['obj_fn'], f1=obf)
+       # objective is a simple function
+      objective_func = obj_data['obj_fn']
+      
     # store for solutions
     solutions = []
     for i in range(n_starts):

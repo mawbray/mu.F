@@ -79,13 +79,15 @@ class decomposition:
     def reconstruct(self, m, i):
         # network simulator
         network_model = network_simulator(self.cfg, self.G, constraint_evaluator)
-        reconstructor = reconstruction(self.cfg, self.G, network_model)
+        reconstructor = reconstruction(self.cfg, self.G, network_model, iterate=i)
         # load the post process
-        joint_live_set, joint_live_set_prob = reconstructor.run() # TODO update uncertainty evaluations
+        joint_live_set, joint_live_set_prob, self.G = reconstructor.run() # TODO update uncertainty evaluations
         # update the graph with the function evaluations
         for node in self.G.nodes():
             self.G.nodes[node]["fn_evals"] += network_model.function_evaluations[node]
         # visualisation of reconstruction
+
+        # #TODO lets account for the reconstruction and post_processing operations
         if self.cfg.reconstruction.plot_reconstruction == 'nominal_map':
             df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(self.cfg.case_study.design_space_dimensions)})
         elif self.cfg.reconstruction.plot_reconstruction == 'probability_map':
@@ -99,8 +101,6 @@ class decomposition:
     
     def _post_process(self, m, i):
         # 
-
-
         return 
     
     def update_precedence_order(self, m):

@@ -5,10 +5,12 @@ from graph.graph_assembly import graph_constructor
 from graph.methods import CS_edge_holder, vmap_CS_edge_holder
 from constraints.solvers.constructor import solver_construction
 from constraints.solvers.surrogate.surrogate import surrogate
+from constraints.constructor import constraint_evaluator
 from post_processes.constructor import post_process
 from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
 
 from functools import partial
+from itertools import chain
 import logging
 import jax.numpy as jnp
 import numpy as np
@@ -72,8 +74,6 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
         b_off = [0 for _ in range(len(cfg.case_study.adjacency_matrix))]
         G.add_arg_to_nodes('constraint_backoff', b_off)
 
-
-
     # add miscellaneous information to the graph
     G.add_n_input_args(cfg.case_study.n_input_args)
     G.add_n_aux_args(cfg.case_study.n_aux_args)
@@ -83,12 +83,18 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     G.add_arg_to_graph('aux_bounds', cfg.case_study.KS_bounds.aux_args)
     G.add_arg_to_graph('n_aux_args', cfg.case_study.global_n_aux_args)
     G.add_arg_to_graph('initial_forward_pass', initial_forward_pass)
-    # post processing
-    G.add_arg_to_graph('post_process', post_process)
-    G.add_arg_to_graph('post_process_training_methods', surrogate)
-    G.add_arg_to_graph('post_process_solver_methods', solver_construction)
+    G.add_arg_to_graph('n_design_args', sum(cfg.case_study.n_design_args))
+    G.add_arg_to_graph('bounds', list(chain.from_iterable(cfg.case_study.KS_bounds.design_args + cfg.case_study.KS_bounds.aux_args)))
+    G.add_arg_to_graph('classifier_x_scalar', None) # initialisation
+    G.add_arg_to_graph('post_process_classifier', lambda x: jnp.sum(x)) # scalarise input as dummy function for jit tracing.
 
-
+    if cfg.reconstruction.post_process:
+        # post processing
+        G.add_arg_to_graph('post_process', post_process)
+        G.add_arg_to_graph('post_process_training_methods', surrogate)
+        G.add_arg_to_graph('post_process_solver_methods', {'upper_level_solver': constraint_evaluator, 'lower_level_solver': constraint_evaluator})
+        G.add_arg_to_graph('post_process_decision_indices', cfg.reconstruction.post_process_decision_indices)
+        G.add_arg_to_graph('solve_post_processing_problem', False) # overwritten in the post_process function
 
     # add edge properties to the graph
     G.add_arg_to_edges('edge_fn', dict_of_edge_fn)

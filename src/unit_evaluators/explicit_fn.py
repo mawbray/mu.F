@@ -602,10 +602,7 @@ def esub_fn_2(
     z = aux[:,:-1]
     eval = esub_fn_2_eval(
     cfg, design_args, input_args, z.squeeze(), args)
-    hess = jax_hessian_sub_fn_2(
-        cfg, design_args, input_args, z.squeeze(), args)
-    cvx_prop = z @ hess @ z.T
-    return jnp.hstack([eval.reshape(1,-1), cvx_prop.reshape(1,-1), aux.reshape(1,-1)])  
+    return jnp.hstack([eval.reshape(1,-1), aux.reshape(1,-1)])  
 
 
 @partial(jit, static_argnums=(0,))
@@ -657,10 +654,7 @@ def esub_fn_3(
     z = aux[:,:-1]
     eval = esub_fn_3_eval(
     cfg, design_args, input_args, z.squeeze(), args)
-    hess = jax_hessian_sub_fn_3(
-        cfg, design_args, input_args, z.squeeze(), args)
-    cvx_prop = z @ hess @ z.T
-    return jnp.hstack([eval.reshape(1,-1), cvx_prop.reshape(1,-1), aux.reshape(1,-1)])
+    return jnp.hstack([eval.reshape(1,-1), aux.reshape(1,-1)])
 
 
 @partial(jit, static_argnums=(0,))

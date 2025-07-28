@@ -27,9 +27,13 @@ def forward_evaluation_data_preparation(graph: dict, unit_index, cfg: DictConfig
 
     return input_data
 
-def regression_node_data_preparation(graph: dict, unit_index: int, cfg: DictConfig = None):
-    # access historical support and function values
-    data = graph.nodes[unit_index]["probability_map_training"]
+def regression_node_data_preparation(graph: dict, unit_index: int, cfg: DictConfig = None, data_str: str = 'probability_map_training'):
+    if unit_index is not None:
+        # access historical support and function values
+        data = graph.nodes[unit_index][data_str]
+    else: 
+        # if unit_index is None, then we are looking at training a regression model to parameterise the centralised DS
+        data = graph.graph[data_str]
 
     return data
 
@@ -38,16 +42,17 @@ def binary_classifier_data_preparation(
     graph: dict,
     unit_index: int,
     cfg: DictConfig = None,
+    data_str: str = 'classifier_training'
 ):
     # access historical support and function values
 
     if type(unit_index) is int:
         # if unit_index is an integer, we are dealing with a single unit
         assert unit_index in graph.nodes, f"Unit index {unit_index} not found in graph nodes."
-        data = graph.nodes[unit_index]["classifier_training"]
+        data = graph.nodes[unit_index][data_str]
     else:
         # if unit index is None, then we are looking at training a classifier to parameterise the centralised DS
-        data = graph.graph["classifier_training"]
+        data = graph.graph[data_str]
         
     support = data.X
     labels = data.y

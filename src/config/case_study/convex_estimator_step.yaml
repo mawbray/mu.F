@@ -150,7 +150,7 @@ design_space_dimensions:
 - 'G.A. 3'
 
 
-global_n_aux_args: 2
+global_n_aux_args: 3
 
 process_space_names:
   - ['N1: P1', 'G.A. 1', 'G.A. 2', 'G.A. 3']

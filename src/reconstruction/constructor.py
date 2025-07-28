@@ -30,13 +30,8 @@ class reconstruction(reconstruct_base):
         self.live_sets_nd_proj = construct_cartesian_product_of_live_sets(graph)
         self.ls_holder = live_set(cfg, cfg.samplers.notion_of_feasibility)
         self.feasible = False
-        self.post_process_bool = cfg.reconstruct.post_process[iterate]
-        if self.post_process_bool:
-            self.post_process = self.graph.graph['post_process']
-            assert hasattr(self.post_process, 'run')
-            self.post_process.load_training_methods(self.graph.graph["post_process_training_methods"])
-            self.post_process.load_solver_methods(self.graph.graph["post_process_solver_methods"])
-
+        self.post_process_bool = cfg.reconstruction.post_process[iterate]
+        self.iterate = iterate
 
     def update_live_set(self, candidates, constraint_vals):
         """
@@ -82,12 +77,45 @@ class reconstruction(reconstruct_base):
         # if post process is defined, run it
         if self.post_process_bool:
             # NOTE currently no uncertain parameters are passed to the post process
-            self.post_process.sampler = self.sample_live_sets
-            self.post_process.run(joint_live_set, self.model)
-        
+            self.graph = self.post_process_runner(cfg=self.cfg, graph=self.graph, model=self.model, ls_holder=ls_holder, iterate=self.iterate)
+            # TODO conditional return on live set from post_process? 
 
-        return joint_live_set, joint_live_set_prob
+
+        return joint_live_set, joint_live_set_prob, self.graph
     
+    def post_process_runner(self, cfg, graph, model, ls_holder, iterate):
+        """
+        Define the post process
+        :param cfg: The configuration
+        :param graph: The graph
+        :param model: The model
+        :param iterate: The iteration number
+        :return: The post process object
+        """
+        graph = ls_holder.load_classification_data_to_graph(graph)
+        post_process = graph.graph['post_process'](cfg, graph, model, iterate)
+        assert hasattr(post_process, 'run')
+        post_process.load_training_methods(graph.graph["post_process_training_methods"])
+        post_process.load_solver_methods(graph.graph["post_process_solver_methods"])
+        post_process.graph.graph["solve_post_processing_problem"] = True
+        post_process.sampler = lambda : (self.sample_live_sets())[1]
+        post_process.load_fresh_live_set(live_set=live_set(self.cfg, self.cfg.samplers.notion_of_feasibility))
+        graph = post_process.run()
+        trainer = post_process.training_methods(graph, None, self.cfg, ('classification', self.cfg.surrogate.classifier_selection, 'live_set_surrogate'), self.iterate,'post_process_classifier_training')
+        trainer.fit()
+
+        if self.cfg.solvers.standardised:
+            query_model = trainer.get_model('standardised_model')
+        else:
+            query_model = trainer.get_model('unstandardised_model')
+        
+        # store the trained model in the graph
+        graph.graph["final_post_process_classifier"] = query_model
+        graph.graph['final_post_process_classifier_x_scalar'] = trainer.trainer.get_model_object('standardisation_metrics_input')
+        graph.graph['final_post_process_classifier_serialised'] = trainer.get_serailised_model_data()
+
+        return graph
+
     def get_uncertain_params(self):
         if self.cfg.formulation == 'probabilistic':
             param_dict = self.cfg.case_study.parameters_samples
@@ -139,8 +167,6 @@ class reconstruction(reconstruct_base):
             
         return self.live_sets_nd_proj, np.hstack([live_set for live_set in sampled_live_sets.values()])
 
-
-
     def evaluate_joint_model(self, candidates, uncertain_params):
         """
         Evaluate the joint model
@@ -151,3 +177,5 @@ class reconstruction(reconstruct_base):
         """
         # evaluate the joint model
         return self.model.get_constraints(candidates,  uncertain_params)
+
+

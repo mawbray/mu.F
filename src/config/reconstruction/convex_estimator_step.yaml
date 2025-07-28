@@ -4,6 +4,16 @@ reconstruct:
   - True
 
 
+post_process: 
+  - True
+
+post_process_solver:
+ lower_level: 'post_process_lower_level'
+ upper_level: 'post_process_upper_level'
+
+
+post_process_decision_indices: [10, 11]
+
 plot_reconstruction: nominal_map # probability_map #
 
 

@@ -22,7 +22,9 @@ def save_graph(G, mode):
         G.nodes[node]['classifier'] = None 
         G.nodes[node]['unit_params_fn'] = None
 
-
+    G.graph['post_process_classifier'] = None # drop post process classifier
+    # need to delete the post process training methods 
+    # and functions
     # Save the graph to a file
     filename = f"graph_{mode}.pickle"
     with open(filename, 'wb') as f:

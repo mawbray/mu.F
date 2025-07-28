@@ -131,7 +131,7 @@ def surrogate_training_forward(cfg, graph, node, iterate:int=0):
     
     for successor in graph.successors(node):
         # train the model
-        forward_evaluator_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.regressor_selection, 'forward_evaluation_surrogate'), iterate)
+        forward_evaluator_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.regressor_selection, 'forward_evaluation_surrogate'), iterate, data_str='None') # data_str is None as forward_regressor data handling independent of data_str
         forward_evaluator_surrogate.fit(node=successor)
         if cfg.solvers.standardised:
             query_model = forward_evaluator_surrogate.get_model('standardised_model')
@@ -161,7 +161,7 @@ def probability_map_construction(cfg, graph, node, iterate):
     None
     """
     # train the model
-    ls_surrogate = surrogate(graph, node, cfg, ('regression', 'ANN', 'probability_map_surrogate'), iterate)
+    ls_surrogate = surrogate(graph, node, cfg, ('regression', 'ANN', 'probability_map_surrogate'), iterate, data_str='probability_map_training')
     ls_surrogate.fit(node=None)
     if cfg.surrogate.probability_map_args.standardised:
         query_model = ls_surrogate.get_model('standardised_model')
@@ -268,7 +268,6 @@ def update_aux_bounds(live_set, graph, node, cfg):
     return 
 
 
-
 def transform_vmap_output(vmap_output):
     return jnp.vstack([vmap_output[:,i,:].squeeze() for i in range(vmap_output.shape[1])]) # transform rank3 tensor to rank 2 tensor ammenable for box approximation and surrogate training
 
@@ -304,8 +303,8 @@ def classifier_construction(cfg, graph, node, iterate):
     classifier: The trained classifier. (-1 belongs to feasible region, 1 does not belong to feasible region)
     """
     # train the model
-    ls_surrogate = surrogate(graph, node, cfg, ('classification', cfg.surrogate.classifier_selection, 'live_set_surrogate'), iterate)
-    ls_surrogate.fit(node=None)
+    ls_surrogate = surrogate(graph, node, cfg, ('classification', cfg.surrogate.classifier_selection, 'live_set_surrogate'), iterate, data_str='classifier_training')
+    ls_surrogate.fit(node=node)
     if cfg.solvers.standardised:
         query_model = ls_surrogate.get_model('standardised_model')
     else:

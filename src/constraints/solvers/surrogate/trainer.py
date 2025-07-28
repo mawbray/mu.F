@@ -16,7 +16,7 @@ from constraints.solvers.surrogate.svm_utils import train as train_svm, build_sv
 
 
 class trainer_base(ABC):
-    def __init__(self, graph, unit_index, cfg, model_type, iterate):
+    def __init__(self, graph, unit_index, cfg, model_type, iterate, data_str: str = 'classifier_training'):
         self.cfg = cfg
         self.model_type = model_type
         self.model_class = model_type[0]
@@ -25,6 +25,7 @@ class trainer_base(ABC):
         self.graph = graph
         self.unit_index = unit_index
         self.iterate = iterate
+        self.data_str = data_str
 
     def get_model(self, path: str, model_object) -> None:
         pass
@@ -36,8 +37,8 @@ class trainer_base(ABC):
         pass
 
 class trainer(trainer_base):
-    def __init__(self, graph, unit_index, cfg, model_type, iterate):
-        super().__init__(graph, unit_index, cfg, model_type, iterate)
+    def __init__(self, graph, unit_index, cfg, model_type, iterate, data_str: str = 'classifier_training'):
+        super().__init__(graph, unit_index, cfg, model_type, iterate, data_str)
 
     def get_model_object(self, string: str) -> None:
         if string == 'standardised_model':
@@ -62,12 +63,13 @@ class trainer(trainer_base):
         return 
 
     def get_data(self, successor_node: int = None) -> None:
+        
         if (self.model_class == 'regression') and (self.model_surrogate != 'forward_evaluation_surrogate'): # TODO make sure this method exists and acts on the right component of the graph e.g. edge or node
-            dataset = regression_node_data_preparation(self.graph, self.unit_index, self.cfg)
+            dataset = regression_node_data_preparation(self.graph, self.unit_index, self.cfg, data_str=self.data_str)
         elif (self.model_class == 'regression') and (self.model_surrogate == 'forward_evaluation_surrogate'):
             dataset = forward_evaluation_data_preparation(self.graph, self.unit_index, self.cfg, successor_node)
         elif self.model_class == 'classification': # this is only used for determining node data i..e in approximating feasibility
-            data_points, labels = binary_classifier_data_preparation(self.graph, self.unit_index, self.cfg)
+            data_points, labels = binary_classifier_data_preparation(self.graph, self.unit_index, self.cfg, data_str=self.data_str)
             if self.model_subclass == 'SVM' : dataset = (data_points, labels)
             elif self.model_subclass == 'ANN' : dataset = Dataset(X=data_points, y=labels)
         return dataset
@@ -75,7 +77,7 @@ class trainer(trainer_base):
 
     def train(self, node=None) -> jnp.ndarray:
         if node is None:
-            dataset = self.get_data
+            dataset = self.get_data() # TODO
         else:
             dataset = self.get_data(successor_node=node)
 
@@ -97,6 +99,7 @@ class trainer(trainer_base):
     
     def get_serialised_model_data(self) -> dict:
         return self.serialised_data
+    
     
 
 class rebuilder(ABC):

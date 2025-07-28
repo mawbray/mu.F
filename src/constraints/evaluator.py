@@ -7,7 +7,7 @@ from hydra.utils import get_original_cwd
 
 import numpy as np
 import jax.numpy as jnp
-from jax import vmap, jit, pmap, devices
+from jax import vmap, jit, pmap, devices, lax
 from functools import partial
 from scipy.stats import beta
 import jax.scipy.stats as jscp_stats
@@ -509,7 +509,6 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
         if len(list(solver_inputs[0].values())) > 1:
             raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
         else:
-
             results = {succ: [] for succ in self.graph.successors(self.node)}
             # run solvers in parallel
             for succ in self.graph.successors(self.node):
@@ -520,7 +519,6 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
                         solver_reshape.append((s_i[succ][p].solver, s_i[succ][p].problem_data))
                 # evaluate inputs for in parallel for each evaluation of uncertainty
                 results[succ].append(self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[succ][p]))
-
 
             return jnp.concatenate([jnp.array(v).reshape(-1,1) for v in results.values()], axis=-1)
             
@@ -540,10 +538,6 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
         succ_inputs = get_successor_inputs(graph, node, outputs)
         # prepare the forward surrogates
         problem_data = {succ: {p: {} for p in range(succ_inputs[succ].shape[1])} for succ in self.graph.successors(self.node)}
-
-
-        for succ in self.graph.successors(self.node):
-            assert succ_inputs[succ].shape[1]  == 1, f"Problem data shape mismatch: {succ_inputs[succ].shape[1]} != {1}"
 
         p=0 
         for succ in self.graph.successors(self.node):
@@ -892,7 +886,152 @@ class forward_root_constraint_decentralised_evaluator(coupling_surrogate_constra
                 return decisions
 
 
+class global_graph_upperlevel_NLP(coupling_surrogate_constraint_base):
+    """
+    A global graph upper-level NLP
+    - solved using casadi interface with jax and IPOPT
+    - parallelism is provided by multiprocessing pool
+        : may be extended to jax-pmap in the future if someone develops a nice nlp solver in jax
 
+    Syntax: 
+        initialise: class_instance(cfg, graph, node, pool)
+        call: class_instance.evaluate(inputs)
+
+    TODO - think about how best to pass uncertain parameters.
+    """
+    def __init__(self, cfg, graph, node, pool):
+        super().__init__(cfg, graph, node)
+        # pool settings
+        self.pool = pool
+        # pool settings
+        if self.pool is None: 
+            raise Warning("No multiprocessing pool provided. Forward surrogate constraints will be evaluated sequentially.")
+        if self.pool == 'jax-pmap':
+            raise NotImplementedError("jax-pmap is not supported for this constraint type at the moment.")
+        if self.pool == 'mp-ms':
+            self.evaluation_method = self.simple_evaluation 
+        if self.pool == 'ray':
+            self.evaluation_method = self.ray_evaluation
+        
+    def __call__(self):
+        return self.evaluate()
+    
+    def evaluate(self):
+        return self.ray_wrapper()
+    
+    def load_solver(self):
+        return solver_construction(self.cfg.solvers.post_upper_level, self.cfg.solvers.post_process_solver.upper_level)
+    
+    def ray_evaluation(self, solver, max_devices, solver_processing):
+
+        # determine the batch size
+        workers, remainder = determine_batches(len(solver), max_devices)
+        # split the problems
+        solver_batches = create_batches(workers, solver)
+
+        # parallelise the batch
+        result_dict = {}
+        evals = 0
+        if self.pool == 'ray':
+            for i, solve in enumerate(solver_batches):
+                results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
+                for j, result in enumerate(results):
+                    result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
+                evals += j+1
+
+        del solver_batches, results
+
+        return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
+
+    
+    def ray_wrapper(self):
+        """ first prepare the problem set up, 
+        then evaluate the constraints in parallel using ray.
+        """
+
+        solver_inputs = self.evaluate_parallel(0)
+
+        if len(list(solver_inputs[0])) > 1:
+            raise NotImplementedError("Case of uncertainty in forward pass not yet implemented/optimised for parallel evaluation.")
+        else:
+            results = []
+            solver_reshape = []
+            for p in range(len(solver_inputs[0])):
+                for s_i in solver_inputs.values():
+                    solver_reshape.append((s_i[p].solver, s_i[p].problem_data))
+            results.append(self.ray_evaluation(solver_reshape, self.cfg.max_devices, s_i[p]))
+
+
+            return jnp.concatenate(results, axis=-1)
+
+
+    def evaluate_parallel(self, i):
+        """
+        Evaluates the constraints
+        """
+        problem_data = self.prepare_global_problem()
+        solver_object = self.load_solver()  # solver type has been defined elsewhere in the case study/graph construction. 
+        pred_fn_input_i = {0: {0: {}}}
+        # iterate over predecessors and evaluate the constraints
+        for pred in range(1):
+            for p in range(1): 
+                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, problem_data[pred][p]['objective_func'], problem_data[pred][p]['bounds'], problem_data[pred][p]['constraints'])
+                initial_guess = forward_solver.initial_guess()
+                forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
+                forward_solver.solver.problem_data['data']['eq_rhs'] = problem_data[pred][p]['eq_rhs']
+                forward_solver.solver.problem_data['data']['eq_lhs'] = problem_data[pred][p]['eq_lhs']
+                forward_solver.solver.problem_data['data']['cfg'] = dict(self.cfg)
+                forward_solver.solver.problem_data['data']['uncertain_params'] = None
+                forward_solver.solver.problem_data['id'] = i
+                pred_fn_input_i[pred][p] = forward_solver.solver
+
+        return {0: {0: forward_solver.solver}}
+    
+
+    def prepare_global_problem(self):        
+        """
+        Prepares the constraints surrogates and decision variables
+        """
+        problem_data = {0: {0: {}}}
+
+        # prepare the forward surrogate
+        x = self.graph.graph['n_design_args']  + self.graph.graph['n_aux_args'] - len(self.graph.graph['post_process_decision_indices'])
+
+        # load the feasibility constraint surrogate
+        problem_data[0][0]['constraints'] = {0: {'params':self.graph.graph["post_process_classifier_serialised"], 
+                                                'args': [i for i in range(x)], 
+                                                'model_class': 'classification', 'model_surrogate': 'live_set_surrogate', 
+                                                'model_type': self.cfg.surrogate.classifier_selection, 
+                                                'g_fn': lambda x, fn: fn(x.reshape(1,-1)).reshape(-1,1)}}
+        
+        # load the lhs and rhs of the constraints
+        problem_data[0][0]['eq_lhs'] = -jnp.ones(1,).reshape(1,1)*jnp.inf
+        problem_data[0][0]['eq_rhs'] = -jnp.zeros(1,).reshape(1,1)
+
+        # load the objective
+        problem_data[0][0]['objective_func']= {'obj_fun' : lambda x: x.reshape(-1,)[-1].reshape(1,1)}
+
+        # load the standardised bounds
+        # introduce bounds 
+        total_ind = jnp.arange(self.graph.graph['n_design_args'] + self.graph.graph['n_aux_args'])
+        dec_ind = jnp.hstack([jnp.array(self.graph.graph['post_process_decision_indices']).reshape(-1,)])
+    
+        # remove the lower level decision indices from the decision indices
+        dec = np.delete(total_ind, dec_ind).astype(int)  # indices of the fixed decision variables
+
+        # introduce bounds 
+        lb =     jnp.hstack([jnp.array(bound[0]).reshape(-1,) for bound in self.graph.graph['bounds'] if bound[0] != 'None'])[dec]
+        ub =     jnp.hstack([jnp.array(bound[1]).reshape(-1,) for bound in self.graph.graph['bounds'] if bound[1] != 'None'])[dec]
+        bounds = [lb, ub]
+    
+        # standardise the inputs and decisions if required
+        if self.cfg.solvers.standardised:
+            bounds = standardise_model_decisions(self.graph, bounds, None)
+
+        problem_data[0][0]['bounds'] = bounds
+                
+        # return the forward surrogates and decision bounds
+        return problem_data
 
         
 def assess_feasibility(feasibility, input):
@@ -968,44 +1107,45 @@ def prepare_backward_problem(outputs, graph, node, cfg):
     - ouptuts from a nodes unit functions are inputs to the next unit
 
     """
-    backward_bounds = {succ: None for succ in graph.successors(node)}
-    backward_objective = {succ: None for succ in graph.successors(node)}
+    if node is None:
+        return None, None
+    else: 
+        # TODO make sure that this is not going to throw errors in tracing.
+        backward_bounds = {succ: None for succ in graph.successors(node)}
+        backward_objective = {succ: None for succ in graph.successors(node)}
 
-    # get the outputs from the successors of the node
-    succ_inputs = get_successor_inputs(graph, node, outputs)
+        # get the outputs from the successors of the node
+        succ_inputs = get_successor_inputs(graph, node, outputs)
 
-    for succ in graph.successors(node):
+        for succ in graph.successors(node):
 
-        n_d  = graph.nodes[succ]['n_design_args']
-        input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices']]))
-        aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices']]))
-    
+            n_d  = graph.nodes[succ]['n_design_args']
+            input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices']]))
+            aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices']]))
         
-        # standardisation of outputs if required
-        if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ], succ, jnp.hstack([input_indices, aux_indices]).astype(int)))
+            
+            # standardisation of outputs if required
+            if cfg.solvers.standardised: succ_inputs[succ] = succ_inputs[succ].at[:].set(standardise_inputs(graph, succ_inputs[succ], succ, jnp.hstack([input_indices, aux_indices]).astype(int)))
+            
+            # load the standardised bounds
+            decision_bounds = graph.nodes[succ]["extendedDS_bounds"].copy()
+            ndim = graph.nodes[succ]['n_design_args'] + graph.nodes[succ]['n_input_args'] + graph.graph['n_aux_args']
+            decision_indices = jnp.delete(jnp.arange(ndim), np.hstack([input_indices, aux_indices]).astype(int))  # indices of the decision variables
+            # get the decision bounds
+            if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ)
+            
+            decision_bounds = [jnp.delete(bound, np.hstack([input_indices,aux_indices]).astype(int), axis=1) for bound in decision_bounds]
+            backward_bounds[succ] = [decision_bounds.copy() for i in range(succ_inputs[succ].shape[0])]
+
+            # load the forward objective
+            classifier = graph.nodes[succ]["classifier"]
+            wrapper_classifier = mask_classifier(classifier, ndim, input_indices, aux_indices)
+            backward_objective[succ] = [jit(partial(lambda x,y: wrapper_classifier(x,y).squeeze(), y=succ_inputs[succ][i].reshape(1,-1))) for i in range(succ_inputs[succ].shape[0])]
+
         
-        # load the standardised bounds
-        decision_bounds = graph.nodes[succ]["extendedDS_bounds"].copy()
-        ndim = graph.nodes[succ]['n_design_args'] + graph.nodes[succ]['n_input_args'] + graph.graph['n_aux_args']
-        decision_indices = jnp.delete(jnp.arange(ndim), np.hstack([input_indices, aux_indices]).astype(int))  # indices of the decision variables
-        # get the decision bounds
-        if cfg.solvers.standardised: decision_bounds = standardise_model_decisions(graph, decision_bounds, succ, decision_indices)
-        
-        decision_bounds = [jnp.delete(bound, np.hstack([input_indices,aux_indices]).astype(int), axis=1) for bound in decision_bounds]
-        backward_bounds[succ] = [decision_bounds.copy() for i in range(succ_inputs[succ].shape[0])]
 
-        # load the forward objective
-        classifier = graph.nodes[succ]["classifier"]
-        wrapper_classifier = mask_classifier(classifier, ndim, input_indices, aux_indices)
-        backward_objective[succ] = [jit(partial(lambda x,y: wrapper_classifier(x,y).squeeze(), y=succ_inputs[succ][i].reshape(1,-1))) for i in range(succ_inputs[succ].shape[0])]
-
-    
-
-    # return the forward surrogates and decision bounds
-    return backward_objective, backward_bounds
-
-
-# TODO make sure that notation is consistent with the rest of the codebase
+        # return the forward surrogates and decision bounds
+        return backward_objective, backward_bounds
 
 def prepare_global_problem(inputs, aux, graph, cfg):
     """
@@ -1018,8 +1158,8 @@ def prepare_global_problem(inputs, aux, graph, cfg):
             5: masks the classifier to only use the decision variables
             6: prepares the global problem for the solver
     """
-    n_d = graph.graph['n_design_args']
-    n_aux = graph.graph['n_aux_args']
+    n_d     = graph.graph['n_design_args'] # number of design variables in the successors of the root node
+    n_aux   = graph.graph['n_aux_args']
 
     # get the fixed indices and auxiliary indices
     dec_ind = np.array(graph.graph['post_process_decision_indices'])
@@ -1027,23 +1167,24 @@ def prepare_global_problem(inputs, aux, graph, cfg):
     fix_ind = np.delete(total_ind, dec_ind).astype(int)  # indices of the fixed decision variables
 
     # introduce bounds 
-    bounds = [graph.graph['DS_bounds'][0],  jnp.delete(graph.graph['DS_bounds'][1], np.hstack([fix_ind]).astype(int), axis=1)]
-
+    lb =     jnp.hstack([jnp.array(bound[0]).reshape(-1,) for bound in graph.graph['bounds'] if bound[0] != 'None'])
+    ub =     jnp.hstack([jnp.array(bound[1]).reshape(-1,) for bound in graph.graph['bounds'] if bound[1] != 'None'])
+    bounds = [lb, ub]
+    
     # standardise the inputs and decisions if required
     if cfg.solvers.standardised:
         inputs = standardise_inputs(graph, inputs, None, jnp.hstack([fix_ind]).astype(int))
         bounds = standardise_model_decisions(graph, bounds, None)
 
     # mask the classifier to only use the decision variables
-    classifier = mask_classifier(graph.graph['post_process_classifier'], inputs.shape[1], fix_ind, jnp.empty((0,)).astype(int))
+    classifier = mask_classifier(graph.graph['post_process_classifier'], n_d + n_aux, fix_ind, np.empty((0,)).astype(int))
 
     # prepare the objective function
     objective_func = partial(lambda x, y: classifier(x, y).squeeze(), y=inputs.reshape(1,-1))
 
     # prepare the bounds
-    bounds = [jnp.delete(bounds[0], np.hstack([fix_ind]).astype(int), axis=1),
-              jnp.delete(bounds[1], np.hstack([fix_ind]).astype(int), axis=1)]
-
+    bounds = [jnp.delete(bounds[0], fix_ind), jnp.delete(bounds[1], fix_ind)]
+    
 
     return objective_func, bounds
 
@@ -1059,11 +1200,10 @@ def evaluate(outputs, aux, graph, node, cfg):
     evaluate_method = solve
 
     def graph_wide_branch(args):
-        outputs, aux, graph, node, cfg = args
-        if hasattr(graph, "prepare_global_problem"):
-            objective, bounds = prepare_global_problem(outputs, aux, cfg)
-        else:
-            raise NotImplementedError("Graph-wide problem preparation not implemented.")
+        (outputs, aux) = args
+        if outputs.ndim < 2: outputs = outputs.reshape(-1, 1)
+        if aux.ndim < 2: aux = aux.reshape(-1, 1)
+        objective, bounds = prepare_global_problem(outputs, aux, graph, cfg)
         solver = construct_solver(objective, bounds, tol=cfg.solvers.post.jax_opt_options.error_tol)
         initial_guesses = initial_guess(cfg.solvers.backward_coupling, bounds)
         result = evaluate_method([solver], [initial_guesses])
@@ -1071,32 +1211,37 @@ def evaluate(outputs, aux, graph, node, cfg):
         return shaping_function(fn_evaluations, cfg)
 
     def node_local_branch(args):
-        outputs, aux, graph, node, cfg = args
+        (outputs, aux) = args
         # note that auxiliary variables are assumed global and propagated through the graph constituent functions
         objective, bounds = prepare_backward_problem(outputs, graph, node, cfg)
-        succ_fn_evaluations = {}
-        for succ in graph.successors(node):
-            backward_solver = [
-                construct_solver(objective[succ][i], bounds[succ][i], tol=cfg.solvers.backward_coupling.jax_opt_options.error_tol)
-                for i in range(outputs.shape[0])
+        # enabling tracing
+        if objective is None or bounds is None:
+            return jnp.zeros((outputs.shape[0], 1))
+        # function body
+        else: 
+            succ_fn_evaluations = {}
+            for succ in graph.successors(node):
+                backward_solver = [
+                    construct_solver(objective[succ][i], bounds[succ][i], tol=cfg.solvers.backward_coupling.jax_opt_options.error_tol)
+                    for i in range(outputs.shape[0])
+                ]
+                initial_guesses = [
+                    initial_guess(cfg.solvers.backward_coupling, bounds[succ][i])
+                    for i in range(outputs.shape[0])
+                ]
+                succ_fn_evaluations[succ] = evaluate_method(backward_solver, initial_guesses)
+            fn_evaluations = [
+                succ_fn_evaluations[succ]['objective'].reshape(-1, 1)
+                for succ in graph.successors(node)
             ]
-            initial_guesses = [
-                initial_guess(cfg.solvers.backward_coupling, bounds[succ][i])
-                for i in range(outputs.shape[0])
-            ]
-            succ_fn_evaluations[succ] = evaluate_method(backward_solver, initial_guesses)
-        fn_evaluations = [
-            succ_fn_evaluations[succ]['objective'].reshape(-1, 1)
-            for succ in graph.successors(node)
-        ]
-        return shaping_function(jnp.hstack(fn_evaluations), cfg)
+            return shaping_function(jnp.hstack(fn_evaluations), cfg)
 
-    is_graph_wide = graph.graph.get("solve_post_processing_problem", False)
+    is_graph_wide = graph.graph["solve_post_processing_problem"]
     return lax.cond(
         is_graph_wide,
-        graph_wide_branch,
-        node_local_branch,
-        (outputs, aux, graph, node, cfg)
+        false_fun = node_local_branch,
+        true_fun = graph_wide_branch,
+        operand = (outputs, aux)
     )
 
 def construct_input(x, y, fix_ind, aux_ind, ndim):
@@ -1104,16 +1249,17 @@ def construct_input(x, y, fix_ind, aux_ind, ndim):
     input_ = jnp.zeros(ndim)
     
     # Create a mask for positions not in fix_ind and aux_ind
-    total_indices = jnp.arange(ndim)
-    opt_ind = jnp.delete(total_indices, np.concatenate([fix_ind, aux_ind]).astype(int))
+    total_indices = np.arange(ndim)
+    opt_ind = np.delete(total_indices, np.concatenate([fix_ind, aux_ind]).astype(int))
     
     # Assign values from x to input_ at positions not in fix_ind and aux_ind
     input_ = input_.at[opt_ind].set(x.squeeze()) 
     
     # Assign values from y to input_ at positions in fix_ind and aux_ind
-    if fix_ind.size != 0: input_ = input_.at[fix_ind].set(y[0,:len(fix_ind)])
-    if aux_ind.size != 0: input_ = input_.at[aux_ind].set(y[0,len(fix_ind):])
-    
+    if (y.shape[1] >= len(fix_ind)): # note that this will not be the case if graph_wide_problem is solved at a Node
+        if (fix_ind.size != 0): input_ = input_.at[fix_ind].set(y[0,:len(fix_ind)])
+        if aux_ind.size != 0: input_ = input_.at[aux_ind].set(y[0,len(fix_ind):])
+        
     return input_
 
 

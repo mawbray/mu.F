@@ -64,7 +64,7 @@ CS_edge_holder = {  'tablet_press': {(0,1): data_IO_1, (1,2): data_IO_2}, 'seria
                     'affine_study': {(0,2): data_transform_cvx, (1,2): data_transform_cvx, (2,3): affine_cs34, (2,4): affine_cs35}}
 
 vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_IO_2}, 'serial_mechanism_batch': {(0,1): vmap_data_transform},
-                       'estimator': {(0,5): vmap_data_transform_cvx, (1,5): vmap_cs34, (2,5): vmap_cs34,
+                       'estimator': {(0,5): vmap_data_transform_cvx, (1,5): vmap_data_transform_cvx, (2,5): vmap_data_transform_cvx,
                                             (3,5): vmap_data_transform_cvx, (4,5): vmap_data_transform_cvx},
                        'convex_estimator': {(0,5): vmap_data_transform_cvx, (1,5): vmap_data_transform_cvx, (2,5): vmap_data_transform_cvx, 
                                             (3,5): vmap_data_transform_cvx, (4,5): vmap_data_transform_cvx},
