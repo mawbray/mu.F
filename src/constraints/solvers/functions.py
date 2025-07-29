@@ -252,7 +252,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     # get objective function
     obj_data = problem_data['objective_func']
     n_f = len([k for k in list(obj_data.keys()) if 'f' in k])
-    if n_f > 0:
+    if n_f > 1:
       # objective requires some function composition
       obf = construct_model(obj_data['f0']['params'], cfg, supervised_learner=obj_data['f0']['model_class'], model_type=obj_data['f0']['model_type'], model_surrogate=obj_data['f0']['model_surrogate'])
       if n_f > 2:
