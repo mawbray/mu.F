@@ -266,8 +266,8 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
       else:
         objective_func = partial(obj_data['obj_fn'], f1=obf)
     else:
-       # objective is a simple function
-      objective_func = obj_data['obj_fn']
+       print(obj_data)
+       objective_func = lambda x: x.reshape(-1,)[obj_data['obj_fn']].reshape(1,1)
       
     # store for solutions
     solutions = []

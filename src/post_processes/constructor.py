@@ -106,6 +106,8 @@ class post_process(post_process_base):
         self.graph.graph['post_process_classifier_x_scalar'] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
         self.graph.graph['post_process_classifier_serialised'] = ls_surrogate.get_serailised_model_data()
 
+        logging.info(f"Post-process classifier trained with {ls_surrogate.trainer.get_model_object('standardisation_metrics_input').mean.shape} features.")
+
         del ls_surrogate
 
         return 
@@ -133,10 +135,13 @@ class post_process(post_process_base):
             feasibility_values = evaluation_function(jnp.expand_dims(query_points, axis=1), jnp.empty((query_points.shape[0], 1, 0)))
             # repeating evaluation of points
             boolean = self.update_live_set(query_points, feasibility_values)
+        logging.info(f'Live set complete with {self.live_set.live_set_len()} points of {query_points.shape[1]} dimensions.')
         # return the live set
         live_set = self.live_set.get_live_set()
         # store the data generated in characterizing the live set on the graph
         self.graph = self.live_set.load_classification_data_to_graph(self.graph, str='post_process_classifier_training')
+        
+        
         return live_set[0]
     
     def optimize_nuisance_free(self):
@@ -148,13 +153,10 @@ class post_process(post_process_base):
         nuisance_constraint_evaluator = self.solver_methods['upper_level_solver']
         # train the model
         self.train_classification_model()
-        ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)
         evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, node=None, pool='ray', constraint_type=self.cfg.reconstruction.post_process_solver.upper_level).evaluate
         # in the upper level we have no parameters to recursively evaluate, so we just solve to find an optimum.
         optimum = evaluation_function()
-
         logging.info(f"Local optimum found: {optimum}")
-        ray.shutdown()
 
         return optimum
 

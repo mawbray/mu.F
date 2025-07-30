@@ -921,7 +921,8 @@ class global_graph_upperlevel_NLP(coupling_surrogate_constraint_base):
     
     def load_solver(self):
         return solver_construction(self.cfg.solvers.post_upper_level, self.cfg.solvers.post_process_solver.upper_level)
-    
+
+
     def ray_evaluation(self, solver, max_devices, solver_processing):
 
         # determine the batch size
@@ -934,7 +935,8 @@ class global_graph_upperlevel_NLP(coupling_surrogate_constraint_base):
         evals = 0
         if self.pool == 'ray':
             for i, solve in enumerate(solver_batches):
-                results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
+                results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]       
+                # set off and then synchronize before moving on
                 for j, result in enumerate(results):
                     result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
                 evals += j+1
@@ -975,7 +977,7 @@ class global_graph_upperlevel_NLP(coupling_surrogate_constraint_base):
         # iterate over predecessors and evaluate the constraints
         for pred in range(1):
             for p in range(1): 
-                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, problem_data[pred][p]['objective_func'], problem_data[pred][p]['bounds'], problem_data[pred][p]['constraints'])
+                forward_solver = solver_object.from_method(self.cfg.solvers.post_upper_level, solver_object.solver_type, problem_data[pred][p]['objective_func'], problem_data[pred][p]['bounds'], problem_data[pred][p]['constraints'])
                 initial_guess = forward_solver.initial_guess()
                 forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
                 forward_solver.solver.problem_data['data']['eq_rhs'] = problem_data[pred][p]['eq_rhs']
@@ -1009,7 +1011,7 @@ class global_graph_upperlevel_NLP(coupling_surrogate_constraint_base):
         problem_data[0][0]['eq_rhs'] = -jnp.zeros(1,).reshape(1,1)
 
         # load the objective
-        problem_data[0][0]['objective_func']= {'obj_fun' : lambda x: x.reshape(-1,)[-1].reshape(1,1)}
+        problem_data[0][0]['objective_func']= {'obj_fn' : -1}
 
         # load the standardised bounds
         # introduce bounds 
@@ -1179,7 +1181,7 @@ def prepare_global_problem(inputs, aux, graph, cfg):
     # mask the classifier to only use the decision variables
     classifier = mask_classifier(graph.graph['post_process_classifier'], n_d + n_aux, fix_ind, np.empty((0,)).astype(int))
 
-    # prepare the objective function
+    # prepare the objective function # NOTE this should be a maximization problem
     objective_func = partial(lambda x, y: classifier(x, y).squeeze(), y=inputs.reshape(1,-1))
 
     # prepare the bounds
