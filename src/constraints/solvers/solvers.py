@@ -63,6 +63,7 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         objective = self.get_objective(result)
         constraints = self.get_constraints(result)
         t_wall = self.get_time(solver)
+        decision = self.get_solution(result)
 
         if not status:
             objective = np.maximum(np.array([objective]).reshape(-1,), np.max(np.absolute(constraints)).reshape(-1,))
@@ -75,9 +76,11 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
 
         del solver, result, t_wall, len_feasible
 
-        return {'success': status, 'objective': -objective, 'constraints': constraints, 'message': message}
+        return {'success': status, 'objective': objective, 'constraints': constraints, 'message': message, 'decision_variables': decision}
     
-    
+    def get_solution(self, solution):
+        return solution['x']
+
     def get_status(self, solver):
         try:
             return solver['success']
@@ -199,6 +202,7 @@ class parallel_casadi_box_eq_nlp_solver(solver_base):
         objective = self.get_objective(result)
         constraints = self.get_constraints(result)
         t_wall = self.get_time(solver)
+        decision = self.get_solution(result)
 
         if not status:
             objective = np.maximum(np.array([objective]).reshape(-1,), np.max(np.absolute(constraints)).reshape(-1,))
@@ -211,7 +215,7 @@ class parallel_casadi_box_eq_nlp_solver(solver_base):
 
         del solver, result, t_wall, len_feasible
 
-        return {'success': status, 'objective': -objective, 'constraints': constraints, 'message': message}
+        return {'success': status, 'objective': objective, 'constraints': constraints, 'message': message, 'decision_variables': decision}
     
     
     def get_status(self, solver):
@@ -228,6 +232,9 @@ class parallel_casadi_box_eq_nlp_solver(solver_base):
     
     def get_time(self, solver):
         return sum([x for k,x in solver.items() if 't_wall_' in k])
+    
+    def get_solution(self, solution):
+        return solution['x']
     
 
 """

@@ -1,4 +1,5 @@
 
+import logging
 import numpy as np
 from abc import ABC
 
@@ -19,6 +20,7 @@ class live_set:
         update = average_ + current * self.N
         update /= (feasible.shape[0] + self.N)
         self.acceptanceratio = update
+        logging.info(f"Acceptance ratio: {self.acceptanceratio}")
         return 
         
 
@@ -30,7 +32,7 @@ class live_set:
         """
         n_s = x.shape[1]
 
-        if self.notion_of_feasibility:
+        if self.notion_of_feasibility == 'positive':
             y = np.min(x, axis=-1).reshape(x.shape[0],x.shape[1])
             indicator = np.where(y>=0, 1, 0)
             prob_feasible = np.sum(indicator, axis=1)/n_s
@@ -89,7 +91,7 @@ class live_set:
         else:
             return False
         
-    def load_classification_data_to_graph(self, graph=None, str='classifier_training'):
+    def load_classification_data_to_graph(self, graph=None, str_='post_process_lower'):
         """    Get the classification data for training a classifier
         :param graph: The graph
         :param cfg: The configuration
@@ -102,12 +104,14 @@ class live_set:
         live_set = np.vstack(self.live_set)
         infeasible_set = np.vstack(self.infeasible_set)
         # corresponding labels
-        live_set_labels = np.vstack(self.live_set_prob)
-        infeasible_set_labels = np.vstack(self.infeasible_prob)
+        live_set_labels = np.ones(live_set.shape[0]).reshape(-1,1)
+        infeasible_set_labels = -np.ones(infeasible_set.shape[0]).reshape(-1,1)
         # create a dataset object
         all_data = np.vstack([live_set, infeasible_set])    
         all_labels = np.vstack([live_set_labels, infeasible_set_labels])
-        graph.graph[str] = dataset(all_data, all_labels)
+        logging.info(str_ + f"Live set size: {live_set.shape}, Infeasible set size: {infeasible_set.shape}")
+
+        graph.graph[str_+ 'classifier_training'] = dataset(all_data, all_labels)
         return graph
     
 

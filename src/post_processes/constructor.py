@@ -92,9 +92,9 @@ class post_process(post_process_base):
         # check if live set is complete
         return self.live_set.check_if_live_set_complete()
     
-    def train_classification_model(self):
+    def train_classification_model(self, str_: str ='post_process_'):
 
-        ls_surrogate = self.training_methods(self.graph, None, self.cfg, ('classification', self.cfg.surrogate.classifier_selection, 'live_set_surrogate'), self.iterate)
+        ls_surrogate = self.training_methods(self.graph, None, self.cfg, ('classification', self.cfg.surrogate.classifier_selection, 'live_set_surrogate'), self.iterate, str_ + 'classifier_training')
         ls_surrogate.fit(node=None)
         if self.cfg.solvers.standardised:
             query_model = ls_surrogate.get_model('standardised_model')
@@ -102,11 +102,11 @@ class post_process(post_process_base):
             query_model = ls_surrogate.get_model('unstandardised_model')
         
         # store the trained model in the graph
-        self.graph.graph["post_process_classifier"] = query_model
-        self.graph.graph['post_process_classifier_x_scalar'] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
-        self.graph.graph['post_process_classifier_serialised'] = ls_surrogate.get_serailised_model_data()
+        self.graph.graph[str_ + "classifier"] = query_model
+        self.graph.graph[str_ + "classifier_x_scalar"] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
+        self.graph.graph[str_ + "classifier_serialised"] = ls_surrogate.get_serailised_model_data()
 
-        logging.info(f"Post-process classifier trained with {ls_surrogate.trainer.get_model_object('standardisation_metrics_input').mean.shape} features.")
+        logging.info(str_ + f"classifier trained with {ls_surrogate.trainer.get_model_object('standardisation_metrics_input').mean.shape} features.")
 
         del ls_surrogate
 
@@ -124,7 +124,7 @@ class post_process(post_process_base):
         # the evaluator takes the decision variables, bounds and the feasibility function and evaluates feasibility of query points.
         nuisance_constraint_evaluator = self.solver_methods['lower_level_solver']
         # train the model
-        self.train_classification_model()
+        self.train_classification_model(str_='post_process_lower_')
         evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, node=None, pool=None, constraint_type=self.cfg.reconstruction.post_process_solver.lower_level).evaluate
         
         boolean = False
@@ -139,7 +139,7 @@ class post_process(post_process_base):
         # return the live set
         live_set = self.live_set.get_live_set()
         # store the data generated in characterizing the live set on the graph
-        self.graph = self.live_set.load_classification_data_to_graph(self.graph, str='post_process_classifier_training')
+        self.graph = self.live_set.load_classification_data_to_graph(self.graph, str_='post_process_upper_')
         
         
         return live_set[0]
@@ -152,7 +152,7 @@ class post_process(post_process_base):
         # get the upper level solver
         nuisance_constraint_evaluator = self.solver_methods['upper_level_solver']
         # train the model
-        self.train_classification_model()
+        self.train_classification_model(str_='post_process_upper_')
         evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, node=None, pool='ray', constraint_type=self.cfg.reconstruction.post_process_solver.upper_level).evaluate
         # in the upper level we have no parameters to recursively evaluate, so we just solve to find an optimum.
         optimum = evaluation_function()

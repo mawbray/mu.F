@@ -938,7 +938,12 @@ class global_graph_upperlevel_NLP(coupling_surrogate_constraint_base):
                 results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]       
                 # set off and then synchronize before moving on
                 for j, result in enumerate(results):
-                    result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
+                    r_global = solver_processing.solve_digest(*result)
+                    logging.info(f"Solver status: {r_global['success']}")
+                    logging.info(f"Global  objective: {r_global['objective']}")
+                    logging.info(f"Global solution: {r_global['decision_variables']}")
+
+                    result_dict[evals + j] = r_global['objective']
                 evals += j+1
 
         del solver_batches, results
@@ -1000,7 +1005,7 @@ class global_graph_upperlevel_NLP(coupling_surrogate_constraint_base):
         x = self.graph.graph['n_design_args']  + self.graph.graph['n_aux_args'] - len(self.graph.graph['post_process_decision_indices'])
 
         # load the feasibility constraint surrogate
-        problem_data[0][0]['constraints'] = {0: {'params':self.graph.graph["post_process_classifier_serialised"], 
+        problem_data[0][0]['constraints'] = {0: {'params':self.graph.graph["post_process_upper_classifier_serialised"], 
                                                 'args': [i for i in range(x)], 
                                                 'model_class': 'classification', 'model_surrogate': 'live_set_surrogate', 
                                                 'model_type': self.cfg.surrogate.classifier_selection, 
@@ -1179,10 +1184,10 @@ def prepare_global_problem(inputs, aux, graph, cfg):
         bounds = standardise_model_decisions(graph, bounds, None)
 
     # mask the classifier to only use the decision variables
-    classifier = mask_classifier(graph.graph['post_process_classifier'], n_d + n_aux, fix_ind, np.empty((0,)).astype(int))
+    classifier = mask_classifier(graph.graph['post_process_lower_classifier'], n_d + n_aux, fix_ind, np.empty((0,)).astype(int))
 
     # prepare the objective function # NOTE this should be a maximization problem
-    objective_func = partial(lambda x, y: classifier(x, y).squeeze(), y=inputs.reshape(1,-1))
+    objective_func = partial(lambda x, y: -classifier(x, y).squeeze(), y=inputs.reshape(1,-1))
 
     # prepare the bounds
     bounds = [jnp.delete(bounds[0], fix_ind), jnp.delete(bounds[1], fix_ind)]
@@ -1210,7 +1215,7 @@ def evaluate(outputs, aux, graph, node, cfg):
         initial_guesses = initial_guess(cfg.solvers.backward_coupling, bounds)
         result = evaluate_method([solver], [initial_guesses])
         fn_evaluations = result['objective'].reshape(-1, 1)
-        return shaping_function(fn_evaluations, cfg)
+        return -shaping_function(fn_evaluations, cfg) # maximisation problem
 
     def node_local_branch(args):
         (outputs, aux) = args

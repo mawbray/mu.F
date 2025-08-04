@@ -1,6 +1,7 @@
 
 import jax.numpy as jnp
 import numpy as np
+import logging 
 import pandas as pd
 from unit_evaluators.constructor import network_simulator
 from samplers.constructor import construct_deus_problem_network
@@ -8,7 +9,8 @@ from constraints.constructor import constraint_evaluator
 from samplers.utils import create_problem_description_deus_direct
 from visualisation.visualiser import visualiser
 from reconstruction.constructor import reconstruction as reconstruct
-from reconstruction.objects import live_set
+from reconstruction.objects import live_set, dataset
+
 
 from deus import DEUS
 
@@ -19,6 +21,7 @@ def apply_direct_method(cfg, graph):
     solver =  construct_deus_problem_network(DEUS, problem_description, model)
     solver.solve()
     feasible_set, infeasible_set = solver.get_solution()
+    logging.info(f"Feasible set shape: {feasible_set[0].shape}, Infeasible set shape: {infeasible_set[0].shape}")
     for node in graph.nodes:
         graph.nodes[node]['fn_evals'] = model.function_evaluations[node]
 
@@ -43,6 +46,7 @@ def apply_direct_method(cfg, graph):
                 fs = feasible_set[0]
             else:
                 fs = feasible_set
+            rng = np.random.default_rng()
             rng.shuffle(fs, axis=0)
             n_l = cfg.samplers.ns.final_sample_live
             n_samples = cfg.samplers.ns.n_replacements
@@ -54,6 +58,7 @@ def apply_direct_method(cfg, graph):
             feasible_samples = fs[rounded_indices]
             return feasible_samples
         
+        graph =  load_to_graph(feasible_set, infeasible_set, graph, str_='post_process_lower_')
         post_process = graph.graph['post_process'](cfg, graph, model, 0)
         assert hasattr(post_process, 'run')
         post_process.load_training_methods(graph.graph["post_process_training_methods"])
@@ -74,8 +79,27 @@ def apply_direct_method(cfg, graph):
         graph.graph["final_post_process_classifier"] = query_model
         graph.graph['final_post_process_classifier_x_scalar'] = trainer.trainer.get_model_object('standardisation_metrics_input')
         graph.graph['final_post_process_classifier_serialised'] = trainer.get_serailised_model_data()
-        
-
     
 
     return feasible_set, infeasible_set
+
+
+def load_to_graph(feasible, infeasible, graph, str_):
+    assert isinstance(feasible, tuple) 
+    assert isinstance(infeasible, tuple)
+    # unpack feasible and infeasible sets
+    feasible_query, feasible_prob = feasible
+    infeasible_query, infeasible_prob = infeasible
+    # get samples
+    live_set = np.vstack(feasible_query)
+    infeasible_set = np.vstack(infeasible_query) 
+    # corresponding labels
+    live_set_labels = np.ones(live_set.shape[0]).reshape(-1,1) 
+    infeasible_set_labels = -np.ones(infeasible_set.shape[0]).reshape(-1,1)
+    # create a dataset object
+    all_data = np.vstack([live_set, infeasible_set])    
+    all_labels = np.vstack([live_set_labels, infeasible_set_labels])
+    logging.info(str_ + f"Live set size: {live_set.shape}, Infeasible set size: {infeasible_set.shape}")
+
+    graph.graph[str_+ 'classifier_training'] = dataset(all_data, all_labels)
+    return graph

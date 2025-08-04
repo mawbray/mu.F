@@ -87,7 +87,7 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     G.add_arg_to_graph('bounds', list(chain.from_iterable(cfg.case_study.KS_bounds.design_args + cfg.case_study.KS_bounds.aux_args)))
     G.add_arg_to_graph('classifier_x_scalar', None) # initialisation
     G.add_arg_to_graph('post_process_classifier', lambda x: jnp.sum(x)) # scalarise input as dummy function for jit tracing.
-
+    G.add_arg_to_graph('post_process_lower_classifier', lambda x: jnp.sum(x))
     if cfg.reconstruction.post_process:
         # post processing
         G.add_arg_to_graph('post_process', post_process)

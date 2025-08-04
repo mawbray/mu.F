@@ -78,7 +78,7 @@ post:
 post_upper_level:
   max_solution_time: 1. 
   parallelised: False
-  n_starts: 4
+  n_starts: 16
   casadi_ipopt_options:
     maxiter: 500
     verbose: False

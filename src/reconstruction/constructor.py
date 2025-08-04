@@ -92,7 +92,7 @@ class reconstruction(reconstruct_base):
         :param iterate: The iteration number
         :return: The post process object
         """
-        graph = ls_holder.load_classification_data_to_graph(graph)
+        graph = ls_holder.load_classification_data_to_graph(graph, str_='post_process_lower_')
         post_process = graph.graph['post_process'](cfg, graph, model, iterate)
         assert hasattr(post_process, 'run')
         post_process.load_training_methods(graph.graph["post_process_training_methods"])
@@ -101,18 +101,6 @@ class reconstruction(reconstruct_base):
         post_process.sampler = lambda : (self.sample_live_sets())[1]
         post_process.load_fresh_live_set(live_set=live_set(self.cfg, self.cfg.samplers.notion_of_feasibility))
         graph = post_process.run()
-        trainer = post_process.training_methods(graph, None, self.cfg, ('classification', self.cfg.surrogate.classifier_selection, 'live_set_surrogate'), self.iterate,'post_process_classifier_training')
-        trainer.fit()
-
-        if self.cfg.solvers.standardised:
-            query_model = trainer.get_model('standardised_model')
-        else:
-            query_model = trainer.get_model('unstandardised_model')
-        
-        # store the trained model in the graph
-        graph.graph["final_post_process_classifier"] = query_model
-        graph.graph['final_post_process_classifier_x_scalar'] = trainer.trainer.get_model_object('standardisation_metrics_input')
-        graph.graph['final_post_process_classifier_serialised'] = trainer.get_serailised_model_data()
 
         return graph
 
