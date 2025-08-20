@@ -3,7 +3,7 @@ from typing import List, Tuple
 from functools import partial
 
 import pandas as pd
-from visualisation.methods import init_plot, decompose_call, polytope_plot, decomposition_plot, reconstruction_plot, design_space_plot, polytope_plot_2, design_space_plot_plus_polytope
+from visualisation.methods import init_plot, decompose_call, polytope_plot, decomposition_plot, reconstruction_plot, design_space_plot, polytope_plot_2, design_space_plot_plus_polytope, post_process_upper_solution
 
 class visualiser(ABC):
     def __init__(self, cfg, G, data: pd.DataFrame=None, mode:str='forward', string:str='design_space', path=None):
@@ -25,13 +25,22 @@ class visualiser(ABC):
                 self.visualiser = partial(decompose_call, init=False, path=path)
             elif mode == 'backward':
                 self.visualiser = partial(decompose_call, init=True, path=path)
+        elif string == 'post_process_upper':
+            self.visualiser = partial(post_process_upper_solution, solution=data, path=path)
         else:
-            raise ValueError('string must be one of "initialisastion", "design_space", "reconstruction", "decomposition" ')
-        
+            raise ValueError('string must be one of "initialisastion", "design_space", "reconstruction", "decomposition", "post_process_upper"')
+
 
     def run(self):
         self.visualiser(self.cfg, self.G)
         return
+    
+    def run_with_args(self,*args):
+        """
+        This method is used to run the visualiser with additional arguments.
+        It allows for flexibility in how the visualiser is executed.
+        """
+        return self.visualiser(*args)
 
 
 """def polytope_plot(pp, vertices, path=None):

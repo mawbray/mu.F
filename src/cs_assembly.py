@@ -1,6 +1,6 @@
 
-from unit_evaluators.constructor import unit_evaluation
-from constraints.functions import CS_holder
+from unit_evaluators.constructor import unit_evaluation, post_process_evaluation
+from constraints.functions import CS_holder, post_process_visualiser
 from graph.graph_assembly import graph_constructor
 from graph.methods import CS_edge_holder, vmap_CS_edge_holder
 from constraints.solvers.constructor import solver_construction
@@ -8,6 +8,7 @@ from constraints.solvers.surrogate.surrogate import surrogate
 from constraints.constructor import constraint_evaluator
 from post_processes.constructor import post_process
 from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
+from visualisation.visualiser import visualiser
 
 from functools import partial
 from itertools import chain
@@ -68,6 +69,7 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     G.add_arg_to_nodes('unit_params_fn', unit_params_fn)
     G.add_arg_to_nodes('extendedDS_bounds', cfg.case_study.extendedDS_bounds)
     G.add_arg_to_nodes('constraints', constraint_dictionary)
+    
     G.add_arg_to_nodes('forward_coupling_solver', solvers['forward_coupling_solver'])
     G.add_arg_to_nodes('backward_coupling_solver', solvers['backward_coupling_solver'])
     if cfg.method != 'decomposition_constraint_tuner':
@@ -90,12 +92,14 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     G.add_arg_to_graph('post_process_lower_classifier', lambda x: jnp.sum(x))
     if cfg.reconstruction.post_process:
         # post processing
+        G.add_arg_to_nodes('post_process_constraints', post_process_visualiser[cfg.case_study.case_study])
         G.add_arg_to_graph('post_process', post_process)
         G.add_arg_to_graph('post_process_training_methods', surrogate)
         G.add_arg_to_graph('post_process_solver_methods', {'upper_level_solver': constraint_evaluator, 'lower_level_solver': constraint_evaluator})
         G.add_arg_to_graph('post_process_decision_indices', cfg.reconstruction.post_process_decision_indices)
         G.add_arg_to_graph('solve_post_processing_problem', False) # overwritten in the post_process function
-
+        G.add_arg_to_graph('post_process_solution_evaluator', partial(post_process_evaluation, constraint_evaluator=constraint_evaluator))
+        G.add_arg_to_graph('post_process_solution_visualiser', visualiser) 
     # add edge properties to the graph
     G.add_arg_to_edges('edge_fn', dict_of_edge_fn)
     # add the auxiliary filters to the graph

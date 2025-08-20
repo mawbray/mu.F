@@ -96,6 +96,41 @@ class process_constraint_evaluator(constraint_evaluator_base):
         self.graph.nodes[self.node]['constraints_vmap'] = cons
 
         return 
+    
+
+class post_process_constraint_evaluator(process_constraint_evaluator):
+    """
+    Evaluates the post processing constraints.
+    """
+    def __init__(self, cfg, graph, node, pool=None):
+        """
+        Initializes
+        """
+        super().__init__(cfg, graph, node, pool)
+        if cfg.case_study.vmap_evaluations:
+            self.vmap_evaluation()
+
+    def load_unit_constraints(self):
+        """
+        Loads the constraints from the graph 
+        """
+        if self.cfg.case_study.vmap_evaluations:
+            return list(self.graph.nodes[self.node]['post_process_constraints_vmap'].copy())
+        else:
+            return list(self.graph.nodes[self.node]['post_process_constraints'].copy())
+        
+    def vmap_evaluation(self):
+        """
+        Vectorizes the post processing constraints and then loads them back onto the graph
+        """
+        # get constraints from the graph
+        constraints = self.graph.nodes[self.node]['post_process_constraints'].copy()
+        # vectorize each constraint
+        cons = [jit(vmap(jit(vmap(partial(constraint, cfg=self.cfg.model), in_axes=(0), out_axes=0)), in_axes=(1), out_axes=1)) for constraint in constraints]
+        # load the vectorized constraints back onto the graph
+        self.graph.nodes[self.node]['post_process_constraints_vmap'] = cons
+
+        return
 
 class coupling_surrogate_constraint_base(constraint_evaluator_base):
     def __init__(self, cfg, graph, node):

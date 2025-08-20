@@ -67,19 +67,7 @@ def apply_direct_method(cfg, graph):
         post_process.sampler = lambda : sampler()
         post_process.load_fresh_live_set(live_set=live_set(cfg, cfg.samplers.notion_of_feasibility))
         graph = post_process.run()
-        trainer = post_process.training_methods(graph, None, cfg, ('classification', cfg.surrogate.classifier_selection, 'live_set_surrogate'), 0,'post_process_classifier_training')
-        trainer.fit()
         
-        if cfg.solvers.standardised:
-            query_model = trainer.get_model('standardised_model')
-        else:
-            query_model = trainer.get_model('unstandardised_model')
-        
-        # store the trained model in the graph
-        graph.graph["final_post_process_classifier"] = query_model
-        graph.graph['final_post_process_classifier_x_scalar'] = trainer.trainer.get_model_object('standardisation_metrics_input')
-        graph.graph['final_post_process_classifier_serialised'] = trainer.get_serailised_model_data()
-    
 
     return feasible_set, infeasible_set
 
@@ -103,3 +91,5 @@ def load_to_graph(feasible, infeasible, graph, str_):
 
     graph.graph[str_+ 'classifier_training'] = dataset(all_data, all_labels)
     return graph
+
+

@@ -154,16 +154,30 @@ def interaction_terms(dynamic_profile, cfg):
 
 @partial(jit, static_argnums=(1))
 def estimation_bound_lb(dynamic_profile, cfg):
-    return cfg.constraint.estimation_bound - jnp.linalg.norm(nonconvex_ground_truth(dynamic_profile, cfg) - dynamic_profile[0])
+    return cfg.constraint.estimation_bound - evaluation_function(dynamic_profile, cfg)
 
 @partial(jit, static_argnums=(1))
 def underestimation_constraint(dynamic_profile, cfg):
     return nonconvex_ground_truth(dynamic_profile, cfg) - dynamic_profile[0]  # this quantity must just be non-negative.
 
+@partial(jit, static_argnums=(1))
+def evaluation_function(dynamic_profile, cfg):
+    """
+    Evaluation for the post_processing problem.
+    """
+    return jnp.linalg.norm(underestimation_constraint(dynamic_profile, cfg)) 
 
+@partial(jit, static_argnums=(1))
 def estimation_g_aux(dynamic_profile, cfg):
     """    """
-    return dynamic_profile[-1] - jnp.linalg.norm(nonconvex_ground_truth(dynamic_profile[-3:-1], cfg) - dynamic_profile[0])
+    return dynamic_profile[-1] - evaluation_function_aux(dynamic_profile, cfg)  # this quantity must just be non-negative.
+
+@partial(jit, static_argnums=(1))
+def evaluation_function_aux(dynamic_profile, cfg):
+    """
+    Auxiliary evaluation for the post_processing problem.
+    """
+    return jnp.linalg.norm(nonconvex_ground_truth(dynamic_profile[-3:-1], cfg) - dynamic_profile[0])
 
 
 # -------------------------------------------------------------------------------- #
@@ -179,5 +193,9 @@ CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_
              'serial_mechanism_batch': {0: [purity_unit_1_ub], 1: [purity_unit_2_lb]},
              'convex_estimator': {0: [], 1: [log_term_hess_1], 2: [log_term_hess_1], 3: [], 4: [psd_constraint], 5: [estimation_bound_lb]},
              'convex_underestimator': {0: [], 1: [log_term_hess_1], 2: [log_term_hess_1], 3: [], 4: [psd_constraint], 5: [underestimation_constraint]},
-            'estimator': {0: [], 1: [], 2: [], 3: [], 4: [], 5: [estimation_g_aux]},
+             'estimator': {0: [], 1: [], 2: [], 3: [], 4: [], 5: [estimation_g_aux]},
              'affine_study': {0: [negative_output_constraint], 1: [negative_output_constraint], 2: [negative_output_constraint], 3: [negative_output_constraint], 4: [negative_output_constraint]},}
+
+post_process_visualiser = {
+    "estimator": {0: [], 1: [], 2: [], 3: [], 4: [], 5: [evaluation_function_aux]},
+}

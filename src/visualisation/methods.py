@@ -3,6 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from scipy.interpolate import griddata
 
 def plotting_format():
     font = {"family": "serif", "weight": "bold", "size": 20}
@@ -175,6 +176,7 @@ def polytope_plot(pp, polytope):
 
 def polytope_plot_2(pp, polytope):
     from scipy.spatial import ConvexHull
+
     indices = zip(*np.tril_indices_from(pp.axes, -1))
 
     for i, j in indices: 
@@ -196,3 +198,102 @@ def hide_current_axis(*args, **kwds):
     return
 
 
+def post_process_upper_solution(cfg, G, solution, path):
+    """
+    Visualise the solution of the post-processing upper-level problem.
+    :param cfg: Configuration object
+    :param G: Graph object
+    :param solution: Solution to be visualised
+    :param path: Path to save the visualisation
+    """
+    plotting_format()
+    fig, ax = plt.subplots(figsize=(10, 10))
+    
+    # Assuming solution is a DataFrame with columns: 'x', 'y', 'z'
+    # where 'x' and 'y' are the 2D input variables and 'z' is the mapped 1D output
+    x = solution.iloc[:, 0]
+    y = solution.iloc[:, 1]
+    z = solution.iloc[:, 2]
+
+    # Create a grid for contour plotting
+    xi = np.linspace(x.min(), x.max(), 100)
+    yi = np.linspace(y.min(), y.max(), 100)
+    xi, yi = np.meshgrid(xi, yi)
+
+    # Interpolate z values on the grid
+    zi = griddata((x, y), z, (xi, yi), method='cubic')
+
+    # Plot the contour
+    contour = ax.contourf(xi, yi, zi, levels=20, cmap='viridis')
+    plt.colorbar(contour, ax=ax, label='Mapped Value (z)')
+
+    ax.set_title("Post-Processing Upper-Level Solution (Contour)")
+    ax.set_xlabel(solution.columns[0])
+    ax.set_ylabel(solution.columns[1])
+    
+    plt.savefig(os.path.join(path, "post_process_upper_solution.svg"), dpi=300)
+    
+    return fig
+
+
+def plot_contour(func, x_range, y_range, path, num_points=200, levels=10):
+    """
+    Generates a contour plot for a given 2D function over a specified box domain.
+    This version is designed for functions that can only be evaluated on a batch
+    of points where the batch is the zeroth axis (e.g., func(x_coords, y_coords)
+    where x_coords and y_coords are 1D arrays).
+
+    Args:
+        func (callable): The function to plot. It should accept two 1D arrays,
+                        x and y, and return a single 1D array of results.
+        x_range (tuple): A tuple (x_min, x_max) defining the range for the x-axis.
+        y_range (tuple): A tuple (y_min, y_max) defining the range for the y-axis.
+        num_points (int, optional): The number of points to use for the grid along
+                                    each axis. A higher number results in a smoother
+                                    plot. Defaults to 200.
+        levels (int, optional): The number of contour lines or filled regions to display.
+                                Defaults to 10.
+    """
+    # Create a grid of points for the x and y axes
+    x = np.linspace(x_range[0], x_range[1], num_points)
+    y = np.linspace(y_range[0], y_range[1], num_points)
+    
+    # Use numpy.meshgrid to create the 2D grid from the 1D arrays
+    X, Y = np.meshgrid(x, y)
+
+    # Flatten the X and Y grids into 1D arrays for the batch evaluation
+    # This creates a "batch" of all coordinate pairs to be evaluated
+    x_coords_batch = X.ravel()
+    y_coords_batch = Y.ravel()
+
+    # Evaluate the input function on the batch of points
+    # The function is expected to return a 1D array of results
+    z_values_batch = func(x_coords_batch, y_coords_batch)
+
+    # Reshape the 1D result back into a 2D array with the original grid shape
+    Z = z_values_batch.reshape(X.shape)
+
+    # Create the plot figure and axes
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # --- Generate the contour plot ---
+    # The 'contourf' function creates filled contour regions.
+    # The 'cmap' parameter sets the colormap.
+    cf = ax.contourf(X, Y, Z, levels=levels, cmap='viridis')
+    
+    # The 'contour' function creates the contour lines on top of the filled regions.
+    # We use 'colors='k'' to make the lines black.
+    ax.contour(X, Y, Z, levels=levels, colors='k', linewidths=0.5)
+
+    # --- Customize the plot ---
+    # Add a color bar to show the mapping from color to Z-value
+    fig.colorbar(cf, ax=ax, label='Function Value (Z)')
+
+    # Add titles and labels
+    ax.set_title(f'Contour Plot of {func.__name__}', fontsize=16)
+    ax.set_xlabel(f'r$x_1$', fontsize=12)
+    ax.set_ylabel(f'r$x_2$', fontsize=12)
+    ax.set_aspect('equal', adjustable='box') # Ensure the plot is not stretched
+
+    # Display the plot
+    plt.savefig(os.path.join(path, "post_process_upper_solution.svg"), dpi=300)

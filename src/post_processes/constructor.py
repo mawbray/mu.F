@@ -64,7 +64,9 @@ class post_process(post_process_base):
         # Update the graph with the live set
         self.graph.graph['post_processed_live_set'] = live_set
         # Solve the upper-level problem
-        self.optimize_nuisance_free()
+        optima = self.optimize_nuisance_free()
+        dataframe =  self._evaluate_solution(optima)
+
 
         return self.graph
 
@@ -141,7 +143,6 @@ class post_process(post_process_base):
         # store the data generated in characterizing the live set on the graph
         self.graph = self.live_set.load_classification_data_to_graph(self.graph, str_='post_process_upper_')
         
-        
         return live_set[0]
     
     def optimize_nuisance_free(self):
@@ -158,7 +159,32 @@ class post_process(post_process_base):
         optimum = evaluation_function()
         logging.info(f"Local optimum found: {optimum}")
 
-        return optimum
+        return optimum[:-1]
+    
+    def _evaluate_solution(self, solution):
+        """
+        Evaluate the solution of the upper-level problem
+        """
+        # Implement the logic to evaluate the solution
+        assert self.solver_methods is not None, "Solver methods must be set before evaluating the solution."
+        assert self.sampler is not None, "Sampler must be set before evaluating the solution."
+        
+        evaluation_function = self.graph.graph['post_process_solution_evaluator']
+
+        dataframe = evaluation_function(self.cfg, self.graph).wrap_get_constraints(solution)
+        self._visualise_solution(dataframe)
+        
+        return dataframe
+    
+    def _visualise_solution(self, solution):
+        """
+        Visualise the solution of the upper-level problem
+        """
+        # Implement the logic to visualise the solution
+        assert self.solver_methods is not None, "Solver methods must be set before visualising the solution."
+        
+        visualisation_function = self.graph.graph['post_process_solution_visualiser']
+        visualisation_function(self.cfg, self.graph, solution, path='post_process_upper').run()
 
     def filter_decision_variables(self, decision_variables: list[int], query_points: jnp.ndarray) -> list[int]:
         """

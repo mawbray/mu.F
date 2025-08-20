@@ -21,10 +21,17 @@ def save_graph(G, mode):
         G.nodes[node]["constraints_vmap"] = None # drop backward evaluators
         G.nodes[node]['classifier'] = None 
         G.nodes[node]['unit_params_fn'] = None
+        G.nodes[node]['post_process_constraints'] = None
 
     G.graph['post_process_classifier'] = None # drop post process classifier
     G.graph['post_process_lower_classifier'] = None # drop post process classifier
+    G.graph['post_process_training_methods'] = None # drop post process training methods
+    G.graph['post_process_solver_methods'] = None # drop post process solver methods
+    G.graph['post_process_solution_evaluator'] = None # drop post process solution evaluator
+    G.graph['post_process_solution_visualiser'] = None # drop post process solution visualiser
+    
     # need to delete the post process training methods 
+
     # and functions
     # Save the graph to a file
     filename = f"graph_{mode}.pickle"

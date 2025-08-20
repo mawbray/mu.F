@@ -4,6 +4,8 @@ from copy import copy
 from functools import partial
 import jax.numpy as jnp 
 from jax import vmap, jit
+import numpy as np
+import pandas as pd 
 
 from unit_evaluators.integrators import unit_dynamics
 from unit_evaluators.steady_state import unit_steady_state
@@ -209,9 +211,10 @@ class network_simulator(ABC):
     This class is responsible for simulating a network of interconnected nodes and edges. 
     Each node represents a unit operation in a process, and each edge represents the flow of material between units.
     """
-    def __init__(self, cfg, graph, constraint_evaluator):
+    def __init__(self, cfg, graph, constraint_evaluator, type_cons='process'):
         self.cfg = cfg
         self.graph = graph.copy()
+        self.type = type_cons
         self.constraint_evaluator = constraint_evaluator
         self.function_evaluations = {node: 0 for node in self.graph.nodes}
 
@@ -255,7 +258,7 @@ class network_simulator(ABC):
                 if edge_data.ndim==2: edge_data = jnp.expand_dims(edge_data, axis=-1)
                 self.graph.edges[node, successor]['input_data_store'] = edge_data
 
-            node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
+            node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node, constraint_type=self.type)
 
             self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, outputs)
 
@@ -396,3 +399,59 @@ class network_simulator(ABC):
 
         return [cons_[i,:,:] for i in range(cons_.shape[0])]
  
+
+
+class post_process_evaluation(network_simulator):
+    """
+    This class is responsible for post-processing the results of the network simulation.
+    It extends the network_simulator class and provides additional functionality for post-processing.
+    """
+    def __init__(self, cfg, graph, constraint_evaluator):
+        super().__init__(cfg, graph, constraint_evaluator, type_cons='post_process_evals')
+        self.type = 'post_process_evals'
+
+    def get_auxiliary_bounds(self):
+        aux_bounds = self.cfg.case_study.KS_bounds.aux_args
+        aux_lb = jnp.array([bound[0][0] for bound in aux_bounds])
+        aux_ub = jnp.array([bound[0][1] for bound in aux_bounds])
+        return aux_lb, aux_ub
+    
+    def wrap_get_constraints(self, solution):
+        """
+        Wraps the get_constraints method to handle the solution.
+
+        Args:
+            solution (array): The solution to be processed.
+
+        Returns:
+            array: The constraints for the given solution.
+        """
+
+        bounds = self.get_auxiliary_bounds()
+        x_range = (bounds[0][0], bounds[1][0])
+        y_range = (bounds[0][1], bounds[1][1])
+        num_points = 200
+        # Create a grid of points for the x and y axes
+        x = np.linspace(x_range[0], x_range[1], num_points)
+        y = np.linspace(y_range[0], y_range[1], num_points)
+        
+        # Use numpy.meshgrid to create the 2D grid from the 1D arrays
+        X, Y = np.meshgrid(x, y)
+
+        # Flatten the X and Y grids into 1D arrays for the batch evaluation
+        # This creates a "batch" of all coordinate pairs to be evaluated
+        x_coords_batch = X.ravel().reshape(-1, 1)
+        y_coords_batch = Y.ravel().reshape(-1, 1)
+
+        # Combine the x and y coordinates into a single array of shape (num_points, 2)
+        solution_batch = np.tile(solution, (num_points * num_points, solution.shape[0]))
+        print("solution_batch shape:", solution_batch.shape)
+        coords_batch = np.hstack((solution_batch, x_coords_batch, y_coords_batch, np.zeros((num_points*num_points,1))))
+
+        uncertain_params = jnp.empty((num_points, 0))
+        epsilon = self.get_constraints(coords_batch, uncertain_params)
+        return pd.DataFrame({
+            'x': x_coords_batch,
+            'y': y_coords_batch,
+            'z': epsilon
+        })
