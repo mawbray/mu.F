@@ -12,7 +12,7 @@ class constraint_evaluator(ABC):
         self.node = node
 
         if constraint_type == 'process':
-            self.constraget_solutionint_evaluator = process_constraint_evaluator(cfg, graph, node, pool)
+            self.constraint_evaluator = process_constraint_evaluator(cfg, graph, node, pool)
             self.evaluate = self.evaluate_process
         elif constraint_type == 'forward':
             self.constraint_evaluator = forward_constraint_evaluator(cfg, graph, node, pool)
