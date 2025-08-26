@@ -3,7 +3,7 @@ from functools import partial
 import jax.numpy as jnp
 from jax import vmap, jit
 
-from constraints.evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator, backward_constraint_evaluator_general, forward_root_constraint_decentralised_evaluator
+from constraints.evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator, backward_constraint_evaluator_general, forward_root_constraint_decentralised_evaluator, q_learning_evaluator
 
 class constraint_evaluator(ABC):
     def __init__(self, cfg, graph, node, pool=None, constraint_type='process'):
@@ -29,6 +29,9 @@ class constraint_evaluator(ABC):
                 self.evaluate = self.evaluate_coupling
         elif constraint_type == 'root_node_decentralized':
             self.constraint_evaluator = forward_root_constraint_decentralised_evaluator(cfg, graph, node, pool)
+            self.evaluate = self.evaluate_coupling
+        elif constraint_type == 'reward':
+            self.constraint_evaluator = q_learning_evaluator(cfg, graph, node, pool)
             self.evaluate = self.evaluate_coupling
         else:   
             raise ValueError('Invalid constraint type')

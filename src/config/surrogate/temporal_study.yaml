@@ -26,6 +26,7 @@ surrogate_forward:
 classifier: true
 classifier_selection: 'ANN' # or 'SVM'
 regressor_selection: 'ANN' # or 'GP' 
+q_function_selection: 'ANN'
 probability_map: false
 
 subsample_size: 100000

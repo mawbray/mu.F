@@ -1,6 +1,7 @@
 from abc import ABC
 import os
 from typing import Iterable, Callable, List
+
 from omegaconf import DictConfig
 import logging
 from hydra.utils import get_original_cwd
@@ -609,7 +610,7 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
                                                                         'model_type': self.cfg.surrogate.classifier_selection,
                                                                         'g_fn': partial(lambda x, fn, v : fn(x.reshape(1,-1)[:,v]).reshape(-1,1), v = [last_index+ i for i in range(n_d_m)])}
                         k_index += 1
-                        last_index += n_d_m 
+                        last_index += n_d_m     
                         problem_data[succ][p]['eq_rhs'] = jnp.vstack([problem_data[succ][p]['eq_rhs'], jnp.zeros(len(n_input_indices_m)+1,).reshape(-1,1)])
                         problem_data[succ][p]['eq_lhs'] = jnp.vstack([problem_data[succ][p]['eq_lhs'], jnp.zeros(len(n_input_indices_m),).reshape(-1,1), -jnp.inf*jnp.ones((1,)).reshape(-1,1)])
                         
@@ -650,6 +651,44 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
 
         return succ_fn_input_i
 
+
+class q_learning_evaluator(backward_constraint_evaluator_general):
+    """
+    A Q-learning based evaluator for backward constraints
+    """
+    def __init__(self, cfg, graph, node, pool):
+        super().__init__(cfg, graph, node, pool)
+
+    def prepare_forward_problem(self, outputs):
+        problem_data = super().prepare_forward_problem(outputs)
+
+        rewards = self.graph.nodes[self.node]['reward_function'](outputs)
+
+        # My thoughts are to add the q function evaluation to the logic here
+        # Then to move the objective function from problem data into the constraints. 
+        succ = self.graph.successors(self.node)[0]  # Type = list of nodes, we only have one succ.
+        problem_data[succ]['constraints'][0] = problem_data[succ]['objective_func']['f0']
+        problem_data[succ]['constraints'][0]['g_fn'] = problem_data[succ]['objective_func']['obj_fn']
+
+        # Get the necessary inputs for the successor
+        graph, node, cfg = self.graph, self.node, self.cfg
+        succ_input = get_successor_inputs(graph, node, outputs)[succ]
+        n_d = self.graph.nodes[succ]['n_design_args']
+        ndim = self.graph.nodes[succ]['ndim']
+        input_indices = self.graph.nodes[succ]['input_indices']
+        aux_indices = self.graph.nodes[succ]['aux_indices']
+        n_d_k = self.graph.nodes[succ]['n_design_args'] + sum([self.graph.edges[n,succ]['n_input_args'] for n in self.graph.predecessors(succ) if n!=self.node]) + self.graph.graph['n_aux_args']    
+
+
+        # Then we need to redefine the objective function for our q-learning target.
+        problem_data[succ]['objective_func'] = {'f0': {
+            'params': self.graph.nodes[succ]["q_function_serialised"], # TODO <- Need to change how the name is saved for the q function surrogate. 
+            'args': [i for i in range(n_d_k)],
+            'model_class': 'regression', 'model_surrogate': 'q_func_surrogate', 
+            'model_type': self.cfg.surrogate.q_function_selection},
+            'obj_fn': partial(lambda x, f1, y: mask_classifier(f1, n_d, ndim, input_indices, aux_indices)(x.reshape(1,-1)[:,:n_d_k],y).reshape(-1,1), y=succ_input.reshape(1,-1))}
+
+        return problem_data
 
 
 class forward_constraint_decentralised_evaluator(forward_constraint_evaluator):

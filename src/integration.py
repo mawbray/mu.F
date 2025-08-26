@@ -78,6 +78,11 @@ class apply_decomposition:
             # train constraints for DS downstream using data now stored in the graph
             if (mode in ['forward'] and graph.out_degree(node) != 0) or (mode in ['backward'] and graph.in_degree(node) == 0): 
                 if cfg.surrogate.forward_evaluation_surrogate: surrogate_training_forward(cfg, graph, node)
+
+            # train reward function
+            if cfg.case_study.eval_rewards and graph.out_degree(node) != 0:
+                graph, feasible_indices = q_function_training(graph, node, model, cfg)
+
             # classifier construction for current unit
             if (cfg.surrogate.classifier and mode != 'backward-forward'): classifier_construction(cfg, graph, node, iterate) # NOTE this is a study specific condition
             if (cfg.surrogate.probability_map and mode != 'backward-forward'): probability_map_construction(cfg, graph, node, iterate) #  NOTE this is a study specific condition
@@ -182,6 +187,7 @@ def get_classifier_data(graph, node, model, cfg):
 
     return graph, feasible_indices
 
+
 def get_probability_map_data(graph, node, model, cfg):
     x_d, y_d = model.probability_map_data.d[cfg.surrogate.index_on:], model.probability_map_data.y[cfg.surrogate.index_on:]
     x_classifier, y_classifier, feasible_indices = apply_feasibility(x_d , y_d, cfg, node, cfg.formulation).probabilistic_feasibility(return_indices = True)
@@ -211,12 +217,17 @@ def process_data_forward(cfg, graph, node, model, live_set, mode, notion_of_feas
             graph = get_probability_map_data(graph, node, model, cfg)
         else:
             pass
+        
+        # Here insert logic for saving the surrogate data to the node
 
         # Apply the selected function to the y data and store forward evaluations on the graph for surrogate training
         for successor in graph.successors(node):
 
             # --- apply edge function to output data --- #
             io_fn = graph.edges[node, successor]["edge_fn"]
+
+            # Could defined a reward function that takes it from the graph functions like the edge functions.
+            reward_fn = graph.edges[node, successor]["reward_fn"]
 
             # --- select the approximation method
             if cfg.surrogate.forward_evaluation_surrogate:
@@ -344,6 +355,8 @@ class subproblem_model(ABC):
             self.forward_constraints = None
             self.forward_decentralised = None
             self.root_node_constraint = None
+            if self.cfg.case_study.eval_rewards is True:
+                self.reward_evaluator = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.reward, constraint_type='reward')
         elif (mode in ['forward-backward','backward-forward']):
             self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
             if self.cfg.method == 'decomposition_constraint_tuner': 
@@ -373,6 +386,7 @@ class subproblem_model(ABC):
         self.input_output_data = None 
         self.constraint_data = None 
         self.probability_map_data = None
+        self.reward_data = None
         self.mode = mode
         self.max_devices = max_devices
 
@@ -399,7 +413,7 @@ class subproblem_model(ABC):
     def subproblem_constraint_evals(self, d, p):
         # unit forward pass
         outputs = self.unit_forward_evaluator.get_constraints(d, p) # outputs (rank 3 tensor if we have parametric uncertainty in the unit, n_d \times n_theta \times n_g)
-
+        
         # get design/inputs/aux parameters split
         unit_design, unit_inputs, aux_args = self.unit_forward_evaluator.get_auxilliary_input_decision_split(d) # decisions, inputs (both rank 2 tensors)
 
@@ -436,6 +450,15 @@ class subproblem_model(ABC):
             if backward_constraint_evals.ndim == 2:
                 backward_constraint_evals = np.expand_dims(backward_constraint_evals, axis=1)
             logging.info(f'execution_time_backward_constraints: {execution_time}')
+            # Entry point for evaluting q-funnctions.
+            if self.reward_evaluator is not None:
+                start_time = time.time()
+                q_function_evals = self.reward_evaluator.evaluate(outputs, aux_args)
+                end_time = time.time()
+                execution_time = end_time - start_time
+                logging.info(f'execution_time_q_function: {execution_time}')
+            else:
+                q_function_evals = None
         else:
             backward_constraint_evals = None
 
@@ -484,6 +507,9 @@ class subproblem_model(ABC):
             self.constraint_data = update_data(self.constraint_data, d, p, cons_g)  # updating dataset for surrogate model of forward unit evaluation
         if (self.cfg.surrogate.probability_map and self.mode != 'backward-forward'):
             self.probability_map_data = update_data(self.probability_map_data, d, p, self.SAA(cons_g))  # updating dataset for surrogate model of forward unit evaluation
+
+        if self.cfg.case_study.eval_rewards is True:
+            self.reward_data = update_data(self.reward_data, d, p, q_function_evals)
 
         del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs, decentralised_constraint_evals
 

@@ -14,6 +14,7 @@ penalty_method_coupler:
 evaluation_mode: 
   forward: ray    # ray #
   backward: jax-pmap #serial 
+  temporal: ray
 
 
 forward_coupling_solver: general_constrained_nlp

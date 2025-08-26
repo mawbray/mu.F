@@ -229,6 +229,8 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     bounds: list
     initial_guess: numpy array
     """
+
+    # Entry point, use if problem_data['q_function'] then modify the objective function to incorporate the rewards. 
     # TODO update this to handle the case where the problem_data is a dictionary and the contraints are inequality constraints
     initial_guess, bounds, lhs, rhs = \
       problem_data['initial_guess'], problem_data['bounds'], problem_data['eq_lhs'], problem_data['eq_rhs']
