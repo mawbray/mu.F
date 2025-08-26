@@ -86,6 +86,7 @@ class apply_decomposition:
             # classifier construction for current unit
             if (cfg.surrogate.classifier and mode != 'backward-forward'): classifier_construction(cfg, graph, node, iterate) # NOTE this is a study specific condition
             if (cfg.surrogate.probability_map and mode != 'backward-forward'): probability_map_construction(cfg, graph, node, iterate) #  NOTE this is a study specific condition
+            if (cfg.case_study.eval_rewards and mode != 'backward-forward'): q_function_construction(cfg, graph, node, iterate)
 
             del model, problem_sheet, solver, infeasible, feasible_set_prob, feasible_set, feasible
             
@@ -323,6 +324,23 @@ def update_node_bounds_iplus1(graph, node, cfg):
 
     return
 
+def q_function_construction(cfg, graph, node, iterate):
+    # train the model
+    q_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.regressor_selection, 'q_function_surrogate'), iterate)
+    q_surrogate.fit(node=None)
+    if cfg.solvers.standardised:
+        query_model = q_surrogate.get_model('standardised_model')
+    else:
+        query_model = q_surrogate.get_model('unstandardised_model')
+
+    # store the trained model in the graph
+    graph.nodes[node]["q_function"] = query_model
+    graph.nodes[node]['q_function_x_scalar'] = q_surrogate.trainer.get_model_object('standardisation_metrics_input')
+    graph.nodes[node]['q_function_serialised'] = q_surrogate.get_serialised_model_data()
+
+    del q_surrogate
+    
+    return
 
 def classifier_construction(cfg, graph, node, iterate):
     """
