@@ -7,7 +7,7 @@ import numpy as np
 from omegaconf import DictConfig
 
 
-from constraints.solvers.surrogate.data_utils import binary_classifier_data_preparation, regression_node_data_preparation, forward_evaluation_data_preparation
+from constraints.solvers.surrogate.data_utils import binary_classifier_data_preparation, regression_node_data_preparation, forward_evaluation_data_preparation, q_function_data_preparation
 from constraints.solvers.surrogate.gp_utils import train as train_gp
 from constraints.solvers.surrogate.gp_utils import build_gp    
 from constraints.solvers.surrogate.nn_utils import hyperparameter_selection as train_ann
@@ -66,6 +66,8 @@ class trainer(trainer_base):
             dataset = regression_node_data_preparation(self.graph, self.unit_index, self.cfg)
         elif (self.model_class == 'regression') and (self.model_surrogate == 'forward_evaluation_surrogate'):
             dataset = forward_evaluation_data_preparation(self.graph, self.unit_index, self.cfg, successor_node)
+        elif (self.model_class == 'regression') and (self.model_surrogate == 'q_function_surrogate'):
+            dataset = q_function_data_preparation(self.graph, self.unit_index, self.cfg)
         elif self.model_class == 'classification': # this is only used for determining node data i..e in approximating feasibility
             data_points, labels = binary_classifier_data_preparation(self.graph, self.unit_index, self.cfg)
             if self.model_subclass == 'SVM' : dataset = (data_points, labels)

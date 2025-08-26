@@ -115,6 +115,43 @@ class subproblem_unit_wrapper(unit_evaluation):
         """
         super().__init__(cfg, graph, node)
 
+    def get_rewards(self, decisions, uncertain_params = None):
+        """
+        Returns the constraints for the given decisions and uncertain parameters.
+
+        Args:
+            decisions (array): Array of decisions.
+            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
+
+        Returns:
+            array: The constraints for the given decisions and uncertain parameters.
+
+        The method splits the decisions into design arguments and input arguments based on the number of design arguments in the node, 
+        and then evaluates the unit using these arguments and the uncertain parameters.
+        """
+        if uncertain_params is None:
+            uncertain_params = jnp.empty((1,1))
+        
+        design_args, input_args, aux_args = self.get_auxilliary_input_decision_split(decisions)
+        
+        # if no inputs to the unit, use the root node inputs or add empty array
+        if input_args.shape[1] == 0: 
+            if not (self.cfg.model.root_node_inputs[self.node] == 'None'):
+                input_args = jnp.array([self.cfg.model.root_node_inputs[self.node]]*design_args.shape[0])
+            else:
+                input_args = jnp.empty((design_args.shape[0], 0))
+        # if no inputs to the unit, use the root node inputs or add empty array
+        if aux_args.shape[1] == 0: 
+            if not (self.cfg.model.node_aux[self.node] == 'None'):
+                aux_args = jnp.array([self.cfg.model.root_node_aux[self.node]]*design_args.shape[0])
+            else:
+                aux_args = jnp.empty((design_args.shape[0], 0))
+            
+        input_args = expand_input_args(input_args, uncertain_params)
+        #aux_args = expand_input_args(aux_args, uncertain_params)
+        
+        return self.rewards(design_args, input_args, aux_args, uncertain_params)
+    
     def get_constraints(self, decisions, uncertain_params=None):
         """
         Returns the constraints for the given decisions and uncertain parameters.

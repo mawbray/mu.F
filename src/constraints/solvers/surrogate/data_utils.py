@@ -33,6 +33,10 @@ def regression_node_data_preparation(graph: dict, unit_index: int, cfg: DictConf
 
     return data
 
+def q_function_data_preparation(graph: dict, unit_index: int, cfg: DictConfig = None):
+    # access historical support and function values
+    data = graph.nodes[unit_index]["q_func_training"]
+    return data
 
 def binary_classifier_data_preparation(
     graph: dict,

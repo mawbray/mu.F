@@ -81,7 +81,7 @@ class apply_decomposition:
 
             # train reward function
             if cfg.case_study.eval_rewards and graph.out_degree(node) != 0:
-                graph, feasible_indices = q_function_training(graph, node, model, cfg)
+                graph = get_q_training_data(graph, node, model, cfg)
 
             # classifier construction for current unit
             if (cfg.surrogate.classifier and mode != 'backward-forward'): classifier_construction(cfg, graph, node, iterate) # NOTE this is a study specific condition
@@ -187,6 +187,28 @@ def get_classifier_data(graph, node, model, cfg):
 
     return graph, feasible_indices
 
+def get_q_training_data(graph, node, model, cfg):
+    x_d_list = model.q_values.d[cfg.surrogate.index_on:]
+    y_q_list = model.q_values.y[cfg.surrogate.index_on:]
+    y_d_list = model.constraint_data.y[cfg.surrogate.index_on:]
+
+    # Apply feasibility per batch and collect feasible samples
+    x_feasible_list = []
+    y_feasible_list = []
+
+    for x_batch, y_q_batch, y_d_batch in zip(x_d_list, y_q_list, y_d_list):
+        _, _, feasible_indices = apply_feasibility([x_batch], [y_d_batch], cfg, node, cfg.formulation).get_feasible(return_indices=True)
+
+        # feasible_indices[0] because apply_feasibility returns list
+        x_feasible_list.append(x_batch[feasible_indices[0]])
+        y_feasible_list.append(y_q_batch[feasible_indices[0]])
+
+    # Concatenate all feasible samples
+    x_feasible = jnp.vstack(x_feasible_list) if x_feasible_list else jnp.empty((0, x_d_list[0].shape[1]))
+    y_feasible = jnp.vstack(y_feasible_list) if y_feasible_list else jnp.empty((0, y_q_list[0].shape[1]))
+
+    graph.nodes[node]["q_func_training"] = dataset(X=x_feasible, y=y_feasible)
+    return graph
 
 def get_probability_map_data(graph, node, model, cfg):
     x_d, y_d = model.probability_map_data.d[cfg.surrogate.index_on:], model.probability_map_data.y[cfg.surrogate.index_on:]
@@ -356,7 +378,7 @@ class subproblem_model(ABC):
             self.forward_decentralised = None
             self.root_node_constraint = None
             if self.cfg.case_study.eval_rewards is True:
-                self.reward_evaluator = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.reward, constraint_type='reward')
+                self.q_func_evalutor = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.reward, constraint_type='reward')
         elif (mode in ['forward-backward','backward-forward']):
             self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
             if self.cfg.method == 'decomposition_constraint_tuner': 
@@ -386,9 +408,10 @@ class subproblem_model(ABC):
         self.input_output_data = None 
         self.constraint_data = None 
         self.probability_map_data = None
-        self.reward_data = None
+        self.q_values = None
         self.mode = mode
         self.max_devices = max_devices
+        self.hold_outputs = []
 
 
     def determine_batches(self, data, batch_size):
@@ -398,22 +421,35 @@ class subproblem_model(ABC):
             n_batches += 1
         return n_batches
     
-    def evaluate_subproblem_batch(self, data, batch_size, p):
+    def evaluate_subproblem_batch(self, data, batch_size, p, hold = False):
         """ Method to evaluate the subproblem in batches"""
         n_batches = self.determine_batches(data, batch_size)
         constraints = []
         for i in range(n_batches):
             batch = data[i*batch_size:(i+1)*batch_size,:]
-            constraints.append(self.subproblem_constraint_evals(batch, p))
+            results, output = self.subproblem_constraint_evals(batch, p)
+            constraints.append(results)
+            if hold:
+                self.hold_outputs.append(output)
             del batch
             if (data.shape[0]>50) and (n_batches % (i+1) == 0): logging.info(f'Batch {i} of {n_batches} evaluated')
 
         return np.concatenate(constraints, axis=0)
-        
+    
+    def evaluate_q_target_batch(self, data, batch_size, p):
+        """Method to evaluatate q-learning in batches"""
+        n_batches = self.determine_batches(data, batch_size)
+        q_functions = []
+        for i in range(n_batches):
+            batch = data[i*batch_size:(i+1)*batch_size,:]
+            q_functions.append(self.q_target_evaluation(batch, p, self.hold_outputs[i]))
+            del batch
+            if (data.shape[0]>50) and (n_batches % (i+1) == 0): logging.info(f'Reward batch {i} of {n_batches} evaluated')
+
     def subproblem_constraint_evals(self, d, p):
         # unit forward pass
         outputs = self.unit_forward_evaluator.get_constraints(d, p) # outputs (rank 3 tensor if we have parametric uncertainty in the unit, n_d \times n_theta \times n_g)
-        
+
         # get design/inputs/aux parameters split
         unit_design, unit_inputs, aux_args = self.unit_forward_evaluator.get_auxilliary_input_decision_split(d) # decisions, inputs (both rank 2 tensors)
 
@@ -450,15 +486,6 @@ class subproblem_model(ABC):
             if backward_constraint_evals.ndim == 2:
                 backward_constraint_evals = np.expand_dims(backward_constraint_evals, axis=1)
             logging.info(f'execution_time_backward_constraints: {execution_time}')
-            # Entry point for evaluting q-funnctions.
-            if self.reward_evaluator is not None:
-                start_time = time.time()
-                q_function_evals = self.reward_evaluator.evaluate(outputs, aux_args)
-                end_time = time.time()
-                execution_time = end_time - start_time
-                logging.info(f'execution_time_q_function: {execution_time}')
-            else:
-                q_function_evals = None
         else:
             backward_constraint_evals = None
 
@@ -508,18 +535,35 @@ class subproblem_model(ABC):
         if (self.cfg.surrogate.probability_map and self.mode != 'backward-forward'):
             self.probability_map_data = update_data(self.probability_map_data, d, p, self.SAA(cons_g))  # updating dataset for surrogate model of forward unit evaluation
 
-        if self.cfg.case_study.eval_rewards is True:
-            self.reward_data = update_data(self.reward_data, d, p, q_function_evals)
+
 
         del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs, decentralised_constraint_evals
 
-        return cons_g
+        return cons_g, outputs
+
+    def q_target_evaluation(self, d, p, output):
+        rewards = self.unit_forward_evaluator.get_rewards(d,p)
+        _, _, aux_args = self.unit_forward_evaluator.get_auxilliary_input_decision_split(d)
+        start_time = time.time()
+        q_function_evals = self.q_func_evalutor.evaluate(output, aux_args)
+        q_learning_target = rewards + self.cfg.case_study.discount_factor * q_function_evals
+        end_time = time.time()
+        execution_time = end_time - start_time
+        logging.info(f'execution_time_q_function: {execution_time}')
+        self.q_values = update_data(self.q_values, d, p, q_learning_target)
 
     def s(self, d, p):
         if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0) and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
             ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)  # , ,
         # evaluate feasibility and then update classifier data and number of function evaluations
         g = self.evaluate_subproblem_batch(d, self.max_devices, p)
+        
+        # We need to init ray now to perform the optimisation over the reward fu
+        if (self.config.case_study.eval_rewards and self.G.out_degree(self.unit_index) > 0 and self.cfg.solvers.evaluation_mode.reward == 'ray'):
+            ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)  # , ,
+
+        self.evaluate_q_target_batch(d, p)
+
         # shape parameters for returning constraint evaluations to DEUS
         n_theta, n_g = g.shape[-2], g.shape[-1]
         # adding function evaluations

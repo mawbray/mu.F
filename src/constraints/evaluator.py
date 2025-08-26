@@ -690,7 +690,6 @@ class q_learning_evaluator(backward_constraint_evaluator_general):
 
         return problem_data
 
-
 class forward_constraint_decentralised_evaluator(forward_constraint_evaluator):
     """
     A forward surrogate constraint
