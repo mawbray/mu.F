@@ -126,7 +126,10 @@ def build_graph_structure(cfg):
     cfg.case_study.parameters_samples = list(cfg.case_study.parameters_samples) * cfg.case_study.number_repeats
     cfg.case_study.parameters_best_estimate = list(cfg.case_study.parameters_best_estimate) * cfg.case_study.number_repeats
     cfg.case_study.extendedDS_bounds = list(cfg.case_study.extendedDS_bounds) * cfg.case_study.number_repeats
-    cfg.case_study.design_space_dimensions = list(cfg.case_study.design_space_dimensions) * cfg.case_study.number_repeats
+    #cfg.case_study.design_space_dimensions = list(cfg.case_study.design_space_dimensions) * cfg.case_study.number_repeats
+    
+    original_dims = cfg.case_study.design_space_dimensions
+    cfg.case_study.design_space_dimensions = [f"{dim}_{i}" for i in range(cfg.case_study.number_repeats) for dim in original_dims]
     cfg.case_study.process_space_names = list(cfg.case_study.process_space_names) * cfg.case_study.number_repeats
     cfg.case_study.n_input_args = {f'({n},{n+1})': cfg.case_study.n_input_args for n in range(cfg.case_study.number_repeats-1)}
     cfg.case_study.unit_op = list(cfg.case_study.unit_op) * cfg.case_study.number_repeats
@@ -135,6 +138,7 @@ def build_graph_structure(cfg):
     cfg.case_study.n_theta = list(cfg.case_study.n_theta) * cfg.case_study.number_repeats
     cfg.case_study.fn_evals = list(cfg.case_study.fn_evals) * cfg.case_study.number_repeats
     old_n_aux_args = cfg.case_study.n_aux_args
+    cfg.model.node_aux = [cfg.model.node_aux[0]] * cfg.case_study.number_repeats
     new_n_aux_args = {f'node_{n}':old_n_aux_args['node_n'] for n in range(cfg.case_study.number_repeats)}
     new_n_aux_args.update({f'({n},{n+1})': old_n_aux_args['(n,n+1)'] for n in range(cfg.case_study.number_repeats-1)})
     cfg.case_study.n_aux_args = new_n_aux_args

@@ -16,12 +16,14 @@ n_aux_args:
 
 n_input_args: 1
 
+discount_factor: 0.99999
+
 KS_bounds:
   design_args: 
     - - - 0
-        - 10
-    - - - 0
-        - 10
+        - 4
+      - - 0
+        - 2
   aux_args: 
     - - - None
         - None
@@ -32,7 +34,7 @@ parameters_samples:
 parameters_best_estimate: 
   - [0.]
 
-extendedDS_bounds: [None]
+extendedDS_bounds: [None] 
 
 design_space_dimensions:
 - 'X'
@@ -50,7 +52,7 @@ evaluation_mode: 'jax-pmap'
 
 serial_graph: True
 
-number_repeats: 10
+number_repeats: 3
 
 unit_op:
   - 'steady_state'

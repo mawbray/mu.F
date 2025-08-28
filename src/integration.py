@@ -80,7 +80,7 @@ class apply_decomposition:
                 if cfg.surrogate.forward_evaluation_surrogate: surrogate_training_forward(cfg, graph, node)
 
             # train reward function
-            if cfg.case_study.eval_rewards and graph.out_degree(node) != 0:
+            if cfg.case_study.eval_rewards:
                 graph = get_q_training_data(graph, node, model, cfg)
 
             # classifier construction for current unit
@@ -112,7 +112,12 @@ class apply_decomposition:
 def del_data(graph, node):
 
     del graph.nodes[node]["classifier_training"]
+    if 'q_func_training' in graph.nodes[node]:
+        del graph.nodes[node]["q_func_training"]
+        graph.nodes[node]["q_func_training"] = None
+
     graph.nodes[node]["classifier_training"] = None
+    
 
     for successor in graph.successors(node):
         if 'surrogate_training' in graph.edges[node, successor]:
@@ -199,10 +204,12 @@ def get_q_training_data(graph, node, model, cfg):
 
     for x_batch, y_q_batch, y_d_batch in zip(x_d_list, y_q_list, y_d_list):
         _, _, feasible_indices = apply_feasibility([x_batch], [y_d_batch], cfg, node, cfg.formulation).get_feasible(return_indices=True)
-
-        # feasible_indices[0] because apply_feasibility returns list
-        x_feasible_list.append(x_batch[feasible_indices[0]])
-        y_feasible_list.append(y_q_batch[feasible_indices[0]])
+        feasible_idx = feasible_indices[0].squeeze()
+        # Convert boolean mask to integer indices if needed
+        if feasible_idx.dtype == bool:
+            feasible_idx = jnp.where(feasible_idx)[0]
+        x_feasible_list.append(x_batch[feasible_idx])
+        y_feasible_list.append(y_q_batch[feasible_idx])
 
     # Concatenate all feasible samples
     x_feasible = jnp.vstack(x_feasible_list) if x_feasible_list else jnp.empty((0, x_d_list[0].shape[1]))
@@ -326,7 +333,7 @@ def update_node_bounds_iplus1(graph, node, cfg):
 
 def q_function_construction(cfg, graph, node, iterate):
     # train the model
-    q_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.regressor_selection, 'q_function_surrogate'), iterate)
+    q_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.regressor_selection, 'q_func_surrogate'), iterate)
     q_surrogate.fit(node=None)
     if cfg.solvers.standardised:
         query_model = q_surrogate.get_model('standardised_model')
@@ -336,7 +343,7 @@ def q_function_construction(cfg, graph, node, iterate):
     # store the trained model in the graph
     graph.nodes[node]["q_function"] = query_model
     graph.nodes[node]['q_function_x_scalar'] = q_surrogate.trainer.get_model_object('standardisation_metrics_input')
-    graph.nodes[node]['q_function_serialised'] = q_surrogate.get_serialised_model_data()
+    graph.nodes[node]['q_function_serialised'] = q_surrogate.get_serailised_model_data()
 
     del q_surrogate
     
@@ -555,40 +562,52 @@ class subproblem_model(ABC):
 
 
 
-        del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, outputs, decentralised_constraint_evals
+        del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, decentralised_constraint_evals
 
         return cons_g, outputs
 
     def q_target_evaluation(self, d, p, output):
         rewards = self.unit_forward_evaluator.get_rewards(d,p)
-        _, _, aux_args = self.unit_forward_evaluator.get_auxilliary_input_decision_split(d)
-        start_time = time.time()
-        q_function_evals = self.q_func_evalutor.evaluate(output, aux_args)
-        q_learning_target = rewards + self.cfg.case_study.discount_factor * q_function_evals
-        end_time = time.time()
-        execution_time = end_time - start_time
-        logging.info(f'execution_time_q_function: {execution_time}')
+        if self.G.out_degree(self.unit_index) > 0:
+            _, _, aux_args = self.unit_forward_evaluator.get_auxilliary_input_decision_split(d)
+            start_time = time.time()
+            q_function_evals = self.q_func_evalutor.evaluate(output, aux_args)
+            q_learning_target = -rewards + self.cfg.case_study.discount_factor * q_function_evals
+            end_time = time.time()
+            execution_time = end_time - start_time
+            logging.info(f'execution_time_q_function: {execution_time}')
+        else:
+            q_learning_target = -rewards
         self.q_values = update_data(self.q_values, d, p, q_learning_target)
 
     def s(self, d, p):
-        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0) and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
-            ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)  # , ,
-        # evaluate feasibility and then update classifier data and number of function evaluations
-        g = self.evaluate_subproblem_batch(d, self.max_devices, p)
+        runtime_env = {"working_dir": get_original_cwd(),'excludes': ['/paper_results/', '/multirun/', '/outputs/', '/config/', '../.git/']}
         
-        # We need to init ray now to perform the optimisation over the reward fu
-        if (self.config.case_study.eval_rewards and self.G.out_degree(self.unit_index) > 0 and self.cfg.solvers.evaluation_mode.reward == 'ray'):
-            ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)  # , ,
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0) and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
+            ray.init(runtime_env=runtime_env, num_cpus=10)  # , ,
+        
+        # evaluate feasibility and then update classifier data and number of function evaluations
+        g = self.evaluate_subproblem_batch(d, self.max_devices, p, hold=True if self.cfg.case_study.eval_rewards else False)
 
-        self.evaluate_q_target_batch(d, p)
+        # We need to init ray now to perform the optimisation over the reward function
+        if (self.cfg.case_study.eval_rewards and self.G.out_degree(self.unit_index) > 0 and self.cfg.solvers.evaluation_mode.reward == 'ray'):
+            ray.init(runtime_env=runtime_env, num_cpus=10)  # , ,
+        
+        if self.cfg.case_study.eval_rewards:
+            self.evaluate_q_target_batch(d, self.max_devices, p)
 
         # shape parameters for returning constraint evaluations to DEUS
         n_theta, n_g = g.shape[-2], g.shape[-1]
         # adding function evaluations
         self.function_evaluations += g.shape[0]*g.shape[1]
         # return information for DEUS
-        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0)  and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0)  and (self.cfg.solvers.evaluation_mode.forward == 'ray') or\
+            ((self.cfg.case_study.eval_rewards and self.G.out_degree(self.unit_index) > 0 and self.cfg.solvers.evaluation_mode.reward == 'ray')):
             ray.shutdown()
+        
+        del self.hold_outputs
+        self.hold_outputs = []
+
         return [g[i,:,:].reshape(n_theta,n_g) for i in range(g.shape[0])]
         
     def get_constraints(self, d, p):
@@ -618,3 +637,4 @@ def update_data(data, *args):
         data.add(*args)
 
     return data
+

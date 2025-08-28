@@ -24,7 +24,7 @@ surrogate_forward:
     
 
 classifier: true
-classifier_selection: 'ANN' # or 'SVM'
+classifier_selection: 'SVM' # or 'SVM'
 regressor_selection: 'ANN' # or 'GP' 
 q_function_selection: 'ANN'
 probability_map: false
@@ -58,4 +58,4 @@ classifier_args:
     batch_size: 264 #64
 
 
-forward_evaluation_surrogate: true
+forward_evaluation_surrogate: false

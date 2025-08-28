@@ -18,6 +18,7 @@ n_design_args:
   - 3
   - 0
   
+eval_rewards: False
 
 n_aux_args:
   # auxiliary arguments per edge

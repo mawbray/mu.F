@@ -635,7 +635,7 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
 
         solved_successful = 0
         problems = sum([len(problem_data[pred]) for pred in self.graph.successors(self.node)])
-
+ 
         # iterate over successors and evaluate the constraints
         for succ in self.graph.successors(self.node):
             for p in range(len(problem_data[succ])): 
@@ -662,33 +662,38 @@ class q_learning_evaluator(backward_constraint_evaluator_general):
     def prepare_forward_problem(self, outputs):
         problem_data = super().prepare_forward_problem(outputs)
 
-        rewards = self.graph.nodes[self.node]['reward_function'](outputs)
-
         # My thoughts are to add the q function evaluation to the logic here
         # Then to move the objective function from problem data into the constraints. 
-        succ = self.graph.successors(self.node)[0]  # Type = list of nodes, we only have one succ.
-        problem_data[succ]['constraints'][0] = problem_data[succ]['objective_func']['f0']
-        problem_data[succ]['constraints'][0]['g_fn'] = problem_data[succ]['objective_func']['obj_fn']
+        for succ in self.graph.successors(self.node):
+            problem_data[succ][0]['constraints'][0] = problem_data[succ][0]['objective_func']['f0']
+            obj_fn_original = problem_data[succ][0]['objective_func']['obj_fn']
+            problem_data[succ][0]['constraints'][0]['g_fn'] = lambda x, fn: obj_fn_original(x, f1=fn)
+            # Remove obj_fn
+            #problem_data[succ][0]['constraints'][0].pop('obj_fn')
 
-        # Get the necessary inputs for the successor
-        graph, node, cfg = self.graph, self.node, self.cfg
-        succ_input = get_successor_inputs(graph, node, outputs)[succ]
-        n_d = self.graph.nodes[succ]['n_design_args']
-        ndim = self.graph.nodes[succ]['ndim']
-        input_indices = self.graph.nodes[succ]['input_indices']
-        aux_indices = self.graph.nodes[succ]['aux_indices']
-        n_d_k = self.graph.nodes[succ]['n_design_args'] + sum([self.graph.edges[n,succ]['n_input_args'] for n in self.graph.predecessors(succ) if n!=self.node]) + self.graph.graph['n_aux_args']    
+            # Get the necessary inputs for the successor
+            graph, node, cfg = self.graph, self.node, self.cfg
+            succ_input = get_successor_inputs(graph, node, outputs)[succ]
+            n_d = self.graph.nodes[succ]['n_design_args']
+            ndim = graph.nodes[succ]['n_design_args'] + graph.nodes[succ]['n_input_args'] + graph.graph['n_aux_args']
+            input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices']]))
+            aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices']]))
+            n_d_k = self.graph.nodes[succ]['n_design_args'] + sum([self.graph.edges[n,succ]['n_input_args'] for n in self.graph.predecessors(succ) if n!=self.node]) + self.graph.graph['n_aux_args']    
 
 
-        # Then we need to redefine the objective function for our q-learning target.
-        problem_data[succ]['objective_func'] = {'f0': {
-            'params': self.graph.nodes[succ]["q_function_serialised"], # TODO <- Need to change how the name is saved for the q function surrogate. 
-            'args': [i for i in range(n_d_k)],
-            'model_class': 'regression', 'model_surrogate': 'q_func_surrogate', 
-            'model_type': self.cfg.surrogate.q_function_selection},
-            'obj_fn': partial(lambda x, f1, y: mask_classifier(f1, n_d, ndim, input_indices, aux_indices)(x.reshape(1,-1)[:,:n_d_k],y).reshape(-1,1), y=succ_input.reshape(1,-1))}
+            # Then we need to redefine the objective function for our q-learning target.
+            problem_data[succ][0]['objective_func'] = {'f0': {
+                'params': self.graph.nodes[succ]["q_function_serialised"], # TODO <- Need to change how the name is saved for the q function surrogate. 
+                'args': [i for i in range(n_d_k)],
+                'model_class': 'regression', 'model_surrogate': 'q_func_surrogate', 
+                'model_type': self.cfg.surrogate.q_function_selection},
+                'obj_fn': partial(lambda x, f1, y: mask_classifier(f1, n_d, ndim, input_indices, aux_indices)(x.reshape(1,-1)[:,:n_d_k],y).reshape(-1,1), y=succ_input.reshape(1,-1))}
+
 
         return problem_data
+    
+    #def evaluate_parallel(self, i, outputs):
+    #    raise NotImplementedError("Parallel evaluation is not implemented.")
 
 class forward_constraint_decentralised_evaluator(forward_constraint_evaluator):
     """

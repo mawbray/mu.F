@@ -169,10 +169,10 @@ def negative_output_constraint(output, cfg):
 # -------------------------------------------------------------------------------- #
 @partial(jit, static_argnums=(1))
 def temporal_study_1(dynamic_profile, cfg):
-    return dynamic_profile[0] * cfg.coeff.C[0] + dynamic_profile[1] * cfg.coeff.C[1] + cfg.coeff.C[2]
+    return dynamic_profile[1] * cfg.coeff.C[0] + dynamic_profile[2] * cfg.coeff.C[1] + cfg.coeff.C[2]
 
 def temporal_study_n(dynamic_profile, cfg):
-    return dynamic_profile[0] * cfg.coeff.C[0] + dynamic_profile[1] * cfg.coeff.C[1] + cfg.coeff.C[2]
+    return dynamic_profile[1] * cfg.coeff.C[0] + dynamic_profile[2] * cfg.coeff.C[1] + cfg.coeff.C[2]
 
 
 """ insert case study specific functions for constraints here"""

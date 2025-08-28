@@ -15,17 +15,18 @@ evaluation_mode:
   forward: ray    # ray #
   backward: jax-pmap #serial 
   temporal: ray
+  reward: ray
 
 
 forward_coupling_solver: general_constrained_nlp
 backward_coupling_solver: box_constrained_nlp
-forward_general_constraints: True
+forward_general_constraints: false
 
 forward_coupling:
   max_solution_time: 1. 
   parallelised: True
   n_starts: 4
-  casadi_ipopt_options:
+  casadi_ipoptI'_options:
     maxiter: 500
     verbose: False
     tol: 1e-6
@@ -45,7 +46,7 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
-standardised: False
+standardised: True
 # TODO: check standardisation is working properly in the backward pass
 backward_coupling:
   n_starts: 4

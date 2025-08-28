@@ -3,6 +3,7 @@ from functools import partial
 from jax import jit
 from omegaconf import DictConfig
 import jax.numpy as jnp
+import sys
 
 # --- tablet press case study --- # 
 
@@ -674,7 +675,9 @@ def temporal_study_1(
     B = jnp.array(cfg.model.coeff.B)
     x = jnp.concatenate([design_args, jnp.array([[1.0]])], axis=-1)
 
-    return jnp.dot(A, x.T)  / (jnp.dot(B, x.T))
+    _lambda = (jnp.dot(A, x.T)  / (jnp.dot(B, x.T))).reshape(1, -1)
+
+    return jnp.concatenate([_lambda, design_args], axis=-1)
 
 @partial(jit, static_argnums=(0,))
 def temporal_study_r1(
@@ -698,6 +701,7 @@ def temporal_study_r1(
     A = jnp.array(cfg.model.coeff.A)
     B = jnp.array(cfg.model.coeff.B)
     x = jnp.concatenate([design_args, jnp.array([[1.0]])], axis=-1)
+    #raise Exception((jnp.dot(A, x.T)  - cfg.model.root_node_inputs[0] * (jnp.dot(B, x.T))).shape())
 
     return jnp.dot(A, x.T)  - cfg.model.root_node_inputs[0] * (jnp.dot(B, x.T))
 
@@ -719,10 +723,10 @@ def temporal_study_rn(
         outputs
 
     """
+    
     A = jnp.array(cfg.model.coeff.A)
     B = jnp.array(cfg.model.coeff.B)
     x = jnp.concatenate([design_args, jnp.array([[1.0]])], axis=-1)
-
     return jnp.dot(A, x.T)  - input_args[0] * (jnp.dot(B, x.T))
 
    
@@ -731,6 +735,6 @@ case_studies = {'tablet_press': {0: unit_1_dynamics, 1: unit_2_dynamics, 2: unit
                 'convex_estimator': {0: sub_fn_1, 1: sub_fn_2, 2: sub_fn_3, 3: sub_fn_4, 4: sub_fn_5, 5: sub_fn_6},
                 'convex_underestimator': {0: sub_fn_1, 1: sub_fn_2, 2: sub_fn_3, 3: sub_fn_4, 4: sub_fn_5, 5: sub_fn_6},
                 'affine_study': {0: affine_case_study_1, 1: affine_case_study_2, 2: affine_case_study_3, 3: affine_case_study_4, 4: affine_case_study_5},
-                'temporal_study': {0: temporal_study_1, 'n': temporal_study_r1}}
+                'temporal_study': {0: temporal_study_1, 'n': temporal_study_1}}
 
 reward_functions = {'temporal_study': {0:temporal_study_rn, 'n': temporal_study_rn}}

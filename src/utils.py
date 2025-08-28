@@ -20,6 +20,7 @@ def save_graph(G, mode):
         G.nodes[node]["constraints"] = None   # drop constraint functions (all of these are non-serializable.)
         G.nodes[node]["constraints_vmap"] = None # drop backward evaluators
         G.nodes[node]['classifier'] = None 
+        G.nodes[node]['q_function'] = None
         G.nodes[node]['unit_params_fn'] = None
 
 

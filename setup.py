@@ -184,7 +184,7 @@ setup(
 
         # Specialized Tools
         "sobol-seq>=0.2.0",
-        "tensorflow>=2.16.0",
+        "tensorflow==2.19.0",
         f"deus @ {deus_path}",  # Dynamic relative path resolution!
     ],
     cmdclass={

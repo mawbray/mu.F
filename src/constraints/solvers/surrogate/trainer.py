@@ -62,11 +62,11 @@ class trainer(trainer_base):
         return 
 
     def get_data(self, successor_node: int = None) -> None:
-        if (self.model_class == 'regression') and (self.model_surrogate != 'forward_evaluation_surrogate'): # TODO make sure this method exists and acts on the right component of the graph e.g. edge or node
+        if (self.model_class == 'regression') and (self.model_surrogate != 'forward_evaluation_surrogate') and (self.model_surrogate != 'q_func_surrogate'): # TODO make sure this method exists and acts on the right component of the graph e.g. edge or node
             dataset = regression_node_data_preparation(self.graph, self.unit_index, self.cfg)
         elif (self.model_class == 'regression') and (self.model_surrogate == 'forward_evaluation_surrogate'):
             dataset = forward_evaluation_data_preparation(self.graph, self.unit_index, self.cfg, successor_node)
-        elif (self.model_class == 'regression') and (self.model_surrogate == 'q_function_surrogate'):
+        elif (self.model_class == 'regression') and (self.model_surrogate == 'q_func_surrogate'):
             dataset = q_function_data_preparation(self.graph, self.unit_index, self.cfg)
         elif self.model_class == 'classification': # this is only used for determining node data i..e in approximating feasibility
             data_points, labels = binary_classifier_data_preparation(self.graph, self.unit_index, self.cfg)

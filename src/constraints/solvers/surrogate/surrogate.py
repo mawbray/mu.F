@@ -27,7 +27,7 @@ class surrogate_base(ABC):
         elif self.model_class == "classification":
             assert self.model_subclass in ["ANN", "SVM"], "classifier model_subclass must be either 'ANN', or 'SVM'"
 
-        assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate"], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate'] indicating a parameterisation of the feasible region, probability map or unit dynamics respectively."
+        assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate", 'q_func_surrogate'], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate', 'q_func_surrogate'] indicating a parameterisation of the feasible region, probability map, unit dynamics or q_function evaluation respectively."
 
     def fit(self) -> None:
         pass
@@ -77,7 +77,7 @@ class surrogate_reconstruction(ABC):
         elif self.model_class == "classification":
             assert self.model_subclass in ["ANN", "SVM"], "classifier model_subclass must be either 'ANN', or 'SVM'"
 
-        assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate"], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate'] indicating a parameterisation of the feasible region, probability map or unit dynamics respectively."
+        assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate", "q_func_surrogate"], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate', 'q_func_surrogate'] indicating a parameterisation of the feasible region, probability map, unit dynamics or q_function evaluation respectively."
 
 
     def rebuild_model(self):

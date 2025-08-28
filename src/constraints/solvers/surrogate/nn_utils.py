@@ -32,6 +32,9 @@ from functools import partial
 
 from constraints.solvers.surrogate.data_utils import standardisation_metrics
 
+# Global verbosity control
+VERBOSE = False
+
 
 
 class Dataset(ABC):
@@ -154,9 +157,10 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
     x_mean = jnp.array(x_scalar.mean_)
     x_std = jnp.array(x_scalar.scale_)
     
-    logging.info(f'--- {model_type} ---')
-    logging.info(f"Best hyperparameters: {best_hyperparams}")
-    logging.info(f"Best average validation loss: {best_avg_loss}")
+    if VERBOSE:
+        logging.info(f'--- {model_type} ---')
+        logging.info(f"Best hyperparameters: {best_hyperparams}")
+        logging.info(f"Best average validation loss: {best_avg_loss}")
 
     serialised_model = serialise_model(best_params, best_model, x_scalar, y_scalar, model_type, {})
 
@@ -379,7 +383,8 @@ def train(cfg, model, data, valid_data, model_type):
 
         # Train one epoch in parallel
         state, loss = parallel_train_one_epoch(state, minibatches)
-        logging.info('epoch: %d, loss: %.4f' % (epoch, jnp.mean(loss).squeeze()))
+        if VERBOSE:
+            logging.info('epoch: %d, loss: %.4f' % (epoch, jnp.mean(loss).squeeze()))
 
         # Add current losses to history
         loss_history.extend(loss)
@@ -395,13 +400,15 @@ def train(cfg, model, data, valid_data, model_type):
         else:
             raise NotImplementedError(f"Model type {model_type} not implemented")
         
-        logging.info('Validation loss: %.4f' % val_loss)
+        if VERBOSE:
+            logging.info('Validation loss: %.4f' % val_loss)
 
         # Check for convergence
         early_stop = early_stop.update(val_loss)
         if isinstance(early_stop, tuple): early_stop = early_stop[1]
         if early_stop.should_stop:
-            logging.info('Converged. Training stopped at iteration %d, loss value %.4f, val. loss value %.4f' % (epoch, jnp.mean(loss).squeeze(), val_loss))
+            if VERBOSE:
+                logging.info('Converged. Training stopped at iteration %d, loss value %.4f, val. loss value %.4f' % (epoch, jnp.mean(loss).squeeze(), val_loss))
             break
 
     if model_type == 'classifier':
@@ -423,15 +430,17 @@ def train(cfg, model, data, valid_data, model_type):
                 tn, fp, fn, tp = 0, 0, 0, len(data.y)
         # metrics compression
         training_performance = {"acc": accuracy, "tn": tn, "fp": fp, "fn": fn, "tp": tp}
-        logging.info(f"--- {model_type} ---")
-        logging.info(f"training_performance: {training_performance}")
+        if VERBOSE:
+            logging.info(f"--- {model_type} ---")
+            logging.info(f"training_performance: {training_performance}")
 
     if model_type == 'regressor':
         # get regressor performance
         mse = jnp.mean(jnp.square(data.y - model.apply(state.params, data.X)))
         training_performance = {"mse": mse, "standardised_mape": jnp.mean(jnp.abs((data.y - model.apply(state.params, data.X)) / data.y))}
-        logging.info(f"--- {model_type} ---")
-        logging.info(f"training_performance: {training_performance}")
+        if VERBOSE:
+            logging.info(f"--- {model_type} ---")
+            logging.info(f"training_performance: {training_performance}")
       
     return state.params, model, loss_history
 
