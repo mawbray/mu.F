@@ -198,7 +198,7 @@ def hide_current_axis(*args, **kwds):
     return
 
 
-def post_process_upper_solution(cfg, G, solution, path):
+def post_process_upper_solution(cfg, G, solution):
     """
     Visualise the solution of the post-processing upper-level problem.
     :param cfg: Configuration object
@@ -211,27 +211,16 @@ def post_process_upper_solution(cfg, G, solution, path):
     
     # Assuming solution is a DataFrame with columns: 'x', 'y', 'z'
     # where 'x' and 'y' are the 2D input variables and 'z' is the mapped 1D output
-    x = solution.iloc[:, 0]
-    y = solution.iloc[:, 1]
-    z = solution.iloc[:, 2]
-
-    # Create a grid for contour plotting
-    xi = np.linspace(x.min(), x.max(), 100)
-    yi = np.linspace(y.min(), y.max(), 100)
-    xi, yi = np.meshgrid(xi, yi)
-
-    # Interpolate z values on the grid
-    zi = griddata((x, y), z, (xi, yi), method='cubic')
-
+    xi, yi, zi = solution['x'], solution['y'], solution['z']
     # Plot the contour
     contour = ax.contourf(xi, yi, zi, levels=20, cmap='viridis')
     plt.colorbar(contour, ax=ax, label='Mapped Value (z)')
 
     ax.set_title("Post-Processing Upper-Level Solution (Contour)")
-    ax.set_xlabel(solution.columns[0])
-    ax.set_ylabel(solution.columns[1])
-    
-    plt.savefig(os.path.join(path, "post_process_upper_solution.svg"), dpi=300)
+    ax.set_xlabel(r'$x_1$')
+    ax.set_ylabel(r'$x_2$')
+
+    plt.savefig("post_process_upper_solution.svg", dpi=300)
     
     return fig
 

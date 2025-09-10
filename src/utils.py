@@ -24,7 +24,8 @@ def save_graph(G, mode):
         G.nodes[node]['post_process_constraints'] = None
 
     G.graph['post_process_classifier'] = None # drop post process classifier
-    G.graph['post_process_lower_classifier'] = None # drop post process classifier
+    G.graph['post_process_lower_classifier'] = None # drop post process lower classifier
+    G.graph['post_process_upper_classifier'] = None # drop post process upper classifier
     G.graph['post_process_training_methods'] = None # drop post process training methods
     G.graph['post_process_solver_methods'] = None # drop post process solver methods
     G.graph['post_process_solution_evaluator'] = None # drop post process solution evaluator

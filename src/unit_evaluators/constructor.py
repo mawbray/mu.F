@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from jax import vmap, jit
 import numpy as np
 import pandas as pd 
+import logging
 
 from unit_evaluators.integrators import unit_dynamics
 from unit_evaluators.steady_state import unit_steady_state
@@ -366,7 +367,7 @@ class network_simulator(ABC):
                 if edge_data.ndim==2: edge_data = jnp.expand_dims(edge_data, axis=-1)
                 self.graph.edges[node, successor]['input_data_store'] = edge_data
 
-            node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
+            node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node, constraint_type=self.type)
 
             self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, outputs)
 
@@ -424,9 +425,10 @@ class post_process_evaluation(network_simulator):
             solution (array): The solution to be processed.
 
         Returns:
-            array: The constraints for the given solution.
+            Dataframe mapping the solution to the constraints.
+            # NOTE set up custom for the current case study (haven't thought of a general way to do this yet)
         """
-
+        logging.warning('This post-process evaluation is set up for a specific case study and is not generalised yet.')
         bounds = self.get_auxiliary_bounds()
         x_range = (bounds[0][0], bounds[1][0])
         y_range = (bounds[0][1], bounds[1][1])
@@ -445,13 +447,16 @@ class post_process_evaluation(network_simulator):
 
         # Combine the x and y coordinates into a single array of shape (num_points, 2)
         solution_batch = np.tile(solution, (num_points * num_points, solution.shape[0]))
-        print("solution_batch shape:", solution_batch.shape)
         coords_batch = np.hstack((solution_batch, x_coords_batch, y_coords_batch, np.zeros((num_points*num_points,1))))
 
-        uncertain_params = jnp.empty((num_points, 0))
-        epsilon = self.get_constraints(coords_batch, uncertain_params)
-        return pd.DataFrame({
-            'x': x_coords_batch,
-            'y': y_coords_batch,
-            'z': epsilon
-        })
+        uncertain_params = jnp.empty((num_points, 1))
+        epsilon = self.get_constraints(coords_batch, uncertain_params)[5]
+        df = {
+            'x': np.reshape(x_coords_batch, X.shape),
+            'y': np.reshape(y_coords_batch, X.shape),
+            'z': np.reshape(epsilon.squeeze(), X.shape)
+        }
+
+        print(f'Post-process evaluation: {[v.shape for v in df.values()]} shape check.')
+
+        return df

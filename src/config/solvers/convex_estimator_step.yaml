@@ -47,7 +47,7 @@ forward_coupling:
     ftol_min: 0.00001
     augmented_obj_tol: 0.001
 
-standardised: True
+standardised: False
 
 # TODO: check standardisation is working properly in the backward pass
 backward_coupling:
@@ -64,7 +64,7 @@ backward_coupling:
   
 
 post:
-  n_starts:   4
+  n_starts:   10
   jax_opt_options:
     error_tol: 1e-6
     ftol0: 0.001

@@ -10,7 +10,7 @@ class visualiser(ABC):
         self.data = data
         self.cfg, self.G = cfg, G
         self.path = path
-        assert string in ['initialisation', 'design_space', 'reconstruction', 'decomposition'], 'string must be one of "initialisastion", "design_space", "reconstruction", "decomposition" '
+        assert string in ['initialisation', 'design_space', 'reconstruction', 'decomposition', 'post_process_upper'], 'string must be one of "initialisastion", "design_space", "reconstruction", "decomposition", "post_process_upper" '
         if string == 'initialisation':
             self.visualiser =partial(init_plot, init=True, save=True)
         elif string == 'design_space':
@@ -26,7 +26,7 @@ class visualiser(ABC):
             elif mode == 'backward':
                 self.visualiser = partial(decompose_call, init=True, path=path)
         elif string == 'post_process_upper':
-            self.visualiser = partial(post_process_upper_solution, solution=data, path=path)
+            self.visualiser = partial(post_process_upper_solution, solution=data)
         else:
             raise ValueError('string must be one of "initialisastion", "design_space", "reconstruction", "decomposition", "post_process_upper"')
 

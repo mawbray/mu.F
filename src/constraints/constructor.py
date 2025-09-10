@@ -1,9 +1,8 @@
 from abc import ABC
 from functools import partial
-import jax.numpy as jnp
-from jax import vmap, jit
 
-from constraints.evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator, backward_constraint_evaluator_general, forward_root_constraint_decentralised_evaluator, global_graph_upperlevel_NLP, post_process_constraint_evaluator
+from constraints.jax_evaluator import backward_constraint_evaluator
+from constraints.casadi_evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator_general, forward_root_constraint_decentralised_evaluator, global_graph_upperlevel_NLP, post_process_constraint_evaluator
 
 class constraint_evaluator(ABC):
     def __init__(self, cfg, graph, node, pool=None, constraint_type='process'):
