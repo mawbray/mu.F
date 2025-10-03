@@ -5,11 +5,9 @@ from jax import jit, pmap, devices, lax
 from functools import partial
 
 from constraints.solvers.functions import generate_initial_guess, multi_start_solve_bounds_nonlinear_program
-from constraints.utils import standardise_inputs, standardise_model_decisions, mask_classifier
+from constraints.utils import standardise_inputs, standardise_model_decisions, mask_classifier, get_successor_inputs
 from constraints.solvers.utilities import determine_batches, create_batches
-
-
-        
+       
 def assess_feasibility(feasibility, input):
     """
     Assesses the feasibility of the input

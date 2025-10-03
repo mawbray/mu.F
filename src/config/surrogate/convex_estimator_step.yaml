@@ -24,13 +24,12 @@ surrogate_forward:
     
 classifier: true
 classifier_selection: 'SVM' # or 'SVM'
+regressor_selection: 'ANN' # or 'GP' # or 'ANN'
 probability_map: false
 
 index_on: 1
 subsample_size: 10000000
 num_folds: 2
-
-
 
 
 classifier_args: 
@@ -62,4 +61,4 @@ classifier_args:
 probability_map_args:
   drop_uncertain_params: true
 
-forward_evaluation_surrogate: False
+forward_evaluation_surrogate: True

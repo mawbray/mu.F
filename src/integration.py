@@ -52,7 +52,6 @@ class apply_decomposition:
         else:
             raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward' or 'forward-backward'.")
         
-
         # Iterate over the nodes and apply nested sampling
         for node in nodes:
             #if cfg.solvers.evaluation_mode.forward == 'ray':  ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/']})

@@ -2,7 +2,8 @@ from abc import ABC
 from functools import partial
 
 from constraints.jax_evaluator import backward_constraint_evaluator
-from constraints.casadi_evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator_general, forward_root_constraint_decentralised_evaluator, global_graph_upperlevel_NLP, post_process_constraint_evaluator
+from constraints.casadi_evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator_general, forward_root_constraint_decentralised_evaluator
+from constraints.downstream import global_graph_upperlevel_NLP
 
 class constraint_evaluator(ABC):
     def __init__(self, cfg, graph, node, pool=None, constraint_type='process'):
@@ -12,9 +13,6 @@ class constraint_evaluator(ABC):
 
         if constraint_type == 'process':
             self.constraint_evaluator = process_constraint_evaluator(cfg, graph, node, pool)
-            self.evaluate = self.evaluate_process
-        elif constraint_type == 'post_process_evals':
-            self.constraint_evaluator = post_process_constraint_evaluator(cfg, graph, node, pool)
             self.evaluate = self.evaluate_process
         elif constraint_type == 'forward':
             self.constraint_evaluator = forward_constraint_evaluator(cfg, graph, node, pool)

@@ -239,7 +239,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
             input_indices = self.graph.edges[pred, self.node]['input_indices']
             aux_indices = self.graph.edges[pred, self.node]['auxiliary_indices']
             pred_inputs[pred]= inputs[:,input_indices]
-            pred_aux[pred] = aux[:,aux_indices]
+            pred_aux[pred] = aux[:,:]
             
 
         return pred_inputs, pred_aux

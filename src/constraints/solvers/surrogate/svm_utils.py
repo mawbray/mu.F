@@ -49,15 +49,32 @@ def train(cfg, dataset, num_folds, unit_index, iterate):
 
     if classifier is not None:
         _, args, model_data = convert_svm_to_jax(classifier.best_estimator_)
+        return classifier, args, model_data
     else:
         if jnp.all(labels == -1):
             classifier = all_feasible
+            model_data = get_model_data(
+            jnp.zeros_like(data_points[0,:]), 
+            jnp.ones_like(data_points[0,:]), 
+            jnp.zeros((1,)),
+            jnp.zeros_like(data_points[0,:]), 
+            jnp.array([-5.]), 
+            1.0
+        )
         elif jnp.all(labels == 1):
             classifier = no_feasible
+            model_data = get_model_data(
+            jnp.zeros_like(data_points[0,:]), 
+            jnp.ones_like(data_points[0,:]), 
+            jnp.zeros((1,)),
+            jnp.zeros_like(data_points[0,:]), 
+            jnp.array([-5.]), 
+            1.0
+        )
         args = (classifier, classifier, None)
+        
 
-    return classifier, args, model_data
-
+        return classifier, args, model_data
 
 def compute_best_svm_classifier(
     data_points, labels, unit_index, cfg, iterate, num_folds
@@ -109,11 +126,8 @@ def rbf_kernel(x, y, epsilon=1e-3):
     squared_diff = jnp.linalg.norm(diff, axis=1)**2
     return jnp.exp(-epsilon * squared_diff)
 
-
 def get_x_scalar_from_pipeline(pipeline):
     return pipeline[0]
-
-
 
 def convert_svm_to_jax(pipeline):
 
@@ -147,16 +161,18 @@ def convert_svm_to_jax(pipeline):
         decision = jnp.dot(coefficients, rbf_kernel(support_vectors, x,epsilon=kernel_param)) + intercept
         return decision.squeeze()
     
+    model_data = get_model_data(x_mean, x_std, support_vectors, coefficients, intercept, kernel_param)
+    
+    return svm_model, (svm_standardised, svm_unstandardised, standardisation_metrics(mean=x_mean, std=x_std)), model_data
+
+def get_model_data(x_mean, x_std, support_vectors, coefficients, intercept, kernel_param):
+    
     model_data = {'standardisation_metrics_input': standardisation_metrics(mean=x_mean, std=x_std), 
                   'serialized_params': {'support_vectors': support_vectors,
                                         'coefficients': coefficients,
                                         'intercept': intercept,
                                         'kernel_param': kernel_param}}
-
-
-    return svm_model, (svm_standardised, svm_unstandardised, standardisation_metrics(mean=x_mean, std=x_std)), model_data
-
-
+    return model_data
 
 def build_svm(cfg, model_data):
 

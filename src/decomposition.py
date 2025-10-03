@@ -9,7 +9,6 @@ import torch
 from integration import apply_decomposition
 from initialisation.methods import initialisation
 from reconstruction.constructor import reconstruction
-from post_processes.constructor import post_process
 from unit_evaluators.constructor import network_simulator
 from constraints.constructor import constraint_evaluator
 from samplers.space_filling import sobol_sampler
@@ -60,7 +59,6 @@ class decomposition:
         return operations, visualisations
     
     def run(self, iterations=0):
-        # 
         for i in range(len(self.mode)):
             operations, visualisations = self.define_operations(self.mode[i],iterations)
             for key in operations.keys():
@@ -71,6 +69,7 @@ class decomposition:
                 save_graph(self.G.copy(), self.mode[i] + '_iterate_' + str(iterations))
             if self.cfg.reconstruction.reconstruct[i]:
                 self.reconstruct(self.mode[i], i+iterations)
+                self._post_process(self.mode[i], i+iterations)
             self.update_precedence_order(self.mode[i])
 
         return self.G
@@ -86,7 +85,6 @@ class decomposition:
         for node in self.G.nodes():
             self.G.nodes[node]["fn_evals"] += network_model.function_evaluations[node]
         # visualisation of reconstruction
-
         # #TODO lets account for the reconstruction and post_processing operations
         if self.cfg.reconstruction.plot_reconstruction == 'nominal_map':
             df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(self.cfg.case_study.design_space_dimensions)})
@@ -100,7 +98,10 @@ class decomposition:
         return
     
     def _post_process(self, m, i):
-        # 
+        # post process
+        if self.cfg.reconstruction.post_process:
+            post_process = post_process_local_sip_scheme(self.cfg, self.G) 
+            self.G = post_process.run()
         return 
     
     def update_precedence_order(self, m):

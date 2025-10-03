@@ -19,6 +19,8 @@ surrogate_forward:
     noise: 'gaussian'
     
 classifier: true
+classifier_selection: 'SVM' #'ANN' # 'ANN' # or 'SVM'
+regressor_selection: 'ANN' # or 'GP' 
 probability_map: false
 
 index_on: 1

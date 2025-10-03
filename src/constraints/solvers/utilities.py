@@ -1,7 +1,6 @@
 import multiprocessing as mp
 import numpy as np
 import ray 
-import logging 
 logger = mp.log_to_stderr()
 logger.setLevel(mp.SUBDEBUG)
 

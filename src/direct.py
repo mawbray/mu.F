@@ -10,7 +10,7 @@ from samplers.utils import create_problem_description_deus_direct
 from visualisation.visualiser import visualiser
 from reconstruction.constructor import reconstruction as reconstruct
 from reconstruction.objects import live_set, dataset
-
+from utils import post_process_sampling_setup, post_process_setup
 
 from deus import DEUS
 
@@ -38,7 +38,6 @@ def apply_direct_method(cfg, graph):
     visualiser(cfg, graph, data=df, string='design_space', path=f'design_space_direct').run()
 
     if cfg.reconstruction.post_process:
-
         def sampler(
             ):
             
@@ -59,16 +58,9 @@ def apply_direct_method(cfg, graph):
             return feasible_samples
         
         graph =  load_to_graph(feasible_set, infeasible_set, graph, str_='post_process_lower_')
-        post_process = graph.graph['post_process'](cfg, graph, model, 0)
-        assert hasattr(post_process, 'run')
-        # TODO: update this to allow flexibility for whether a sampling scheme or local SIP scheme is used
-        post_process.load_training_methods(graph.graph["post_process_training_methods"])
-        post_process.load_solver_methods(graph.graph["post_process_solver_methods"])
-        post_process.graph.graph["solve_post_processing_problem"] = True
-        post_process.sampler = lambda : sampler()
-        post_process.load_fresh_live_set(live_set=live_set(cfg, cfg.samplers.notion_of_feasibility))
+        post_process = post_process_setup(cfg, graph, model)
+        post_process = post_process_sampling_setup(cfg, post_process, sampler, live_set)
         graph = post_process.run()
-        
 
     return feasible_set, infeasible_set
 

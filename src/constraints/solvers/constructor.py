@@ -1,6 +1,5 @@
 from abc import ABC
 from constraints.solvers.solvers import serialms_casadi_box_eq_nlp_solver, jax_box_nlp_solver, parallel_casadi_box_eq_nlp_solver
-import logging
 
 class solver_construction(ABC):
     """ This is a base class used to construct local solvers for the feasibility problem """
