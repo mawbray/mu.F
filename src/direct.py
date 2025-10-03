@@ -61,6 +61,7 @@ def apply_direct_method(cfg, graph):
         graph =  load_to_graph(feasible_set, infeasible_set, graph, str_='post_process_lower_')
         post_process = graph.graph['post_process'](cfg, graph, model, 0)
         assert hasattr(post_process, 'run')
+        # TODO: update this to allow flexibility for whether a sampling scheme or local SIP scheme is used
         post_process.load_training_methods(graph.graph["post_process_training_methods"])
         post_process.load_solver_methods(graph.graph["post_process_solver_methods"])
         post_process.graph.graph["solve_post_processing_problem"] = True

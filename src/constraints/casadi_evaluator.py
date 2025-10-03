@@ -158,41 +158,6 @@ class coupling_surrogate_constraint_base(constraint_evaluator_base):
         """
         raise NotImplementedError("Method not implemented")
     
-    def mp_evaluation(
-        self,
-        solver: Iterable[Callable],
-        initial_guess: Iterable[np.ndarray],
-        max_devices: int,
-    ):
-        """
-        Parallel evaluation of constrained NLPs using multiprocessing pool.
-        :param objectives: List of objective functions
-        :param constraints: List of constraint functions
-        :param decision_bounds: List of decision bounds
-        :param cfg: Configuration
-        """
-
-        # determine the batch size
-        workers, remainder = determine_batches(len(solver), max_devices)
-        # split the objectives, constraints and bounds into batches
-        solver_batches = create_batches(workers, solver)
-        initial_guess_batches = create_batches(workers, initial_guess)
-                
-        # parallelise the batch
-        result_dict = {}
-        evals = 0
-        for i, (solver, init_guess, device) in enumerate(zip(solver_batches, initial_guess_batches, workers)):
-            results = parallelise_ray_batch(solver, init_guess)
-            for j, result in enumerate(results):
-                result_dict[evals + j] = result
-            evals += len(results)
-
-        return result_dict
-    
-    def simple_evaluation(self, solver, initial_guess):
-        return solver(initial_guess)
-    
-
 
 class forward_constraint_evaluator(coupling_surrogate_constraint_base):
     """

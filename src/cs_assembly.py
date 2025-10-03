@@ -6,7 +6,7 @@ from graph.methods import CS_edge_holder, vmap_CS_edge_holder
 from constraints.solvers.constructor import solver_construction
 from constraints.solvers.surrogate.surrogate import surrogate
 from constraints.constructor import constraint_evaluator
-from post_processes.constructor import post_process
+from post_processes.constructor import post_process_sampling_scheme, post_process_local_sip_scheme
 from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
 from visualisation.visualiser import visualiser
 
@@ -93,9 +93,13 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
     if cfg.reconstruction.post_process:
         # post processing
         G.add_arg_to_nodes('post_process_constraints', post_process_visualiser[cfg.case_study.case_study])
-        G.add_arg_to_graph('post_process', post_process)
+        G.add_arg_to_graph('post_process', post_process_sampling_scheme if cfg.reconstruction.post_process_sampler 
+                           else post_process_local_sip_scheme)
         G.add_arg_to_graph('post_process_training_methods', surrogate)
-        G.add_arg_to_graph('post_process_solver_methods', {'upper_level_solver': constraint_evaluator, 'lower_level_solver': constraint_evaluator})
+        # TODO: update this to allow flexibility for whether a sampling scheme or local SIP scheme is used
+        G.add_arg_to_graph('post_process_solver_methods', 
+                           {'upper_level_solver': partial(constraint_evaluator, node=None, constraint_type=cfg.reconstruction.post_process_solver.upper_level), 'lower_level_solver': partial(constraint_evaluator, node=None, constraint_type=cfg.reconstruction.post_process_solver.lower_level)} if cfg.reconstruction.post_process_sampler 
+                           else {'relaxation_a_solver': partial(constraint_evaluator, node=None, constraint_type=cfg.reconstruction.post_process_solver.relaxation_a), 'relaxation_b_solver': partial(constraint_evaluator, node=None, constraint_type=cfg.reconstruction.post_process_solver.relaxation_b)})
         G.add_arg_to_graph('post_process_decision_indices', cfg.reconstruction.post_process_decision_indices)
         G.add_arg_to_graph('solve_post_processing_problem', False) # overwritten in the post_process function
         G.add_arg_to_graph('post_process_solution_evaluator', partial(post_process_evaluation, constraint_evaluator=constraint_evaluator))

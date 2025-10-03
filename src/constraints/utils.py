@@ -1,6 +1,7 @@
 """
 Utility functions for constraints
 """
+from typing import Callable
 import jax.numpy as jnp
 import numpy as np
 from jax import jit
@@ -35,12 +36,11 @@ def standardise_model_decisions(graph, decisions, out_node):
         return [(decision - mean[:].reshape(1,-1)) / std[:].reshape(1,-1) for decision in decisions]
     
 
-def mask_classifier(classifier, ndim, fix_ind, aux_ind):
+def mask_classifier(classifier: Callable, ndim, fix_ind, aux_ind):
     """
     Masks the classifier
     - y corresponds to those indices that are fixed
     - x corresponds to those indices that are optimised
-    
     """
 
     def masked_classifier(x, y):
@@ -50,7 +50,27 @@ def mask_classifier(classifier, ndim, fix_ind, aux_ind):
     return jit(masked_classifier)
 
 
-def construct_input(x, y, fix_ind, aux_ind, ndim):
+def construct_input(
+        x: jnp.ndarray, 
+        y: jnp.ndarray, 
+        fix_ind: jnp.ndarray, 
+        aux_ind: jnp.ndarray, 
+        ndim: int
+    ) -> jnp.ndarray:
+
+    """
+    Constructs the input to the classifier
+    - y corresponds to those indices that are fixed
+        assumed to be of shape (1, len(fix_ind) + len(aux_ind))
+    - x corresponds to those indices that are optimised
+        assumed to be of shape (len(decision_vars), ), such that 
+        len(x) + len(y) = ndim
+    - fix_ind are the indices of the fixed (design or input) variables
+    - aux_ind are the indices of the fixed auxiliary variables 
+    - ndim is the total number of dimensions 
+      assumed to be len(x) + len(y)
+    :return: the constructed input of shape (ndim, )
+    """
     # Initialize input_ with zeros or any placeholder value
     input_ = jnp.zeros(ndim)
     

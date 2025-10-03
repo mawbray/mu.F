@@ -45,6 +45,18 @@ class post_process_base(ABC):
 
     def load_solver_methods(self, solver_methods):
         self.solver_methods = solver_methods
+
+    def _evaluate_solution(self, solution):
+        """
+        Evaluate the solution of the upper-level problem
+        """
+        # EVALUATE THE SOLUTION
+        evaluation_function = self.graph.graph['post_process_solution_evaluator']
+
+        dataframe = evaluation_function(self.cfg, self.graph).wrap_get_constraints(solution)
+        self._visualise_solution(dataframe)
+        
+        return dataframe
     
     def _visualise_solution(self, solution):
         """
@@ -128,7 +140,7 @@ class post_process_sampling_scheme(post_process_base):
         nuisance_constraint_evaluator = self.solver_methods['lower_level_solver']
         # train the model
         self.train_classification_model(str_='post_process_lower_')
-        evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, node=None, pool=None, constraint_type=self.cfg.reconstruction.post_process_solver.lower_level).evaluate
+        evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, pool=None).evaluate
         
         boolean = False
         while not boolean:
@@ -155,27 +167,13 @@ class post_process_sampling_scheme(post_process_base):
         nuisance_constraint_evaluator = self.solver_methods['upper_level_solver']
         # train the model
         self.train_classification_model(str_='post_process_upper_')
-        evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, node=None, pool='ray', constraint_type=self.cfg.reconstruction.post_process_solver.upper_level).evaluate
+        evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, pool='ray').evaluate
         # in the upper level we have no parameters to recursively evaluate, so we just solve to find an optimum.
         optimum = evaluation_function()
         logging.info(f"Local optimum found: {optimum}")
 
         return np.reshape(np.array(optimum).reshape(-1,)[:-1], (1,-1))
 
-    def _evaluate_solution(self, solution):
-        """
-        Evaluate the solution of the upper-level problem
-        """
-        # Implement the logic to evaluate the solution
-        assert self.solver_methods is not None, "Solver methods must be set before evaluating the solution."
-        assert self.sampler is not None, "Sampler must be set before evaluating the solution."
-        
-        evaluation_function = self.graph.graph['post_process_solution_evaluator']
-
-        dataframe = evaluation_function(self.cfg, self.graph).wrap_get_constraints(solution)
-        self._visualise_solution(dataframe)
-        
-        return dataframe
     
     def filter_decision_variables(self, decision_variables: list[int], query_points: jnp.ndarray) -> list[int]:
         """
@@ -242,18 +240,18 @@ class post_process_local_sip_scheme(post_process_base):
         # Implement the logic to solve relaxation b
         assert self.solver_methods is not None, "Solver methods must be set before solving relaxation b."
         relaxation_b_solver = self.solver_methods['relaxation_b_solver']
-        solution, value_fn = relaxation_b_solver(cfg=self.cfg, graph=self.graph, node=None, pool='ray', current_solution=current_solution, decision_indices=self.graph.graph['post_process_lower_decision_indices']).evaluate()
+        solution, value_fn = relaxation_b_solver(cfg=self.cfg, graph=self.graph, pool='ray', current_solution=current_solution, decision_indices=self.graph.graph['post_process_lower_decision_indices']).evaluate()
         
         return solution, value_fn
-
-
 
     def relaxation_a(self, discrete_index_set: list[jnp.ndarray]) -> Tuple[jnp.ndarray, float]:
         """
         Method to solve relaxation a of the SIP approximation.
         - stores the current best solution as self.best_r1_solution
         """
-        solution, value_fn = self.solve_relaxation_a(discrete_index_set)
+        solver = self.solver_methods['upper_level_solver']
+        solver = solver(cfg=self.cfg, graph=self.graph, node=None, pool='ray', constraint_type=self.cfg.reconstruction.post_process_solver.upper_level)
+        solution, value_fn = self.solve_relaxation_a(solver, discrete_index_set)
         self.best_r1_solution = solution
 
         return solution, value_fn
@@ -292,6 +290,12 @@ class post_process_local_sip_scheme(post_process_base):
             logging.info(f"Best solution found: {solution_ve} with objective value {value_fn_obj}.")
         return solution_ve, value_fn_obj
 
+    def initialize_discrete_index_set(self) -> list[jnp.ndarray]:
+        """
+        Initialize the discrete index set for the SIP approximation.
+        :return: The initial discrete index set
+        """
+        pass
 
     @staticmethod
     def check_convergence(value_g: float) -> bool:
@@ -305,5 +309,9 @@ class post_process_local_sip_scheme(post_process_base):
         index_set.append(new_indices)
         return index_set
 
+    # TODO finish implementation
+    def solve_relaxation_a(problem_data: list[jnp.ndarray]) -> Tuple[jnp.ndarray, float]:
+        pass
 
-    def solve_relaxation_a
+    def solve_relaxation_b(problem_data: jnp.ndarray) -> Tuple[jnp.ndarray, float]:
+        pass
