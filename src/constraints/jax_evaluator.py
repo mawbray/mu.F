@@ -103,8 +103,6 @@ def prepare_backward_problem(outputs, graph, node, cfg):
             wrapper_classifier = mask_classifier(classifier, ndim, input_indices, aux_indices)
             backward_objective[succ] = [jit(partial(lambda x,y: wrapper_classifier(x,y).squeeze(), y=succ_inputs[succ][i].reshape(1,-1))) for i in range(succ_inputs[succ].shape[0])]
 
-        
-
         # return the forward surrogates and decision bounds
         return backward_objective, backward_bounds
 

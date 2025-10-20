@@ -1,9 +1,10 @@
-from casadi import MX, nlpsol, Function, Sparsity, Callback
+from casadi import DM, MX, nlpsol, Function, Sparsity, Callback
 import casadi 
 import numpy as np
 from scipy.stats import qmc
+import time
 import jax.numpy as jnp
-from jax import jacfwd, jit
+from jax import jacobian, jit, vmap, lax, jacfwd
 from jaxopt import LBFGSB
 from functools import partial
 import time
@@ -177,102 +178,135 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     
 # --- Core JAX/CasADi Integration ---
 
-class JaxEvaluator(Callback):
-    """
-    CasADi Callback that wraps a JAX function and provides derivatives via jax.jacfwd.
-    """
-    def __init__(self, name, jax_func, n_in, n_out, opts=None):
+# NOTE currently callbacks are only set up for scalar valued functions
+# i.e. functions that map R^n_x -> R
+# Combined with reverse mode AD to get gradients
+# This is roughly equivalent to reverse mode AD on vector valued functions
+# i.e. functions that map R^n_x -> R^n_g but the implementation is different
+# in this case we require (m-1) additional constraint evaluations to get the full Jacobian
+# However, if we extend Callbacks to handle vector valued functions
+# we can use forward mode AD to get Jacobians
+# which may be more efficient in many cases (i.e. when n_x < n_g)
+
+
+class JaxCasADiEvaluator(Callback):
+    def __init__(self, t_in, t_out, model, set_init=False, opts={}):
+        self.set_init = set_init
+        self.opts = opts
         Callback.__init__(self)
-        self.jax_func = jax_func
-        self.n_in = n_in
-        self.n_out = n_out
-        
-        # JIT compile the core JAX functions
-        self.jitted_func = jit(self.jax_func)
-        self.jitted_jac = jit(jacfwd(self.jax_func)) # JAX function for the full Jacobian
+        assert isinstance(t_in, list)
+        self.t_in = t_in
+        assert isinstance(t_out, list)
+        self.t_out = t_out
+        self.output_shapes = []
+        self.construct("JaxCasADiEvaluator", {})
+        self.refs = []
+        self.model = model
+        self.jitted_model = jit(vmap(self.model))
+        self.jitted_grad_func = jit(
+            jacobian(lambda x: self.jitted_model(jnp.atleast_2d(x)).squeeze())
+        )
 
-        self.construct(name, opts or {})
+    def get_n_in(self):
+        return len(self.t_in)
 
-    def get_n_in(self): return 1
-    def get_n_out(self): return 1
+    def get_n_out(self):
+        return len(self.t_out)
 
     def get_sparsity_in(self, i):
-        # Input 'x' is a dense column vector (n_in x 1)
-        return Sparsity.dense(self.n_in, 1)
+        tensor_shape = self.t_in[i].shape
+        return Sparsity.dense(tensor_shape[0], tensor_shape[1])
 
     def get_sparsity_out(self, i):
-        # Output is a dense column vector (n_out x 1)
-        return Sparsity.dense(self.n_out, 1)
+        if i == 0 and not self.set_init:
+            tensor_shape = self.opts["output_dim"]
+        elif i == 0 and self.set_init:
+            tensor_shape = self.opts["grad_dim"]
+        else:
+            tensor_shape = self.opts["output_dim"]
+        return Sparsity.dense(tensor_shape[0], tensor_shape[1])
+
+    def objective_func(self, x):
+        x = jnp.atleast_2d(x)
+        mean = vmap(self.model)(x)
+        return mean.squeeze()
 
     def eval(self, arg):
-        """Numerically evaluates the function f(x) or g(x)."""
-        # CasADi DM to JAX array
-        x_np = arg[0].full().flatten()
-        x_jnp = jnp.array(x_np, dtype=jnp.float64)
-        
-        # JAX function expects flat vectors, returns flat vector
-        y_jnp = self.jitted_func(x_jnp)
+        updated_t = []
+        for i, v in enumerate(self.t_in):
+            if isinstance(arg[i], (MX, DM)):
+                arg_np = np.array(arg[i].full()).reshape(v.shape)
+            else:
+                arg_np = np.array(arg[i]).reshape(v.shape)
+            updated_t.append(jnp.array(arg_np))
+        input_data = jnp.atleast_2d(updated_t[0]).reshape(1, -1)
 
-        return [np.array(y_jnp).reshape(self.n_out, 1)]
-    
-    def has_jacobian(self): 
-        """Indicate that we can provide the Jacobian (required for IPOPT)."""
-        return True
+        if len(arg) > 1:  # Gradient calculation
+            grad_output = self.jitted_grad_func(input_data)
+            selected_set = np.array(grad_output).reshape(
+                self.opts["grad_dim"][0], self.opts["grad_dim"][1]
+            )
+        else:  # Function value
+            out_ = self.jitted_model(input_data)
+            selected_set = np.array(out_).reshape(
+                (self.opts["output_dim"][0], self.opts["output_dim"][1])
+            )
+            if out_ is None:
+                raise ValueError("Output from the model is None.")
 
-    def get_jacobian(self, name, inames, onames, opts):
-        """
-        Computes the full Jacobian matrix J(x) = ∂y/∂x using JAX jacfwd.
-        This handles both the objective gradient (1 x n_in matrix) and 
-        the constraint Jacobian (n_out x n_in matrix).
-        """
-        
-        class JacobianEvaluator(Callback):
-            """Internal Callback to compute the Jacobian matrix J(x)."""
-            def __init__(self, jac_func, n_in, n_out):
-                Callback.__init__(self)
-                self.jitted_jac = jac_func
-                self.n_in = n_in
-                self.n_out = n_out
-                self.construct("JacobianEvaluator", opts or {})
+        return [selected_set]
 
-            def get_n_in(self): return 1
-            def get_n_out(self): return 1
-            def get_sparsity_in(self, i): return Sparsity.dense(self.n_in, 1)
-            def get_sparsity_out(self, i): return Sparsity.dense(self.n_out, self.n_in)
+    def has_reverse(self, nadj):
+        return nadj == 1
 
-            def eval(self, arg):
-                x_np = arg[0].to_DM().full().flatten()
-                x_jnp = jnp.array(x_np, dtype=jnp.float64)
-                
-                J_jnp = self.jitted_jac(x_jnp)
-                
-                # Ensure output is (n_out x n_in) matrix
-                J_casadi = casadi.DM(J_jnp).reshape(self.n_out, self.n_in)
-                return [J_casadi]
-
-        # 1. Create a new callback instance for the Jacobian computation
-        jac_callback = JacobianEvaluator(self.jitted_jac, self.n_in, self.n_out)
-        self.refs.append(jac_callback) # Keep reference
-
-        # 2. Create the CasADi Function F(x) -> J(x) that calls the callback
-        x = MX.sym('x', self.n_in, 1)
-        J_callback_expr = jac_callback(x)
-        
-        # The returned function must have the structure F(x) -> [J(x)]
-        return Function(name, [x], [J_callback_expr], inames, onames)
+    def get_reverse(self, nadj, name, inames, onames, opts):
+        adj_seed = [MX.sym("adj", *self.get_sparsity_out(i).shape) for i in range(self.get_n_out())]
+        callback = JaxCasADiEvaluator(
+            self.t_in + adj_seed, [self.t_out[0]], self.model, set_init=True, opts=self.opts
+        )
+        self.refs.append(callback)
+        nominal_in = self.mx_in()
+        nominal_out = self.mx_out()
+        adj_seed = self.mx_out()
+        casadi_bal = callback.call(nominal_in + adj_seed)
+        return Function(name, nominal_in + nominal_out + adj_seed, casadi_bal, inames, onames)
 
 
-def casadify(functn, nd, output_dim):
+class ScalarFn(JaxCasADiEvaluator):
+    def __init__(self, model, opts={}):
+        X = MX.sym("X", opts["grad_dim"][0], 1)
+
+        @jit
+        def f_k(input_dat, get_grad_val=None):
+            xf_tensor = jnp.array(input_dat)
+            if get_grad_val is not None:
+                mean = self.objective_func(xf_tensor)
+            # Note: JAX automatically handles gradient computation
+            else:
+                mean = self.objective_func(xf_tensor)
+            return mean, None  # Return None for grad_mean as JAX handles it differently
+
+        JaxCasADiEvaluator.__init__(self, [X], [f_k], model, opts=opts)
+        self.counter = 0
+        self.time = 0
+
+    def eval(self, arg):
+        self.counter += 1
+        t0 = time.time()
+        ret = JaxCasADiEvaluator.eval(self, arg)
+        self.time += time.time() - t0
+        return ret
+
+
+def casadify(functn, nd, ny=1):
+    """Casadify a JAX function via JAX-CasADi wrappers
+    functn: a JAX function
+    nd: the number of input dimensions to the function
+    ny: the number of output dimensions
     """
-    Casadify a JAX function using a pure JAX Jacobian callback.
-    """
-    fn_callback = JaxEvaluator(
-        name='jax_callback',
-        jax_func=functn,
-        n_in=nd,
-        n_out=output_dim,
-    )
-    return fn_callback
+    opts = {"output_dim": [1, ny], "grad_dim": [nd, ny]}
+    return ScalarFn(functn, opts=opts)
+
 
 # --- Remaining Functions (Cleaned for JAX/CasADi only) ---
 
@@ -314,14 +348,14 @@ def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bo
 
     # iterate over upper level initial guesses
     time_now  = time.time()
-    _, solutions = jax.lax.scan(partial_jax_solver, init=None, xs=(initial_guess))
+    _, solutions = lax.scan(partial_jax_solver, init=None, xs=(initial_guess))
     now = time.time() - time_now
 
     
    
     # iterate over solutions from one of the upper level initial guesses
     assess_subproblem_solution = partial(return_most_feasible_penalty_subproblem_uncons, objective_func=objective_func)
-    _, assessment = jax.lax.scan(assess_subproblem_solution, init=None, xs=solutions.params)
+    _, assessment = lax.scan(assess_subproblem_solution, init=None, xs=solutions.params)
     
 
     cond = solutions[1].error <= jnp.array([tol]).squeeze()
