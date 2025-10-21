@@ -150,9 +150,9 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
   else:
       print(obj_data)
       objective_func = lambda x: x.reshape(-1,)[obj_data['obj_fn']].reshape(1,1)
-  
-  objective_fn = scalarfn_casadify(objective_func, len(bounds[0]), output_dim=1)
-  constraints_fn = vectorfn_casadify(constraints, len(bounds[0]), output_dim=len(g_fn))
+  ng = constraints(initial_guess[0].reshape(1,-1)).squeeze().size
+  objective_fn = scalarfn_casadify(objective_func, len(bounds[0]))
+  constraints_fn = vectorfn_casadify(constraints, len(bounds[0]), output_dim=ng)
   # store for solutions
   solutions = []
   for i in range(n_starts):

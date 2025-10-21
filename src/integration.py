@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 import logging
 import jax.profiler as profiler
-from jax import clear_backends, clear_caches
+from jax import clear_caches
 
 from constraints.constructor import constraint_evaluator
 from unit_evaluators.constructor import subproblem_unit_wrapper
@@ -89,7 +89,6 @@ class apply_decomposition:
             gc.collect()
             profiler.save_device_memory_profile(f"memory{node}.prof")
             clear_caches()
-            clear_backends()
             profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")
         """ except: 
             if cfg.method == 'decomposition_constraint_tuner': graph.nodes[node]['log_evidence'] = {'mean':-10, 'std':0}
