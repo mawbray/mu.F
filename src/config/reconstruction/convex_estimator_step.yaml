@@ -7,6 +7,9 @@ reconstruct:
 post_process: 
   - True
 
+
+relaxation_b_index_bounds: [0.0, 1.0]
+
 post_process_solver:
  lower_level: 'post_process_lower_level'
  upper_level: 'post_process_upper_level'

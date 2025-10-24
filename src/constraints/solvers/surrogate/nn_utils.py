@@ -12,7 +12,7 @@ from sklearn.preprocessing import StandardScaler
 from flax import linen as nn
 from flax.training import train_state
 from flax.training.early_stopping import EarlyStopping
-from flax.experimental.nnx import softmax
+from flax.nnx import softmax
 from flax.serialization import to_bytes, from_bytes
 from flax import jax_utils
 import optax
@@ -108,8 +108,6 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
     elif model_type == 'classifier':
         y_scalar = jnp.astype((D.y + 1)/2, jnp.int32)
         standard_D = Dataset(x_scalar.transform(D.X), y_scalar)
-
-    
 
     # Perform hyperparameter selection using cross-validation
     for hidden_size, af in product(hidden_sizes, afs):

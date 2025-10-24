@@ -54,21 +54,21 @@ def train(cfg, dataset, num_folds, unit_index, iterate):
         if jnp.all(labels == -1):
             classifier = all_feasible
             model_data = get_model_data(
-            jnp.zeros_like(data_points[0,:]), 
-            jnp.ones_like(data_points[0,:]), 
-            jnp.zeros((1,)),
-            jnp.zeros_like(data_points[0,:]), 
-            jnp.array([-5.]), 
+            jnp.zeros_like(data_points[0,:], dtype=jnp.float32), 
+            jnp.ones_like(data_points[0,:], dtype=jnp.float32), 
+            jnp.zeros((1,), dtype=jnp.float32),
+            jnp.zeros((1,), dtype=jnp.float32), 
+            jnp.array([-5.], dtype=jnp.float32), 
             1.0
         )
         elif jnp.all(labels == 1):
             classifier = no_feasible
             model_data = get_model_data(
-            jnp.zeros_like(data_points[0,:]), 
-            jnp.ones_like(data_points[0,:]), 
-            jnp.zeros((1,)),
-            jnp.zeros_like(data_points[0,:]), 
-            jnp.array([-5.]), 
+            jnp.zeros_like(data_points[0,:], dtype=jnp.float32), 
+            jnp.ones_like(data_points[0,:], dtype=jnp.float32), 
+            jnp.zeros((1,), dtype=jnp.float32),
+            jnp.zeros((1,), dtype=jnp.float32), 
+            jnp.array([5.], dtype=jnp.float32), 
             1.0
         )
         args = (classifier, classifier, None)

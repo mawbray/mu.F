@@ -6,7 +6,7 @@ from jax.random import choice, PRNGKey
 from reconstruction.samplers import sobol_sampler
 from reconstruction.objects import live_set
 from reconstruction.methods import construct_cartesian_product_of_live_sets
-
+from reconstruction.utils import post_process_sampling_setup, post_process_setup
 
 class reconstruct_base(ABC):
     def __init__(self):
@@ -93,13 +93,9 @@ class reconstruction(reconstruct_base):
         :return: The post process object
         """
         graph = ls_holder.load_classification_data_to_graph(graph, str_='post_process_lower_')
-        post_process = graph.graph['post_process'](cfg, graph, model, iterate)
-        assert hasattr(post_process, 'run')
-        post_process.load_training_methods(graph.graph["post_process_training_methods"])
-        post_process.load_solver_methods(graph.graph["post_process_solver_methods"])
-        post_process.graph.graph["solve_post_processing_problem"] = True
-        post_process.sampler = lambda : (self.sample_live_sets())[1]
-        post_process.load_fresh_live_set(live_set=live_set(self.cfg, self.cfg.samplers.notion_of_feasibility))
+        post_process = post_process_setup(cfg, graph, model)
+        if cfg.reconstruction.post_process_sampler:
+            post_process = post_process_sampling_setup(cfg, post_process,  lambda : (self.sample_live_sets())[1], live_set)
         graph = post_process.run()
 
         return graph

@@ -10,7 +10,7 @@ from samplers.utils import create_problem_description_deus_direct
 from visualisation.visualiser import visualiser
 from reconstruction.constructor import reconstruction as reconstruct
 from reconstruction.objects import live_set, dataset
-from utils import post_process_sampling_setup, post_process_setup
+from reconstruction.utils import post_process_sampling_setup, post_process_setup
 
 from deus import DEUS
 

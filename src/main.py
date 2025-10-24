@@ -3,6 +3,7 @@ import multiprocessing
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
     multiprocessing.cpu_count()
 )
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 from visualisation.visualiser import visualiser
 
 from direct import apply_direct_method
@@ -68,7 +69,7 @@ if __name__ == "__main__":
     from hydra.utils import get_original_cwd
     jax.config.update('jax_platform_name', 'cpu')
     platform = jax.lib.xla_bridge.get_backend().platform.casefold()
-    
+
     # Enable 64 bit floating point precision
     #jax.config.update("jax_enable_x64", True)
     sys.path.append(os.path.join(os.getcwd(),'src'))

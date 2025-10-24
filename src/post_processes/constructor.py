@@ -290,7 +290,7 @@ class post_process_local_sip_scheme(post_process_base):
         Initialize the discrete index set for the SIP approximation.
         :return: The initial discrete index set
         """
-        pass
+        decision_bounds = self.cfg.case_study.KS_bounds
 
     @staticmethod
     def check_convergence(value_g: float) -> bool:

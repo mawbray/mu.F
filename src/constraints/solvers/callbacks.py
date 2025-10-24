@@ -1,10 +1,11 @@
 from time import time
-from casadi import Callback, DM, Sparsity
+from casadi import Callback, DM, Sparsity, MX, Function
 import tensorflow as tf
 import casadi as ca
-from jax import jit, jacrev, numpy as jnp
+from jax import jacfwd, jit, jacrev, numpy as jnp
 from jax.experimental import jax2tf
 import numpy as np
+import time
 
 
 def tf_jaxmodel_wrapper(jax_callable):
@@ -12,7 +13,7 @@ def tf_jaxmodel_wrapper(jax_callable):
     Converts a JAX callable function into a TensorFlow callable.
     This is necessary to define the TensorFlow graph that CasADi will use.
     """
-    return jax2tf.convert(jax_callable, enable_xla=False)
+    return jax2tf.convert(jax_callable, enable_xla=True, native_serialization_platforms=['cpu'])
 
 # --- TensorFlow V2 CasADi Evaluator Class ---
 
@@ -28,18 +29,19 @@ class TensorFlowEvaluator(ca.Callback):
         self.output_shape = None
         self.refs = [] # List to hold references to reverse callbacks
 
-        # 1. Compile the forward pass into a concrete tf.function
-        @tf.function(input_signature=[tf.TensorSpec(shape=(nd, 1), dtype=tf.float64)])
-        def forward_pass(x):
-            return self.tf_fn(x)
+        with tf.device('/CPU:0'):
+            # 1. Compile the forward pass into a concrete tf.function
+            @tf.function(input_signature=[tf.TensorSpec(shape=(nd, 1), dtype=tf.float64)],  jit_compile=True, autograph=False)
+            def forward_pass(x):
+                return self.tf_fn(x)
 
-        self._forward_pass_tf = forward_pass
+            self._forward_pass_tf = forward_pass
 
-        # 2. Determine output shape and dimension by tracing (dummy run)
-        dummy_x = tf.constant(np.zeros((nd, 1)), dtype=tf.float64)
-        dummy_y = self._forward_pass_tf(dummy_x)
-        self.output_shape = dummy_y.shape.as_list()
-        self.n_out_dim = self.output_shape[0]
+            # 2. Determine output shape and dimension by tracing (dummy run)
+            dummy_x = tf.constant(np.zeros((nd, 1)), dtype=tf.float64)
+            dummy_y = self._forward_pass_tf(dummy_x)
+            self.output_shape = dummy_y.shape.as_list()
+            self.n_out_dim = self.output_shape[0]
 
         # 3. Call CasADi's base class constructor
         self.construct(name, opts)
@@ -82,7 +84,7 @@ class TensorFlowEvaluator(ca.Callback):
         @tf.function(input_signature=[
             tf.TensorSpec(shape=(nd, 1), dtype=tf.float64),      # x (nominal_in)
             tf.TensorSpec(shape=(n_out_dim, 1), dtype=tf.float64) # adj_seed
-        ])
+        ], jit_compile=True, autograph=False)
         def reverse_pass(x, adj_seed):
             """Computes grad = grad_x(f(x)) * adj_seed using GradientTape."""
             with tf.GradientTape(watch_accessed_variables=False) as tape:
@@ -195,7 +197,7 @@ class JaxCasADiEvaluator(Callback):
 
     def objective_func(self, x):
         x = jnp.atleast_2d(x)
-        mean = vmap(self.model)(x)
+        mean = self.model(x)
         return mean.squeeze()
 
     def eval(self, arg):
@@ -283,49 +285,3 @@ def vectorfn_casadify(functn, nd):
     """
     fn_callback = TensorFlowEvaluator(functn, nd)
     return fn_callback
-
-
-if __name__ == "__main__":
-
-    # --- Example Usage ---
-
-    # 1. Define a simple JAX function
-    def jax_func(x):
-        # x is (nd, 1)
-        return jnp.array([[jnp.sin(x[0, 0]) * x[1, 0]],
-                        [jnp.cos(x[1, 0]**2) + x[0, 0]]])
-
-    # 2. Input dimension
-    INPUT_DIM = 2
-
-    # 3. Create the CasADi callback object
-    tf_callback = casadify(jax_func, INPUT_DIM)
-
-    # 4. Create an MX symbol for CasADi optimization/manipulation
-    x_sym = ca.MX.sym('x', INPUT_DIM, 1)
-
-    # 5. Create the CasADi Function that uses the callback
-    F = ca.Function('F', [x_sym], [tf_callback(x_sym)])
-
-    # 6. Test forward evaluation
-    x_test = ca.DM([1.0, 2.0])
-    y_test = F(x_test)
-    print(f"Input x:\n{x_test}")
-    print(f"\nForward Evaluation F(x):\n{y_test}")
-    # Expected: [[sin(1)*2], [cos(4)+1]] approx: [[1.6829], [0.3463]]
-
-    # 7. Test Reverse AD (Jacobian calculation)
-    # We can use CasADi to calculate the Jacobian based on the callback's reverse function
-    J = ca.jacobian(F(x_sym), x_sym)
-    Jac_func = ca.Function('Jac', [x_sym], [J])
-
-    # Evaluate the Jacobian
-    J_test = Jac_func(x_test)
-    print(f"\nJacobian J(x):\n{J_test}")
-
-    # Expected Jacobian at x=[1, 2]:
-    # J11 = d/dx0 (sin(x0)x1) = cos(x0)x1 = cos(1)*2 approx 1.0806
-    # J12 = d/dx1 (sin(x0)x1) = sin(x0) = sin(1) approx 0.8415
-    # J21 = d/dx0 (cos(x1^2)+x0) = 1
-    # J22 = d/dx1 (cos(x1^2)+x0) = -sin(x1^2) * 2*x1 = -sin(4) * 4 approx 3.0279
-    # Result: [[1.0806, 0.8415], [1.0000, 3.0279]]

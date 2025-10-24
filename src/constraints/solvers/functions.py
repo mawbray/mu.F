@@ -129,7 +129,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
         raise NotImplementedError("Uncertain parameters not yet implemented for inequality constraints")
   
   # define the constraints function
-  constraints = partial(lambda x, g: jnp.vstack([g[i](x) for i in range(len(g))]), g=g_fn)
+  constraints = partial(lambda x, g: jnp.vstack([g[i](x.reshape(1,-1)) for i in range(len(g))]).reshape(-1,1), g=g_fn)
 
   # get objective function
   obj_data = problem_data['objective_func']
@@ -150,9 +150,9 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
   else:
       print(obj_data)
       objective_func = lambda x: x.reshape(-1,)[obj_data['obj_fn']].reshape(1,1)
-  ng = constraints(initial_guess[0].reshape(1,-1)).squeeze().size
-  objective_fn = scalarfn_casadify(objective_func, len(bounds[0]))
-  constraints_fn = vectorfn_casadify(constraints, len(bounds[0]), output_dim=ng)
+  
+  objective_fn = scalarfn_casadify(objective_func, len(bounds[0].squeeze()))
+  constraints_fn = vectorfn_casadify(constraints, len(bounds[0].squeeze()))
   # store for solutions
   solutions = []
   for i in range(n_starts):
