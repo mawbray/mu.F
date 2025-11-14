@@ -114,6 +114,20 @@ class live_set:
         graph.graph[str_+ 'classifier_training'] = dataset(all_data, all_labels)
         return graph
     
+    def load_regression_data_to_graph(self, graph=None, str_='post_process_lower'):
+        """    Get the regression data for training a regressor
+        :param graph: The graph
+        :param cfg: The configuration
+        :return: The support and labels for the regressor
+        """
+        if graph is None:
+            raise ValueError("Graph must be provided to load regression data.")
+
+        # get samples
+        live_set, live_set_prob = self.get_live_set()
+        graph.graph[str_+ 'regressor_training'] = dataset(live_set, live_set_prob)
+        return graph
+    
 
 
 class dataset(ABC):

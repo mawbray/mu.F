@@ -7,11 +7,10 @@ surrogate_forward:
       - [25, 10]
     activation_functions:
       - ['tanh', tanh]
-
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
-    num_epochs: 50 # 10 #50 # 50 # 500
+    num_epochs: 1000 # 10 #50 # 50 # 500
     min_delta: 0.00001
     patience: 50
     batch_size: 264 #64
@@ -44,15 +43,15 @@ classifier_args:
     hidden_size_options:
       - [50, 25]
       #- [100, 50, 25]
-      #- [50, 50]
-      #- [25, 10]
+      - [50, 50]
+      - [25, 10]
     activation_functions:
       - ['tanh', tanh]
 
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
-    num_epochs:  # 10 #50 # 50 # 500
+    num_epochs: 1000 # 10 #50 # 50 # 500
     min_delta: 0.00001
     patience: 50
     batch_size: 264 #64
@@ -62,3 +61,15 @@ probability_map_args:
   drop_uncertain_params: true
 
 forward_evaluation_surrogate: True
+
+
+
+post_process_lower:
+  model_class: regression
+  model_selection: ANN
+  type: post_process_forward
+  desired_node_index: 5
+post_process_upper:
+  model_class: classification
+  model_selection: ANN
+  type: post_process_forward

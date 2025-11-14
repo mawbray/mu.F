@@ -68,6 +68,7 @@ class decomposition:
                 visualisations[key](self.cfg, self.G).run()
                 save_graph(self.G.copy(), self.mode[i] + '_iterate_' + str(iterations))
             if self.cfg.reconstruction.reconstruct[i]:
+                jax.clear_caches()
                 self.reconstruct(self.mode[i], i+iterations)
             self.update_precedence_order(self.mode[i])
 

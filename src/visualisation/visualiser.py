@@ -26,7 +26,7 @@ class visualiser(ABC):
             elif mode == 'backward':
                 self.visualiser = partial(decompose_call, init=True, path=path)
         elif string == 'post_process_upper':
-            self.visualiser = partial(post_process_upper_solution, solution=data)
+            self.visualiser = partial(post_process_upper_solution, args=data)
         else:
             raise ValueError('string must be one of "initialisastion", "design_space", "reconstruction", "decomposition", "post_process_upper"')
 

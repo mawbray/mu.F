@@ -7,6 +7,7 @@ from constraints.solvers.constructor import solver_construction
 from constraints.solvers.surrogate.surrogate import surrogate
 from constraints.constructor import constraint_evaluator
 from post_processes.constructor import post_process_sampling_scheme, post_process_local_sip_scheme
+from post_processes.methods import post_process_regressor_data_function
 from unit_evaluators.utils import arrhenius_kinetics_fn, arrhenius_kinetics_fn_2
 from visualisation.visualiser import visualiser
 
@@ -104,6 +105,8 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
         G.add_arg_to_graph('solve_post_processing_problem', False) # overwritten in the post_process function
         G.add_arg_to_graph('post_process_solution_evaluator', partial(post_process_evaluation, constraint_evaluator=constraint_evaluator))
         G.add_arg_to_graph('post_process_solution_visualiser', visualiser) 
+        if cfg.surrogate.post_process_lower.model_class == 'regression':
+            G.add_arg_to_graph('global_regressor_function',post_process_regressor_data_function[cfg.case_study.case_study])
     # add edge properties to the graph
     G.add_arg_to_edges('edge_fn', dict_of_edge_fn)
     # add the auxiliary filters to the graph
