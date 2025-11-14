@@ -1,5 +1,5 @@
 case_study:
-  case_study: convex_estimator
+  case_study: estimator
   vmap_evaluations: true
   adjacency_matrix:
   - - 0
@@ -46,17 +46,17 @@ case_study:
   - 3
   - 0
   n_aux_args:
-    (0,5): 2
-    (2,5): 2
-    (3,5): 2
-    (4,5): 2
-    (1,5): 2
-    node_0: 2
-    node_1: 2
-    node_2: 2
-    node_3: 2
-    node_4: 2
-    node_5: 2
+    (0,5): 3
+    (2,5): 3
+    (3,5): 3
+    (4,5): 3
+    (1,5): 3
+    node_0: 3
+    node_1: 3
+    node_2: 3
+    node_3: 3
+    node_4: 3
+    node_5: 3
   n_input_args:
     (0,5): 1
     (2,5): 1
@@ -67,13 +67,13 @@ case_study:
     design_args:
     - - - -1
         - 1
-    - - - 0
+    - - - -1
         - 1
-      - - 0
+      - - -1
         - 1
-    - - - 0
+    - - - -1
         - 1
-      - - 0
+      - - -1
         - 1
     - - - -1
         - 1
@@ -88,10 +88,12 @@ case_study:
     - - - None
         - None
     aux_args:
-    - - - 0.1
-        - 1
-    - - - 0.1
-        - 1
+    - - - -0.5
+        - 0.5
+    - - - 0.0
+        - 0.3
+    - - - 0.0
+        - 0.25
   fn_evals:
   - 0
   - 0
@@ -185,37 +187,44 @@ case_study:
   - 'N5: P1'
   - 'N5: P2'
   - 'N5: P3'
-  - 'N5: GAux 1'
-  - 'N5: GAux 2'
-  global_n_aux_args: 2
+  - G.A. 1
+  - G.A. 2
+  - G.A. 3
+  global_n_aux_args: 3
   process_space_names:
   - - 'N1: P1'
-    - 'G: Aux 1'
-    - 'G: Aux 2'
+    - G.A. 1
+    - G.A. 2
+    - G.A. 3
   - - 'N2: P1'
     - 'N2: P2'
-    - 'G: Aux 1'
-    - 'G: Aux 2'
+    - G.A. 1
+    - G.A. 2
+    - G.A. 3
   - - 'N3: P1'
     - 'N3: P2'
-    - 'G: Aux 1'
-    - 'G: Aux 2'
+    - G.A. 1
+    - G.A. 2
+    - G.A. 3
   - - 'N4: P1'
     - 'N4: P2'
-    - 'G: Aux 1'
-    - 'G: Aux 2'
+    - G.A. 1
+    - G.A. 2
+    - G.A. 3
   - - 'N5: P1'
     - 'N5: P2'
     - 'N5: P3'
-    - 'G: Aux 1'
-    - 'G: Aux 2'
+    - G.A. 1
+    - G.A. 2
+    - G.A. 3
   - - I1
     - I2
     - I3
     - I4
     - I5
-    - 'N5: GAux 1'
-    - 'N5: GAux 2'
+    - G.A. 1
+    - G.A. 2
+    - G.A. 3
   mode:
   - backward
   evaluation_mode: jax-pmap
@@ -239,8 +248,15 @@ model:
   - None
   - None
   - None
+  node_aux:
+  - None
+  - None
+  - None
+  - None
+  - None
+  - None
   constraint:
-    estimation_bound: 0.001
+    estimation_bound: 0.01
     auxiliary: global
   integration:
     scheme: tsit5
@@ -277,7 +293,8 @@ surrogate:
       normalize_y: true
       noise: gaussian
   classifier: true
-  classifier_selection: ANN
+  classifier_selection: SVM
+  regressor_selection: ANN
   probability_map: false
   index_on: 1
   subsample_size: 10000000
@@ -303,6 +320,10 @@ surrogate:
       hidden_size_options:
       - - 50
         - 25
+      - - 50
+        - 50
+      - - 25
+        - 10
       activation_functions:
       - - tanh
         - tanh
@@ -315,7 +336,16 @@ surrogate:
       batch_size: 264
   probability_map_args:
     drop_uncertain_params: true
-  forward_evaluation_surrogate: false
+  forward_evaluation_surrogate: true
+  post_process_lower:
+    model_class: regression
+    model_selection: ANN
+    type: post_process_forward
+    desired_node_index: 5
+  post_process_upper:
+    model_class: classification
+    model_selection: ANN
+    type: post_process_forward
 solvers:
   penalty_method_coupler:
     n_starts: 4
@@ -333,6 +363,10 @@ solvers:
     backward: jax-pmap
   forward_coupling_solver: general_constrained_nlp
   backward_coupling_solver: box_constrained_nlp
+  post_process_solver:
+    lower_level: box_constrained_nlp
+    upper_level: general_constrained_nlp
+  forward_general_constraints: true
   forward_coupling:
     max_solution_time: 1.0
     parallelised: true
@@ -356,11 +390,45 @@ solvers:
       augmented_constr_tol: 0.01
       ftol_min: 1.0e-05
       augmented_obj_tol: 0.001
-  standardised: true
+  standardised: false
   backward_coupling:
+    tightening: false
     n_starts: 4
     jax_opt_options:
       error_tol: 1.0e-06
+      ftol0: 0.001
+      ftol_increment: 0.01
+      augmented_grad_tol: 0.01
+      augmented_constr_tol: 0.01
+      ftol_min: 1.0e-05
+      augmented_obj_tol: 0.001
+  post:
+    n_starts: 10
+    jax_opt_options:
+      error_tol: 1.0e-06
+      ftol0: 0.001
+      ftol_increment: 0.01
+      augmented_grad_tol: 0.01
+      augmented_constr_tol: 0.01
+      ftol_min: 1.0e-05
+      augmented_obj_tol: 0.001
+  post_upper_level:
+    max_solution_time: 1.0
+    parallelised: false
+    n_starts: 16
+    casadi_ipopt_options:
+      maxiter: 500
+      verbose: false
+      tol: 1.0e-06
+      options:
+        verbose: 0
+        maxiter: 1000
+        disp: false
+    jax_opt_options:
+      n_starts: 4
+      n_iterates: 7
+      mu_increment: 2.5
+      mu_og: 2.5
       ftol0: 0.001
       ftol_increment: 0.01
       augmented_grad_tol: 0.01
@@ -380,23 +448,84 @@ samplers:
     activity_type: dsc
   notion_of_feasibility: positive
   ku_approximation: box
-  vol_scale: 0.01
+  vol_scale: 0.05
   ns:
-    n_live: 3000
-    final_sample_live: 6000
-    n_replacements: 100
+    n_live: 15000
+    final_sample_live: 15000
+    n_replacements: 50
     n_iter: 15000
     f0: 0.1
     alpha: 0.2
     prior: Uniform
     rejector: suob-ellipsoid
+    log_evidence_estimation: true
 reconstruction:
   reconstruct:
   - true
+  post_process:
+  - true
+  post_process_sip:
+    policy:
+      n_iters_per_step: 2
+      n_steps: 10
+      solver_type: GeneralInequalityConstrainedNLP
+      objective_target_fn: PointWiseErrorMinimisation
+      n_starts: 16
+      n_starts_pos_iter: 8
+      noise_starts: 1.0e-05
+      n_draws: 2097152
+      bounds:
+      - - 0.0
+      - - 1.0
+      bound_factor: 2
+    convergence:
+      tolerance: 5.0e-05
+      patience: 3
+    scaling:
+      scheme: Box
+    constraints:
+      as_penalty: false
+      confidence: 0.95
+      feasibility_tol: 1.0e-06
+      target_fn: SinusoidalNonConvex
+      problem_dim: 2
+      shape_constraints:
+        enable: false
+        type: BoundsConstraint
+      aggregation:
+        method: None
+        parameter: 2
+      auxiliary_constraints:
+        type: UserFeedbackConstraints
+        as_penalty: false
+        penalty_parameter: 10.0
+        l1_penalty_parameter: 1.0e-06
+      user_feedback:
+        big_M: 5000.0
+    discretisation:
+      num_samples_per_dim: 8
+      method: Sobol
+      bounds:
+      - - 0.0
+      - - 1.0
+    validation:
+      num_samples: 10000
+      method: Sobol
+      enable_visualisation: true
+  post_process_solver:
+    lower_level: post_process_lower_level
+    upper_level: post_process_upper_level
+    relaxation_a: post_process_upper_level
+    relaxation_b: post_process_lower_level
+  post_process_sampler: false
+  post_process_decision_indices:
+  - 10
+  - 11
   plot_reconstruction: nominal_map
   reconstruction_scheme: uniform
 init:
-  sobol_samples: 512
+  sobol_samples: 4096
+  sampler: sobol
 graph: {}
 max_devices: 10
 formulation: deterministic
