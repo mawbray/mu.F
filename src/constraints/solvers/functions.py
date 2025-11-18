@@ -9,7 +9,7 @@ from functools import partial
 import time
 
 from constraints.solvers.surrogate.surrogate import surrogate_reconstruction
-from constraints.solvers.callbacks import scalarfn_casadify, vectorfn_casadify
+from constraints.solvers.callbacks import casadify_forward, casadify_reverse
 
 """
 utilities for Casadi NLP solver with equality constraints
@@ -37,7 +37,7 @@ def casadi_nlp_optimizer_no_gcons(objective, bounds, initial_guess):
       
     return solver, solution
 
-def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initial_guess, lhs, rhs):
+def casadi_nlp_optimizer_gcons(objective, constraints, bounds, initial_guess, lhs, rhs):
     """
     objective: casadi callback
     equality_constraints: casadi callback
@@ -53,7 +53,7 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
     # casadi work up
     x = MX.sym('x', n_d,1)
     j = objective(x)
-    g = equality_constraints(x)
+    g = constraints(x)
 
     F = Function('F', [x], [j])
     G = Function('G', [x], [g])
@@ -86,7 +86,7 @@ def casadi_multi_start(initial_guess, objective_func, constraints, bounds):
     n_g = constraints(initial_guess[0].squeeze()).size
     solutions = []
     for i in range(n_starts):
-        solver, solution = casadi_nlp_optimizer_eq_cons(
+        solver, solution = casadi_nlp_optimizer_gcons(
             objective_func, constraints, bounds, np.array(initial_guess[i,:]).squeeze(),
             lhs=0, rhs=0, n_g=n_g
         )
@@ -115,6 +115,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
   initial_guess, bounds, lhs, rhs = \
     problem_data['initial_guess'], problem_data['bounds'], problem_data['eq_lhs'], problem_data['eq_rhs']
   n_starts = initial_guess.shape[0]
+  n_d = initial_guess.shape[1]
 
   # get constraint functions and define masking of the inputs
   g_fn = {}
@@ -127,9 +128,6 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
       g_fn[i] = partial(cons_data['g_fn'], fn = fn)
     else:
         raise NotImplementedError("Uncertain parameters not yet implemented for inequality constraints")
-  
-  # define the constraints function
-  constraints = partial(lambda x, g: jnp.vstack([g[i](x) for i in range(len(g))]), g=g_fn)
 
   # get objective function
   obj_data = problem_data['objective_func']
@@ -137,33 +135,39 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
   if n_f > 1:
     # objective requires some function composition
     obf = construct_model(obj_data['f0']['params'], cfg, supervised_learner=obj_data['f0']['model_class'], model_type=obj_data['f0']['model_type'], model_surrogate=obj_data['f0']['model_surrogate'])
+    # if more than 2 functions, construct nested function
     if n_f > 2:
       obj_terms = {}
       for i in range(1,n_f-1):
         eqc = construct_model(obj_data[f'f{i}']['params'], cfg, supervised_learner=obj_data[f'f{i}']['model_class'], model_type=obj_data[f'f{i}']['model_type'], model_surrogate=obj_data[f'f{i}']['model_surrogate'])
         obj_terms[i-1] = partial(lambda x, v : eqc(x.reshape(1,-1)[:,v].reshape(-1,)).reshape(-1,1), v = jnp.array(obj_data[f'f{i}']['args']))
       # construct objective from constituent functions
-      obj_in = partial(lambda x, g: jnp.hstack([g[i](x) for i in range(len(g))]), g=obj_terms)
+      obj_in = partial(lambda x, f: jnp.hstack([f[i](x) for i in range(len(f))]), f=obj_terms)
       objective_func = partial(obj_data['obj_fn'], f1=obf, f2=obj_in)
     else:
       objective_func = partial(obj_data['obj_fn'], f1=obf)
   else:
-      print(obj_data)
       objective_func = lambda x: x.reshape(-1,)[obj_data['obj_fn']].reshape(1,1)
   
-  objective_fn = scalarfn_casadify(objective_func, len(bounds[0]), output_dim=1)
-  constraints_fn = vectorfn_casadify(constraints, len(bounds[0]), output_dim=len(g_fn))
+  objective_fn = casadify_reverse(objective_func, n_d)
+  if len(g_fn) > 0:
+    # define the constraints function
+    constraints = partial(lambda x, g: jnp.vstack([g[i](x) for i in range(len(g))]), g=g_fn)
+    n_g = constraints(initial_guess[0].reshape(1,-1)).reshape(-1,1).shape[0]  
+    if n_g > n_d:
+      constraints_fn = casadify_forward(constraints, n_d)
+    else:
+      constraints_fn = casadify_reverse(constraints, n_d)
+    optimizer_func = partial(casadi_nlp_optimizer_gcons, constraints=constraints_fn, lhs=lhs, rhs=rhs)
+  else:
+    optimizer_func = casadi_nlp_optimizer_no_gcons
   # store for solutions
   solutions = []
   for i in range(n_starts):
-      if len(g_fn) >0:
-        solver, solution = casadi_nlp_optimizer_eq_cons(objective_fn, constraints_fn, bounds, np.array(initial_guess[i,:]).squeeze(), lhs, rhs)
-      else: 
-        solver, solution = casadi_nlp_optimizer_no_gcons(objective_fn, bounds, np.array(initial_guess[i,:]).squeeze())
+      solver, solution = optimizer_func(objective=objective_fn, bounds=bounds, initial_guess=np.array(initial_guess[i,:]).squeeze())
       if solver.stats()['success']:
         solutions.append((solver, solution))
         if np.array(solution['f']) <= 0: break
-
   try:
       min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'] for sol_f in solutions]))
       solver_opt, solution_opt = solutions[min_obj_idx]
