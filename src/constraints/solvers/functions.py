@@ -1,6 +1,5 @@
 from casadi import MX, nlpsol, Function 
 import numpy as np
-from scipy.stats import qmc
 import time
 import jax.numpy as jnp
 from jax import jit, lax, jacfwd
@@ -8,11 +7,12 @@ from jaxopt import LBFGSB
 from functools import partial
 import time
 
-from constraints.solvers.surrogate.surrogate import surrogate_reconstruction
-from constraints.solvers.callbacks import casadify_forward, casadify_reverse
+from constraints.solvers.utilities import (
+    build_constraint_functions, build_objective_function, casadify_constraints, unpack_problem_data, unpack_results, clean_up
+)
 
 """
-utilities for Casadi NLP solver with equality constraints
+utilities for Casadi NLP solver with general constraints
 """
 
 def casadi_nlp_optimizer_no_gcons(objective, bounds, initial_guess):
@@ -112,98 +112,36 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
   initial_guess: numpy array
   """
   # TODO update this to handle the case where the problem_data is a dictionary and the contraints are inequality constraints
-  initial_guess, bounds, lhs, rhs = \
-    problem_data['initial_guess'], problem_data['bounds'], problem_data['eq_lhs'], problem_data['eq_rhs']
-  n_starts = initial_guess.shape[0]
-  n_d = initial_guess.shape[1]
-
-  # get constraint functions and define masking of the inputs
-  g_fn = {}
-  for i, cons_data in enumerate(problem_data['constraints'].values()):
-    fn = construct_model(cons_data['params'], cfg, 
-                          supervised_learner=cons_data['model_class'],
-                          model_type=cons_data['model_type'],
-                          model_surrogate=cons_data['model_surrogate'])
-    if problem_data['uncertain_params'] == None:
-      g_fn[i] = partial(cons_data['g_fn'], fn = fn)
-    else:
-        raise NotImplementedError("Uncertain parameters not yet implemented for inequality constraints")
-
-  # get objective function
-  obj_data = problem_data['objective_func']
-  n_f = len([k for k in list(obj_data.keys()) if 'f' in k])
-  if n_f > 1:
-    # objective requires some function composition
-    obf = construct_model(obj_data['f0']['params'], cfg, supervised_learner=obj_data['f0']['model_class'], model_type=obj_data['f0']['model_type'], model_surrogate=obj_data['f0']['model_surrogate'])
-    # if more than 2 functions, construct nested function
-    if n_f > 2:
-      obj_terms = {}
-      for i in range(1,n_f-1):
-        eqc = construct_model(obj_data[f'f{i}']['params'], cfg, supervised_learner=obj_data[f'f{i}']['model_class'], model_type=obj_data[f'f{i}']['model_type'], model_surrogate=obj_data[f'f{i}']['model_surrogate'])
-        obj_terms[i-1] = partial(lambda x, v : eqc(x.reshape(1,-1)[:,v].reshape(-1,)).reshape(-1,1), v = jnp.array(obj_data[f'f{i}']['args']))
-      # construct objective from constituent functions
-      obj_in = partial(lambda x, f: jnp.hstack([f[i](x) for i in range(len(f))]), f=obj_terms)
-      objective_func = partial(obj_data['obj_fn'], f1=obf, f2=obj_in)
-    else:
-      objective_func = partial(obj_data['obj_fn'], f1=obf)
-  else:
-      objective_func = lambda x: x.reshape(-1,)[obj_data['obj_fn']].reshape(1,1)
+  initial_guess, bounds, lhs, rhs, n_d, n_starts = unpack_problem_data(problem_data)
   
-  objective_fn = casadify_reverse(objective_func, n_d)
+  # build problem functions
+  g_fn = build_constraint_functions(cfg, problem_data)
+  objective_fn = build_objective_function(cfg, problem_data, n_d)
+
+  # determine if there are any constraints
   if len(g_fn) > 0:
-    # define the constraints function
-    constraints = partial(lambda x, g: jnp.vstack([g[i](x) for i in range(len(g))]), g=g_fn)
-    n_g = constraints(initial_guess[0].reshape(1,-1)).reshape(-1,1).shape[0]  
-    if n_g > n_d:
-      constraints_fn = casadify_forward(constraints, n_d)
-    else:
-      constraints_fn = casadify_reverse(constraints, n_d)
-    optimizer_func = partial(casadi_nlp_optimizer_gcons, constraints=constraints_fn, lhs=lhs, rhs=rhs)
+    casadify_constraints_fn = casadify_constraints(g_fn, initial_guess[0].reshape(1,-1), n_d)
+    optimizer_func = partial(casadi_nlp_optimizer_gcons, constraints=casadify_constraints_fn, lhs=lhs, rhs=rhs)
   else:
+    casadify_constraints_fn = None
     optimizer_func = casadi_nlp_optimizer_no_gcons
-  # store for solutions
+
+  # run multi start and store solutions
   solutions = []
   for i in range(n_starts):
       solver, solution = optimizer_func(objective=objective_fn, bounds=bounds, initial_guess=np.array(initial_guess[i,:]).squeeze())
       if solver.stats()['success']:
         solutions.append((solver, solution))
         if np.array(solution['f']) <= 0: break
-  try:
-      min_obj_idx = np.argmin(np.vstack([sol_f[1]['f'] for sol_f in solutions]))
-      solver_opt, solution_opt = solutions[min_obj_idx]
-      n_s = len(solutions)
-      del solutions, objective_fn, constraints
-      return solver_opt.stats(), solution_opt, n_s
-  except: 
-      return solver.stats(), solution, len(solutions)
-    
 
-# --- Remaining Functions (Cleaned for JAX/CasADi only) ---
-
-def construct_model(problem_data, cfg, supervised_learner:str, model_type:str, model_surrogate:str):
-    """
-    problem_data : dict    
-    cfg : DictConfig
-    supervised_learner : str [classification, regression]
-    model_type : str
-    model_surrogate : str
-    """
-
-    return surrogate_reconstruction(cfg, (supervised_learner, model_type, model_surrogate), problem_data).rebuild_model()
-
-def generate_initial_guess(n_starts, n_d, bounds):
-    n_d = len(bounds[0])
-    lower_bound = bounds[0]
-    upper_bound = bounds[1]
-    sobol_samples = qmc.Sobol(d=n_d, scramble=True).random(n_starts)
-    return jnp.array(lower_bound) + (jnp.array(upper_bound) - jnp.array(lower_bound)) * sobol_samples
-
-
-
+  # unpack and clean up
+  solver, solution, ns = unpack_results(solutions, solver, solution)
+  clean_up([objective_fn, g_fn, casadify_constraints_fn])
+  return solver, solution, ns
+  
 """
 utilities for JaxOpt box-constrained NLP solver
 """
-
 
 def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bounds_, tol=1e-4):
     """
@@ -221,17 +159,13 @@ def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bo
     _, solutions = lax.scan(partial_jax_solver, init=None, xs=(initial_guess))
     now = time.time() - time_now
 
-    
-   
     # iterate over solutions from one of the upper level initial guesses
     assess_subproblem_solution = partial(return_most_feasible_penalty_subproblem_uncons, objective_func=objective_func)
     _, assessment = lax.scan(assess_subproblem_solution, init=None, xs=solutions.params)
-    
 
     cond = solutions[1].error <= jnp.array([tol]).squeeze()
     mask = jnp.asarray(cond)
     update_assessment = (jnp.where(mask, assessment[0], jnp.minimum(assessment[0],jnp.linalg.norm(assessment[1], axis=1).squeeze())), jnp.where(mask, jnp.linalg.norm(assessment[1], axis=1).squeeze(), jnp.inf))
-    
 
     # assessment of solutions
     arg_min = jnp.argmin(update_assessment[0], axis=0) # take the minimum objective val
