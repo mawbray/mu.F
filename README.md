@@ -10,7 +10,25 @@
         <img src="https://img.shields.io/badge/license-MIT-orange" /></a>
 </p>
 
+# Overview 
 
 - This code base provides a general sampling-based solver for numerical constraint satisfaction problems defined on directed acyclic graphs representative of function composition.
 - The code is agnostic to the sampling scheme used, which may be customised by the user. By default a nested sampling scheme (DEUS) is used.
 - The code exploits graph structure to improve the efficiency of solution identification. 
+
+# Installation
+
+### Source installation
+
+This project uses [Poetry](https://python-poetry.org/docs) to
+manage dependencies in a local virtual environment. To install Poetry, [follow the
+instructions in the Poetry documentation](https://python-poetry.org/docs/#installation).
+
+To install this project in editable mode, run the commands below from the root directory of the `sipsolve` repository.
+
+```bash
+poetry install
+```
+
+Poetry `install` command creates a virtual environment for this project
+in a hidden `.venv` directory under the root directory.
