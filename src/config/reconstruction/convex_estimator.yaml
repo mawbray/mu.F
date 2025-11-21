@@ -3,6 +3,19 @@
 reconstruct: 
   - True
 
+post_process: 
+  - False
+
+post_process_solver:
+ lower_level: 'post_process_lower_level'
+ upper_level: 'post_process_upper_level'
+ relaxation_a: post_process_upper_level
+ relaxation_b: post_process_lower_level
+
+post_process_sampler: False # if True, use sampling scheme, if False use local SIP scheme
+
+post_process_decision_indices: []
+
 
 plot_reconstruction: nominal_map # probability_map #
 

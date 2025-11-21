@@ -74,6 +74,7 @@ process_space_names:
   - ['U1: Batch time (mins)','U1: Temp. (K)']
   - ['U2: Batch time (mins)','U2: Temp. (K)', 'Conc. A (mol/L)','Conc. B (mol/L)']
 
+global_n_aux_args: 0
 
 mode:
   - 'backward' #'forward'

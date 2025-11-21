@@ -1,9 +1,12 @@
 surrogate_forward:
+  drop_uncertain_params: False
   ann:
     hidden_size_options: 
       - [50, 50]
       #- [25, 10]
       #- [10, 10]
+    activation_functions:
+      - ['tanh', 'tanh']
     decaying_lr_and_clip_param: True
     learning_rate: 0.01
     terminal_lr: 0.00001  
@@ -32,9 +35,25 @@ classifier_args:
   drop_uncertain_params: true
   svm: # these parameters must be provided as lists for Sklearn's GridSearchCV
     kernel: ['rbf']
-    C: [2.5, 1, 0.1]
-    gamma: [0.2, 1, 0.5]
+    C: [10, 5]
+    gamma: [10, 4 ,0.2, 1, 0.5]
     probability: [False]
+  ann:
+    hidden_size_options:
+      - [50, 25]
+      #- [100, 50, 25]
+      #- [50, 50]
+      #- [25, 10]
+    activation_functions:
+      - ['tanh', tanh]
+
+    decaying_lr_and_clip_param: True
+    learning_rate: 0.01
+    terminal_lr: 0.00001  
+    num_epochs: 1000 # 10 #50 # 50 # 500
+    min_delta: 0.00001
+    patience: 50
+    batch_size: 264 #64
 
 probability_map_args:
   drop_uncertain_params: true

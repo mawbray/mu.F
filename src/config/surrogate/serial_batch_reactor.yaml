@@ -92,4 +92,8 @@ probability_map_args:
     patience: 50
     batch_size: 264 #64
 
+  
+probability_map_args:
+  drop_uncertain_params: true
+
 forward_evaluation_surrogate: true

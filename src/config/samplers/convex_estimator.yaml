@@ -18,3 +18,11 @@ ns:
   prior: Uniform
   rejector: suob-ellipsoid
   log_evidence_estimation: True
+
+bo:
+  bounds: 
+    max: 1
+    min: 0
+  num_initial_points: 3
+  num_iterations: 7 # subsequent to initial samples
+  acq: 'ei'
