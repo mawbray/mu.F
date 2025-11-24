@@ -120,7 +120,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
 
   # determine if there are any constraints
   if len(g_fn) > 0:
-    casadify_constraints_fn = casadify_constraints(g_fn, initial_guess[0].reshape(1,-1), n_d)
+    casadify_constraints_fn, _ = casadify_constraints(g_fn, initial_guess[0].reshape(1,-1), n_d)
     optimizer_func = partial(casadi_nlp_optimizer_gcons, constraints=casadify_constraints_fn, lhs=lhs, rhs=rhs)
   else:
     casadify_constraints_fn = None
