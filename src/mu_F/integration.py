@@ -88,14 +88,7 @@ class apply_decomposition:
             profiler.save_device_memory_profile(f"memory{node}.prof")
             clear_caches()
             profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")
-        """ except: 
-            if cfg.method == 'decomposition_constraint_tuner': graph.nodes[node]['log_evidence'] = {'mean':-10, 'std':0}
-            gc.collect()
-            profiler.save_device_memory_profile(f"memory{node}.prof")
-            clear_caches()
-            clear_backends()
-            profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")"""
-
+       
         return graph
 
     
