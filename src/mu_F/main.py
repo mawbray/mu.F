@@ -1,20 +1,17 @@
 import os
 import multiprocessing
 
-# 1. Force spawn immediately, BEFORE any other imports run
+# Force spawn immediately, BEFORE any other imports run
 if __name__ == "__main__":
     try:
         multiprocessing.set_start_method('spawn', force=True)
     except RuntimeError:
         pass
 
-# 2. Set JAX/Ray flags before JAX inits
+# Set JAX/Ray flags before JAX inits
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
     multiprocessing.cpu_count()
 )
-#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-# Prevent Ray/JAX deadlock logs if Ray is used
-#os.environ["RAY_DEDUP_LOGS"] = "0"
 
 import logging
 import hydra
@@ -38,7 +35,7 @@ def main(cfg: DictConfig) -> None:
             _node_ip_address="127.0.0.1",  
             include_dashboard=False, 
             runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']},
-            num_cpus=10)  # , ,
+            num_cpus=min(cfg.max_devices, multiprocessing.cpu_count()))  # , ,
     
     # Set the maximum number of devices
     from mu_F.direct import apply_direct_method

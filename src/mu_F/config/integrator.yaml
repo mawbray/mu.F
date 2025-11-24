@@ -8,7 +8,7 @@ defaults:
   - reconstruction: affine_study #serial_batch_reactor #tablet_press # convex_estimator # affine_study  #serial_batch_reactor #tablet_press # convex_estimator # serial_batch_reactor #convex_estimator # serial_batch_reactor #tablet_press #serial_batch_reactor
   - init: affine_study #serial_batch_reactor #tablet_press # convex_estimator # affine_study  #serial_batch_reactor #tablet_press # convex_estimator # serial_batch_reactor #convex_estimator # serial_batch_reactor #tablet_press #serial_batch_reactor
 
-max_devices: 10
+max_devices: 8
 formulation: deterministic # probabilistic  # #  #  # 
 method: decomposition #decomposition_constraint_tuner #decomposition #direct # decomposition # # #direct # decomposition_constraint_tuner # direct # decomposition # #decomposition #decomposition # direct #
 max_uncertain_samples: 50
