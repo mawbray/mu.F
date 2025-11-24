@@ -207,6 +207,7 @@ Werkzeug = "3.0.2"
 wrapt = "1.16.0"
 yarl = "1.18.3"
 zipp = "3.18.1"
+gpytorch = "^1.14.2"
 
 
 [tool.poetry.group.dev.dependencies]
