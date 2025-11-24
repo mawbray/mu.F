@@ -7,6 +7,60 @@ reconstruct:
 post_process: 
   - True
 
+post_process_sip:
+  
+  policy:
+    n_iters_per_step: 2
+    n_steps: 10
+    solver_type: GeneralInequalityConstrainedNLP
+    objective_target_fn: PointWiseErrorMinimisation
+    n_starts: 16
+    n_starts_pos_iter: 8
+    noise_starts: 1e-5
+    n_draws: 2097152
+    bounds: [[0.0], [1.0]]  
+    bound_factor: 2  # Factor to multiply the problem_dim by for policy bounds
+
+
+  convergence:
+    tolerance: 5e-5
+    patience: 3
+
+
+  scaling:
+    scheme: Box
+
+  constraints:
+    as_penalty: False
+    confidence: 0.95
+    feasibility_tol: 1e-6
+    target_fn: SinusoidalNonConvex #  IllCondConvexQuadratic # IllCondNcvxQuadratic # Rastrigin # SinusoidalNonConvex #SinusoidalNonConvex # ConvexQuadratic, SinusoidalNonConvex
+    problem_dim: 2
+    shape_constraints: 
+      enable: False
+      type: BoundsConstraint
+    aggregation:
+      method: None  # None, LogSum, PNorm
+      parameter: 2  # The smoothing parameter for Gx aggregation
+    auxiliary_constraints: 
+      type: UserFeedbackConstraints
+      as_penalty: False
+      penalty_parameter: 1e1  # Penalty parameter for auxiliary constraints
+      l1_penalty_parameter: 1e-6  # L1 smoothing parameter
+    user_feedback:
+      big_M: 5e3  # Big-M parameter for user feedback constraints
+
+  discretisation:
+    num_samples_per_dim: 8
+    method: Sobol
+    bounds: [[0.], [1.0]]
+
+  validation:
+    num_samples: 10000
+    method: Sobol
+    enable_visualisation: True
+
+
 post_process_solver:
  lower_level: 'post_process_lower_level'
  upper_level: 'post_process_upper_level'

@@ -1,8 +1,19 @@
 from abc import ABC
-from typing import Tuple
+from time import time
+from typing import Tuple, Callable
+from functools import partial
 import jax.numpy as jnp
+from jax import jit, clear_caches
 import numpy as np
 import logging
+from omegaconf import OmegaConf
+
+from sipsolve.interface import SubProblemIteration
+from sipsolve.discretisation import DiscretisationConfig
+from sipsolve.problem_management import P1Manager, P2Manager, SubProblemInterface
+from sipsolve.constants import MIN_SAMPLES
+from sipsolve.constraints.utils import ConstraintEvaluatorMinMaxProjection
+
 
 class post_process_base(ABC):
     def __init__(self, cfg, graph, model):
@@ -10,13 +21,19 @@ class post_process_base(ABC):
         self.graph = graph
         self.model = model
         
-
     def run(self):
         pass
 
-    def train_classification_model(self, str_: str ='post_process_'):
+    def train_model(self, str_: str ='post_process_'):
+        if str_ == 'post_process_lower_':
+            self.train_model_fn(cfg_dict=self.cfg.surrogate.post_process_lower, str_= str_)
+        elif str_ == 'post_process_upper_':
+            self.train_model_fn(cfg_dict=self.cfg.surrogate.post_process_upper, str_= str_)
 
-        ls_surrogate = self.training_methods(self.graph, None, self.cfg, ('classification', self.cfg.surrogate.classifier_selection, 'live_set_surrogate'), self.iterate, str_ + 'classifier_training')
+    def train_model_fn(self, cfg_dict, str_: str ='post_process_upper_'):
+        # train the surrogate model for the upper level problem
+        str_root = 'classifier' if cfg_dict.model_class == 'classification' else 'regressor'
+        ls_surrogate = self.training_methods(self.graph, None, self.cfg, (cfg_dict.model_class, cfg_dict.model_selection, cfg_dict.type), self.iterate, str_ + str_root + '_training')
         ls_surrogate.fit(node=None)
         if self.cfg.solvers.standardised:
             query_model = ls_surrogate.get_model('standardised_model')
@@ -24,15 +41,13 @@ class post_process_base(ABC):
             query_model = ls_surrogate.get_model('unstandardised_model')
         
         # store the trained model in the graph
-        self.graph.graph[str_ + "classifier"] = query_model
-        self.graph.graph[str_ + "classifier_x_scalar"] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
-        self.graph.graph[str_ + "classifier_serialised"] = ls_surrogate.get_serailised_model_data()
-
-        logging.info(str_ + f"classifier trained with {ls_surrogate.trainer.get_model_object('standardisation_metrics_input').mean.shape} features.")
+        self.graph.graph[str_ + str_root] = query_model
+        self.graph.graph[str_ + str_root + "_x_scalar"] = ls_surrogate.trainer.get_model_object('standardisation_metrics_input')
+        self.graph.graph[str_ + str_root + "_serialised"] = ls_surrogate.get_serailised_model_data()
 
         del ls_surrogate
 
-        return 
+        return
 
     def load_training_methods(self, training_methods):
         assert hasattr(training_methods, 'fit')
@@ -41,7 +56,7 @@ class post_process_base(ABC):
     def load_solver_methods(self, solver_methods):
         self.solver_methods = solver_methods
 
-    def _evaluate_solution(self, solution):
+    def _evaluate_solution(self, solution, value_fn):
         """
         Evaluate the solution of the upper-level problem
         """
@@ -49,11 +64,11 @@ class post_process_base(ABC):
         evaluation_function = self.graph.graph['post_process_solution_evaluator']
 
         dataframe = evaluation_function(self.cfg, self.graph).wrap_get_constraints(solution)
-        self._visualise_solution(dataframe)
+        self._visualise_solution(dataframe, value_fn)
         
         return dataframe
     
-    def _visualise_solution(self, solution):
+    def _visualise_solution(self, solution, value_fn):
         """
         Visualise the solution of the upper-level problem
         """
@@ -61,7 +76,7 @@ class post_process_base(ABC):
         assert self.solver_methods is not None, "Solver methods must be set before visualising the solution."
         
         visualisation_function = self.graph.graph['post_process_solution_visualiser']
-        visualisation_function(self.cfg, self.graph, solution, string='post_process_upper', path='post_process_upper').run()
+        visualisation_function(self.cfg, self.graph, (solution, value_fn), string='post_process_upper', path='post_process_upper').run()
 
 
 class post_process_sampling_scheme(post_process_base):
@@ -134,7 +149,7 @@ class post_process_sampling_scheme(post_process_base):
         # the evaluator takes the decision variables, bounds and the feasibility function and evaluates feasibility of query points.
         nuisance_constraint_evaluator = self.solver_methods['lower_level_solver']
         # train the model
-        self.train_classification_model(str_='post_process_lower_')
+        self.train_model(str_='post_process_lower_')
         evaluation_function = nuisance_constraint_evaluator(cfg=self.cfg, graph=self.graph, pool=None).evaluate
         
         boolean = False
@@ -197,69 +212,39 @@ class post_process_local_sip_scheme(post_process_base):
         Run the post-processing scheme using local SIP approximation.
         """
         # Implement the main logic for post-processing here
-        relaxation_b_decisions = self.graph.graph['post_process_lower_decision_indices']
-        relaxation_a_decisions = self.graph.graph['post_process_upper_decision_indices']
-        assert relaxation_a_decisions is not None, "Decision variables must be set in the graph."
-        assert relaxation_b_decisions is not None, "Decision variables must be set in the graph."
+        self.relaxation_b_decisions = self.graph.graph['post_process_decision_indices'] 
+        list_of_bounds = list(OmegaConf.to_container(self.cfg.case_study.KS_bounds).values())
+        list_of_bounds = [[v for v in value if 'None' not in v[0]] for value in list_of_bounds]
+        self.bounds_list = jnp.vstack(list_of_bounds[0] + list_of_bounds[1])
+        self.relaxation_a_decisions = list(range(len(self.bounds_list)))
+        for index in self.relaxation_b_decisions: self.relaxation_a_decisions.remove(index)
+        assert self.relaxation_a_decisions is not None, "Decision variables must be set in the graph."
+        assert self.relaxation_b_decisions is not None, "Decision variables must be set in the graph."
         assert self.solver_methods is not None, "Solver methods must be set before running the post-process."
         assert self.training_methods is not None, "Training methods must be set before running the post process."
-        assert self.live_set is not None, "Live set must be loaded before running the post"
         # train the lower level classifier
-        self.train_classification_model(str_='post_process_lower_')
+        self.train_model(str_='post_process_lower_')
+        self.relaxation_a_decisions = jnp.array(self.relaxation_a_decisions)
+        self.relaxation_b_decisions = jnp.array(self.relaxation_b_decisions)
         # Solve local SIP
         solution, value_fn = self.sip_approximation()
-        # Evaluate the solution
-        _ =  self._evaluate_solution(solution)
+        _ =  self._evaluate_solution(solution, value_fn)
         return self.graph
     
-
-    def solve_relaxation_a(self, discrete_index_set: list[jnp.ndarray]) -> Tuple[jnp.ndarray, float]:
+    def _get_model(self, str_: str ='post_process_lower'):
         """
-        Solve relaxation a of the SIP approximation.
-        :param discrete_index_set: The discrete index set
-        :return: The solution and the objective value
+        Get the classifier from the graph
+        :param str_: The string prefix
+        :return: The classifier
         """
-        # Implement the logic to solve relaxation a
-        assert self.solver_methods is not None, "Solver methods must be set before solving relaxation a."
-        relaxation_a_solver = self.solver_methods['relaxation_a_solver']
-        solution, value_fn = relaxation_a_solver(cfg=self.cfg, graph=self.graph, node=None, pool='ray', discrete_index_set=discrete_index_set, decision_indices=self.graph.graph['post_process_upper_decision_indices']).evaluate()
-        
-        return solution, value_fn
-    
-    def solve_relaxation_b(self, current_solution: jnp.ndarray) -> Tuple[jnp.ndarray, float]:
-        """
-        Solve relaxation b of the SIP approximation.
-        :param current_solution: The current solution from relaxation a
-        :return: The solution and the objective value
-        """
-        # Implement the logic to solve relaxation b
-        assert self.solver_methods is not None, "Solver methods must be set before solving relaxation b."
-        relaxation_b_solver = self.solver_methods['relaxation_b_solver']
-        solution, value_fn = relaxation_b_solver(cfg=self.cfg, graph=self.graph, pool='ray', current_solution=current_solution, decision_indices=self.graph.graph['post_process_lower_decision_indices']).evaluate()
-        
-        return solution, value_fn
-
-    def relaxation_a(self, discrete_index_set: list[jnp.ndarray]) -> Tuple[jnp.ndarray, float]:
-        """
-        Method to solve relaxation a of the SIP approximation.
-        - stores the current best solution as self.best_r1_solution
-        """
-        solver = self.solver_methods['upper_level_solver']
-        solver = solver(cfg=self.cfg, graph=self.graph, node=None, pool='ray', constraint_type=self.cfg.reconstruction.post_process_solver.upper_level)
-        solution, value_fn = self.solve_relaxation_a(solver, discrete_index_set)
-        self.best_r1_solution = solution
-
-        return solution, value_fn
-    
-    def relaxation_b(self, current_solution: jnp.ndarray) -> Tuple[jnp.ndarray, float]:
-        """
-        Method to solve relaxation b of the SIP approximation.
-        - updates the current best solution as self.best_r1_solution
-        """
-        solution, value_fn = self.solve_relaxation_b(current_solution)
-        self.best_2_solution = solution
-
-        return solution, value_fn
+        if self.cfg.surrogate.post_process_lower.model_class == 'regression':
+            assert self.graph.graph[str_ + "regressor"] is not None, "Regressor must be set in the graph."
+            def regressor_fn(x):
+                return self.graph.graph[str_ + "regressor"](x[0,:-1].reshape(1,-1)).reshape(1,-1) - x[0,-1].reshape(1,-1)**2
+            return [regressor_fn]
+        else:
+            assert self.graph.graph[str_ + "classifier"] is not None, "Classifier must be set in the graph."
+            return [self.graph.graph[str_ + "classifier"]]
 
     def sip_approximation(self):
         """
@@ -267,46 +252,53 @@ class post_process_local_sip_scheme(post_process_base):
         - iteratively solves relaxation a and b until convergence
         - returns the best solution found
         """
-        discrete_index_set = self.initialize_discrete_index_set()
-        converged = False
-        while not converged:
-            # solve relaxation a
-            solution_ve, value_fn_obj = self.relaxation_a(discrete_index_set)
-            # solve relaxation b
-            solution_g, value_fn_g = self.relaxation_b(solution_ve)
-            # check convergence
-            converged = self.check_convergence(value_fn_g)
-            # update discrete index set
-            if not converged:
-                discrete_index_set = self.update_index_set(discrete_index_set, solution_g)
+        cfg = self.cfg
+        clear_caches()
+        # set up discretisation scheme
+        x_bounds = self.get_obj_bounds(self.relaxation_b_decisions)
+        n_g = max(int(cfg.reconstruction.post_process_sip.discretisation.num_samples_per_dim * x_bounds.shape[1]), MIN_SAMPLES)
+        discretisation_scheme = DiscretisationConfig(n_g, bounds=x_bounds, method=cfg.reconstruction.post_process_sip.discretisation.method)
+        # set up scaling function
+        def projection_fn(x: jnp.ndarray, d: jnp.ndarray) -> jnp.ndarray:
+            decisions = jnp.zeros((x.reshape(-1,).shape[0] + d.reshape(-1,).shape[0]))
+            decisions = decisions.at[self.relaxation_b_decisions].set(x.reshape(-1,))
+            decisions = decisions.at[self.relaxation_a_decisions].set(d.reshape(-1,))
+            return decisions.reshape(1,-1)
+        # get constraint system
+        g_x = self._get_model(str_='post_process_lower_')
+        # wrap classifier
+        g_x_wrapped = [ConstraintEvaluatorMinMaxProjection(constraints=g_x)]
+        # set up subproblem interface
+        p1_manager = P1Manager(
+                cfg.reconstruction.post_process_sip, constraints=g_x_wrapped, discretisation_scheme=discretisation_scheme, scaling_fn=projection_fn
+            )
+        p2_manager = P2Manager(
+                cfg.reconstruction.post_process_sip, constraints=g_x_wrapped, scaling_fn=projection_fn
+            )
+        d_bounds = self.get_obj_bounds(self.relaxation_a_decisions)
+        optimizer = SubProblemInterface(
+            cfg.reconstruction.post_process_sip,
+            constraint_manager=p1_manager,
+            feasibility_manager=p2_manager,
+            d_bounds=d_bounds,
+            x_bounds=x_bounds,
+            n_g=1
+        )
+        
+        # Create the interface
+        start_time = time()
+        interface_instance = SubProblemIteration(cfg=cfg.reconstruction.post_process_sip, optimizer=optimizer)
 
-        if converged:
-            logging.info("SIP approximation converged.")
-            logging.info(f"Best solution found: {solution_ve} with objective value {value_fn_obj}.")
-        return solution_ve, value_fn_obj
+        # Run the experiment
+        final_optimizer, final_timing_metrics = interface_instance.create()
+        logging.info(f"Experiment completed in {time() - start_time:.2f} seconds")
 
-    def initialize_discrete_index_set(self) -> list[jnp.ndarray]:
-        """
-        Initialize the discrete index set for the SIP approximation.
-        :return: The initial discrete index set
-        """
-        pass
+        # get optimizer and objects for metrics
+        solution_x = final_optimizer.feasibility_manager.relaxation_data
+       
 
-    @staticmethod
-    def check_convergence(value_g: float) -> bool:
-        if value_g <= 0:
-            return True
-        else:
-            return False
-    
-    @staticmethod
-    def update_index_set(index_set: list[jnp.ndarray], new_indices: jnp.ndarray) -> list[jnp.ndarray]:
-        index_set.append(new_indices)
-        return index_set
+        return solution_x.reshape(-1,)[:-1].reshape(1,-1), solution_x.reshape(-1,)[-1]
 
-    # TODO finish implementation
-    def solve_relaxation_a(problem_data: list[jnp.ndarray]) -> Tuple[jnp.ndarray, float]:
-        pass
 
-    def solve_relaxation_b(problem_data: jnp.ndarray) -> Tuple[jnp.ndarray, float]:
-        pass
+    def get_obj_bounds(self, decision_indices: jnp.ndarray) -> jnp.ndarray:
+        return self.bounds_list[decision_indices, :].T

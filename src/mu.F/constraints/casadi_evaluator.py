@@ -220,7 +220,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         evals = 0
     
         for i, solve in enumerate(solver_batches):
-            results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve] # set off and then synchronize before moving on
+            results = ray.get([sol.remote(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve]) # set off and then synchronize before moving on
             for j, result in enumerate(results):
                 result_dict[evals + j] = solver_processing.solve_digest(*result)['objective']
             evals += j+1

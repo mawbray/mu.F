@@ -104,22 +104,23 @@ hydra:
       - file
     disable_existing_loggers: false
   env: {}
-  mode: MULTIRUN
+  mode: RUN
   searchpath: []
   callbacks: {}
   output_subdir: .hydra
   overrides:
     hydra:
     - hydra.job.chdir=True
-    - hydra.mode=MULTIRUN
+    - hydra.mode=RUN
     task:
+    - samplers.ns.n_live=2500
     - method=decomposition
   job:
     name: main
     chdir: true
-    override_dirname: method=decomposition
-    id: '0'
-    num: 0
+    override_dirname: method=decomposition,samplers.ns.n_live=2500
+    id: ???
+    num: ???
     config_name: integrator
     env_set: {}
     env_copy: []
@@ -142,16 +143,16 @@ hydra:
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /home/mmowbray/Github/feasibility/mu.F/src/multirun/2024-10-28/17-08-05/0
+    output_dir: /home/mmowbray/Github/feasibility/mu.F/src/outputs/2025-11-10/10-46-56
     choices:
-      graph: convex_estimator
-      init: convex_estimator
-      reconstruction: convex_estimator
-      samplers: convex_estimator
-      solvers: convex_estimator
-      surrogate: convex_estimator
-      model: convex_estimator
-      case_study: convex_estimator
+      graph: convex_estimator_step
+      init: convex_estimator_step
+      reconstruction: convex_estimator_step
+      samplers: convex_estimator_step
+      solvers: convex_estimator_step
+      surrogate: convex_estimator_step
+      model: convex_estimator_step
+      case_study: convex_estimator_step
       hydra/env: default
       hydra/callbacks: null
       hydra/job_logging: default

@@ -4,6 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.interpolate import griddata
+import logging
+
+DEFAULT_DPI = 20
 
 def plotting_format():
     font = {"family": "serif", "weight": "bold", "size": 20}
@@ -61,7 +64,7 @@ def init_plot(cfg, G, pp= None, init=True, save=True):
             ax.axhline(y=DS_bounds[y_var].iloc[0], ls='--', linewidth=3, c='black')
             ax.axhline(y=DS_bounds[y_var].iloc[1], ls='--', linewidth=3, c='black')
 
-    if save: pp.savefig("initial_forward_pass.svg", dpi=300)
+    if save: pp.savefig("initial_forward_pass.svg", dpi=DEFAULT_DPI)
 
     return pp
 
@@ -97,7 +100,7 @@ def decomposition_plot(cfg, G, pp, save=True, path='decomposed_pair_grid_plot'):
                 print(f"Plotting {x_var} vs {y_var}")
                 sns.scatterplot(x=x_var, y=y_var, data=is_, edgecolor="k", c='r', alpha=0.8, ax=ax)
         
-    if save: pp.savefig(path +'.svg', dpi=300)
+    if save: pp.savefig(path +'.svg', dpi=DEFAULT_DPI)
 
     return pp
     
@@ -108,7 +111,7 @@ def reconstruction_plot(cfg, G, reconstructed_df, save=True, path='reconstructed
     pp = decomposition_plot(cfg, G, pp, save =False)
     pp.map_lower(sns.scatterplot, data=reconstructed_df, edgecolor="k", c="b", linewidth=0.5)
 
-    if save: pp.savefig(path + ".svg", dpi=300)
+    if save: pp.savefig(path + ".svg", dpi=DEFAULT_DPI)
 
     return pp
 
@@ -132,7 +135,7 @@ def design_space_plot(cfg, G, joint_data_direct, path):
 
     pp.map_lower(sns.scatterplot, data=joint_data_direct, edgecolor="k", c="b", linewidth=0.5)
     # Save the updated figure
-    pp.savefig(path + ".svg", dpi=300)
+    pp.savefig(path + ".svg", dpi=DEFAULT_DPI)
 
     return 
 
@@ -157,7 +160,7 @@ def design_space_plot_plus_polytope(cfg, G, pp, joint_data_direct, path, save=Tr
 
     pp.map_lower(sns.scatterplot, data=joint_data_direct, edgecolor="k", c="b", linewidth=0.5)
     # Save the updated figure
-    if save: pp.savefig(path + ".svg", dpi=300)
+    if save: pp.savefig(path + ".svg", dpi=DEFAULT_DPI)
 
     return pp
 
@@ -198,7 +201,7 @@ def hide_current_axis(*args, **kwds):
     return
 
 
-def post_process_upper_solution(cfg, G, solution):
+def post_process_upper_solution(cfg, G, args):
     """
     Visualise the solution of the post-processing upper-level problem.
     :param cfg: Configuration object
@@ -206,6 +209,7 @@ def post_process_upper_solution(cfg, G, solution):
     :param solution: Solution to be visualised
     :param path: Path to save the visualisation
     """
+    solution, value_fn = args
     plotting_format()
     fig, ax = plt.subplots(figsize=(10, 10))
     
@@ -213,19 +217,21 @@ def post_process_upper_solution(cfg, G, solution):
     # where 'x' and 'y' are the 2D input variables and 'z' is the mapped 1D output
     xi, yi, zi = solution['x'], solution['y'], solution['z']
     # Plot the contour
-    contour = ax.contourf(xi, yi, zi, levels=20, cmap='viridis')
-    plt.colorbar(contour, ax=ax, label='Mapped Value (z)')
+    contour = ax.contourf(xi, yi, zi, vmin=0, vmax=np.max(zi), levels=20, cmap='viridis')
+    fig.colorbar(contour, ax=ax, label='Point-wise error')
 
-    ax.set_title("Post-Processing Upper-Level Solution (Contour)")
-    ax.set_xlabel(r'$x_1$')
-    ax.set_ylabel(r'$x_2$')
+    ax.set_xlabel(r'$z_1$')
+    ax.set_ylabel(r'$z_2$')
 
-    plt.savefig("post_process_upper_solution.svg", dpi=300)
+    plt.savefig("post_process_upper_solution.svg", dpi=DEFAULT_DPI)
+
+    logging.info("Difference between predicted max point wise error and actual max point wise error: %s",
+                 np.max(zi) - value_fn)
     
     return fig
 
 
-def plot_contour(func, x_range, y_range, path, num_points=200, levels=10):
+def plot_contour(func, x_range, y_range, value_fn, path, num_points=200, levels=10):
     """
     Generates a contour plot for a given 2D function over a specified box domain.
     This version is designed for functions that can only be evaluated on a batch
@@ -263,7 +269,7 @@ def plot_contour(func, x_range, y_range, path, num_points=200, levels=10):
     Z = z_values_batch.reshape(X.shape)
 
     # Create the plot figure and axes
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(15, 10))
 
     # --- Generate the contour plot ---
     # The 'contourf' function creates filled contour regions.
@@ -276,13 +282,16 @@ def plot_contour(func, x_range, y_range, path, num_points=200, levels=10):
 
     # --- Customize the plot ---
     # Add a color bar to show the mapping from color to Z-value
-    fig.colorbar(cf, ax=ax, label='Function Value (Z)')
+    fig.colorbar(cf, ax=ax, vmin=np.min(Z), vmax=np.max(Z), label='Point-wise error')
 
     # Add titles and labels
-    ax.set_title(f'Contour Plot of {func.__name__}', fontsize=16)
+    #ax.set_title(f'Contour Plot of {func.__name__}', fontsize=16)
     ax.set_xlabel(f'r$x_1$', fontsize=12)
     ax.set_ylabel(f'r$x_2$', fontsize=12)
     ax.set_aspect('equal', adjustable='box') # Ensure the plot is not stretched
 
+    logging.info("Difference between predicted max point wise error and actual max point wise error: %s",
+                 np.max(Z) - value_fn)
+
     # Display the plot
-    plt.savefig(os.path.join(path, "post_process_upper_solution.svg"), dpi=300)
+    plt.savefig(os.path.join(path, "post_process_upper_solution.svg"), dpi=DEFAULT_DPI)

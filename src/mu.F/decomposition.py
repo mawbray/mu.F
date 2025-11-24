@@ -68,8 +68,8 @@ class decomposition:
                 visualisations[key](self.cfg, self.G).run()
                 save_graph(self.G.copy(), self.mode[i] + '_iterate_' + str(iterations))
             if self.cfg.reconstruction.reconstruct[i]:
+                jax.clear_caches()
                 self.reconstruct(self.mode[i], i+iterations)
-                self._post_process(self.mode[i], i+iterations)
             self.update_precedence_order(self.mode[i])
 
         return self.G
@@ -96,14 +96,7 @@ class decomposition:
         save_graph(self.G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))
 
         return
-    
-    def _post_process(self, m, i):
-        # post process
-        if self.cfg.reconstruction.post_process:
-            post_process = post_process_local_sip_scheme(self.cfg, self.G) 
-            self.G = post_process.run()
-        return 
-    
+
     def update_precedence_order(self, m):
         precedence_order = self.original_precedence_order.copy()
         if self.cfg.method != 'decomposition_constraint_tuner': 

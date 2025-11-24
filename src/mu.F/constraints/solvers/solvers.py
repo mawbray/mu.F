@@ -140,7 +140,7 @@ class parallel_casadi_box_eq_nlp_solver(solver_base):
         # formatting for casadi
         self.n_d = len(bounds[0])
         self.bounds = bounds
-        solver = ray_casadi_multi_start # , num_cpus=1)
+        solver = ray.remote(ray_casadi_multi_start) # , num_cpus=1)
         problem_data = {'objective_func': objective_func, 'constraints': constraints, 'bounds': bounds}
         problem = {'data': problem_data}
         return solver, problem

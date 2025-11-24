@@ -10,8 +10,7 @@ import logging
 
 from unit_evaluators.integrators import unit_dynamics
 from unit_evaluators.steady_state import unit_steady_state
-from unit_evaluators.utils import arrhenius_kinetics_fn as arrhenius
-
+from unit_evaluators.utils import arrhenius_kinetics_fn as arrhenius, RegressorData
 
 class base_unit(ABC):
     def __init__(self, cfg, graph, node):
@@ -218,6 +217,8 @@ class network_simulator(ABC):
         self.type = type_cons
         self.constraint_evaluator = constraint_evaluator
         self.function_evaluations = {node: 0 for node in self.graph.nodes}
+        self.desired_node_index = self.cfg.surrogate.post_process_lower.desired_node_index
+        self.desired_regressor_data = RegressorData(cfg)
 
     def simulate(self, decisions, uncertain_params=None):
         """
@@ -260,7 +261,6 @@ class network_simulator(ABC):
                 self.graph.edges[node, successor]['input_data_store'] = edge_data
 
             node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node, constraint_type=self.type)
-
             self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, outputs)
 
             n_d += unit_nd
@@ -284,6 +284,8 @@ class network_simulator(ABC):
         constraints, _ = self.simulate(decisions, uncertain_params)
         for node, g in constraints.copy().items():
             self.function_evaluations[node] += g.shape[0]*g.shape[1]
+        if (self.cfg.surrogate.post_process_lower.model_class == 'regression') and (self.cfg.reconstruction.post_process):
+            self.process_select_regressor_data(constraints, decisions)
         return constraints
     
     def get_extended_ks_info(self, decisions, uncertain_params=None):
@@ -395,11 +397,25 @@ class network_simulator(ABC):
         constraints, _ = self.evaluate_direct(decisions, uncertain_params)
         for node, g in constraints.items():
             self.function_evaluations[node] += g.shape[0]*g.shape[1]
+        
+        if (self.cfg.surrogate.post_process_lower.model_class == 'regression') and (self.cfg.reconstruction.post_process):
+            self.process_select_regressor_data(constraints, decisions)
 
         cons_ = jnp.concatenate([cons for cons in constraints.values()], axis=-1)
 
         return [cons_[i,:,:] for i in range(cons_.shape[0])]
- 
+
+    def process_select_regressor_data(self, constraints, candidates):
+        """
+        Process the edge data
+        :param edge_data: The edge data
+        :return: The processed edge data
+        """
+        fn = self.graph.graph['global_regressor_function']
+        inputs, outputs = fn(candidates, constraints, self.desired_node_index)
+        self.desired_regressor_data.append_to_live_set(inputs, outputs)
+        return 
+
 
 
 class post_process_evaluation(network_simulator):

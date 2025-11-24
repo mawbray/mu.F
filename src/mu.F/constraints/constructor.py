@@ -2,7 +2,7 @@ from abc import ABC
 from functools import partial
 
 from constraints.jax_evaluator import backward_constraint_evaluator
-from constraints.casadi_evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator_general, forward_root_constraint_decentralised_evaluator
+from constraints.casadi_evaluator import process_constraint_evaluator, forward_constraint_evaluator, forward_constraint_decentralised_evaluator, backward_constraint_evaluator_general, forward_root_constraint_decentralised_evaluator, post_process_constraint_evaluator
 from constraints.downstream import global_graph_upperlevel_NLP
 
 class constraint_evaluator(ABC):
@@ -36,6 +36,9 @@ class constraint_evaluator(ABC):
         elif constraint_type == 'post_process_upper_level':
             self.constraint_evaluator = global_graph_upperlevel_NLP(cfg=cfg, graph=graph, node=node, pool=pool)
             self.evaluate = self.evaluate_global
+        elif constraint_type == 'post_process_evals':
+            self.constraint_evaluator = post_process_constraint_evaluator(cfg, graph, node, pool)
+            self.evaluate = self.evaluate_process
         else:   
             raise ValueError('Invalid constraint type')
 

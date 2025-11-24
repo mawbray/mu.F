@@ -27,7 +27,7 @@ class surrogate_base(ABC):
         elif self.model_class == "classification":
             assert self.model_subclass in ["ANN", "SVM"], "classifier model_subclass must be either 'ANN', or 'SVM'"
 
-        assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate"], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate'] indicating a parameterisation of the feasible region, probability map or unit dynamics respectively."
+        assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate", "post_process_forward"], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate', post_process_forward] indicating a parameterisation of the feasible region, probability map or unit dynamics respectively."
 
     def fit(self) -> None:
         pass
@@ -61,7 +61,7 @@ class surrogate(surrogate_base):
         return self.predictor.get_serialised_model_data()
     
     def from_method(cls, graph, data_str) -> None:
-        return surrogate(graph, cls.unit_index, self.cfg, (self.model_class, self.model_subclass, self.model_surrogate), self.iterate, data_str)
+        return surrogate(graph, cls.unit_index, cls.cfg, (cls.model_class, cls.model_subclass, cls.model_surrogate), cls.iterate, data_str)
 
     
 
@@ -81,7 +81,7 @@ class surrogate_reconstruction(ABC):
         elif self.model_class == "classification":
             assert self.model_subclass in ["ANN", "SVM"], "classifier model_subclass must be either 'ANN', or 'SVM'"
 
-        assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate"], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate'] indicating a parameterisation of the feasible region, probability map or unit dynamics respectively."
+        assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate", "post_process_forward"], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate', 'post_process_forward'] indicating a parameterisation of the feasible region, probability map or unit dynamics respectively."
 
 
     def rebuild_model(self):

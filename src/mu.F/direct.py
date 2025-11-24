@@ -10,7 +10,7 @@ from samplers.utils import create_problem_description_deus_direct
 from visualisation.visualiser import visualiser
 from reconstruction.constructor import reconstruction as reconstruct
 from reconstruction.objects import live_set, dataset
-from utils import post_process_sampling_setup, post_process_setup
+from reconstruction.utils import post_process_sampling_setup, post_process_setup
 
 from deus import DEUS
 
@@ -57,15 +57,17 @@ def apply_direct_method(cfg, graph):
             feasible_samples = fs[rounded_indices]
             return feasible_samples
         
-        graph =  load_to_graph(feasible_set, infeasible_set, graph, str_='post_process_lower_')
+        graph =  load_classifier_to_graph(feasible_set, infeasible_set, graph, str_='post_process_lower_')
+        graph = load_regressor_to_graph(solver, graph, str_='post_process_lower_')
         post_process = post_process_setup(cfg, graph, model)
-        post_process = post_process_sampling_setup(cfg, post_process, sampler, live_set)
+        if cfg.reconstruction.post_process_sampler:
+            post_process = post_process_sampling_setup(cfg, post_process, sampler, live_set)
         graph = post_process.run()
 
     return feasible_set, infeasible_set
 
 
-def load_to_graph(feasible, infeasible, graph, str_):
+def load_classifier_to_graph(feasible, infeasible, graph, str_):
     assert isinstance(feasible, tuple) 
     assert isinstance(infeasible, tuple)
     # unpack feasible and infeasible sets
@@ -85,4 +87,6 @@ def load_to_graph(feasible, infeasible, graph, str_):
     graph.graph[str_+ 'classifier_training'] = dataset(all_data, all_labels)
     return graph
 
-
+def load_regressor_to_graph(solver, graph, str_):
+    return solver.get_regresssion_data(graph, str_=str_)
+    

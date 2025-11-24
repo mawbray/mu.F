@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 import logging
 import jax.profiler as profiler
-from jax import clear_backends, clear_caches
+from jax import clear_caches
 
 from constraints.constructor import constraint_evaluator
 from unit_evaluators.constructor import subproblem_unit_wrapper
@@ -89,7 +89,6 @@ class apply_decomposition:
             gc.collect()
             profiler.save_device_memory_profile(f"memory{node}.prof")
             clear_caches()
-            clear_backends()
             profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")
         """ except: 
             if cfg.method == 'decomposition_constraint_tuner': graph.nodes[node]['log_evidence'] = {'mean':-10, 'std':0}
@@ -222,7 +221,7 @@ def process_data_forward(cfg, graph, node, model, live_set, mode, notion_of_feas
                 # Extract the input-output and classifier data from the model
                 x_io, y_io, selected_y_io = data_processor(model.input_output_data, index_on = cfg.surrogate.index_on).transform_data_to_matrix(io_fn, feasible_indices) 
                 if cfg.formulation == 'deterministic':
-                    n_args = graph.nodes[node]['n_design_args'] + graph.nodes[node]['n_input_args']
+                    n_args = graph.nodes[node]['n_design_args'] + graph.nodes[node]['n_input_args'] + graph.nodes[node]['n_auxiliary_args']
                     x_io = x_io[:,:n_args]
             
             
@@ -488,8 +487,8 @@ class subproblem_model(ABC):
         return cons_g
 
     def s(self, d, p):
-        #if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0) and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
-        #   ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)  # , ,
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0) and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
+           ray.init(runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']}, num_cpus=10)  # , ,
         # evaluate feasibility and then update classifier data and number of function evaluations
         g = self.evaluate_subproblem_batch(d, self.max_devices, p)
         # shape parameters for returning constraint evaluations to DEUS
@@ -497,8 +496,8 @@ class subproblem_model(ABC):
         # adding function evaluations
         self.function_evaluations += g.shape[0]*g.shape[1]
         # return information for DEUS
-        #if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0)  and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
-        #   ray.shutdown()
+        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0)  and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
+           ray.shutdown()
         return [g[i,:,:].reshape(n_theta,n_g) for i in range(g.shape[0])]
         
     def get_constraints(self, d, p):

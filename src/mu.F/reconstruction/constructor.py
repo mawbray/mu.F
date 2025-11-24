@@ -6,7 +6,7 @@ from jax.random import choice, PRNGKey
 from reconstruction.samplers import sobol_sampler
 from reconstruction.objects import live_set
 from reconstruction.methods import construct_cartesian_product_of_live_sets
-
+from reconstruction.utils import post_process_sampling_setup, post_process_setup
 
 class reconstruct_base(ABC):
     def __init__(self):
@@ -32,6 +32,8 @@ class reconstruction(reconstruct_base):
         self.feasible = False
         self.post_process_bool = cfg.reconstruction.post_process[iterate]
         self.iterate = iterate
+        self.desired_edge_index = list(self.graph.nodes)[-1]
+        self.desired_regressor_data = live_set(cfg, cfg.samplers.notion_of_feasibility)
 
     def update_live_set(self, candidates, constraint_vals):
         """
@@ -80,7 +82,6 @@ class reconstruction(reconstruct_base):
             self.graph = self.post_process_runner(cfg=self.cfg, graph=self.graph, model=self.model, ls_holder=ls_holder, iterate=self.iterate)
             # TODO conditional return on live set from post_process? 
 
-
         return joint_live_set, joint_live_set_prob, self.graph
     
     def post_process_runner(self, cfg, graph, model, ls_holder, iterate):
@@ -93,13 +94,10 @@ class reconstruction(reconstruct_base):
         :return: The post process object
         """
         graph = ls_holder.load_classification_data_to_graph(graph, str_='post_process_lower_')
-        post_process = graph.graph['post_process'](cfg, graph, model, iterate)
-        assert hasattr(post_process, 'run')
-        post_process.load_training_methods(graph.graph["post_process_training_methods"])
-        post_process.load_solver_methods(graph.graph["post_process_solver_methods"])
-        post_process.graph.graph["solve_post_processing_problem"] = True
-        post_process.sampler = lambda : (self.sample_live_sets())[1]
-        post_process.load_fresh_live_set(live_set=live_set(self.cfg, self.cfg.samplers.notion_of_feasibility))
+        graph = model.desired_regressor_data.load_regression_data_to_graph(graph, str_='post_process_lower_')
+        post_process = post_process_setup(cfg, graph, model)
+        if cfg.reconstruction.post_process_sampler:
+            post_process = post_process_sampling_setup(cfg, post_process,  lambda : (self.sample_live_sets())[1], live_set)
         graph = post_process.run()
 
         return graph
@@ -164,6 +162,11 @@ class reconstruction(reconstruct_base):
         :return: The constraint values
         """
         # evaluate the joint model
-        return self.model.get_constraints(candidates,  uncertain_params)
+        constraints = self.model.get_constraints(candidates,  uncertain_params)
+        return constraints
+    
+    
+
+
 
 

@@ -32,6 +32,10 @@ class construct_base(ABC):
     def get_solution(self):
         """ This is up to you to implement and is solver dependent """
         raise NotImplementedError("get_solution should be implemented in the derived class")
+    
+    def get_regresssion_data(self):
+        """ This is up to you to implement and is solver dependent """
+        raise NotImplementedError("get_regresssion_data should be implemented in the derived class")
 
     def get_function_evaluations(self):
         """ This is up to you to implement and is solver dependent """
@@ -63,6 +67,10 @@ class construct_deus_problem(construct_base):
         output = self.load_study(pd)
         feasible_samples, infeasible_samples = self.return_solution(pd, output)
         return feasible_samples, infeasible_samples
+
+    def get_regresssion_data(self, graph, str_='post_process_lower_'):
+        self.model.desired_regressor_data.load_regression_data_to_graph(graph, str_=str_)
+        return graph
 
     @staticmethod
     def load_study(problem_description):

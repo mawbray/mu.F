@@ -32,3 +32,16 @@ poetry install
 
 Poetry `install` command creates a virtual environment for this project
 in a hidden `.venv` directory under the root directory.
+If you are interested in further details please find the pre-print:
+```
+@misc{mowbray2025decompositionapproachsolvingnumerical,
+      title={A Decomposition Approach to Solving Numerical Constraint Satisfaction Problems on Directed Acyclic Graphs}, 
+      author={Max Mowbray and Nilay Shah and Benoît Chachuat},
+      year={2025},
+      eprint={2511.10426},
+      archivePrefix={arXiv},
+      primaryClass={eess.SY},
+      url={https://arxiv.org/abs/2511.10426}, 
+}
+```
+
