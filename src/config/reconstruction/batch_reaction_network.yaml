@@ -1,6 +1,0 @@
-
-
-reconstruct: 
-  - True 
-
-reconstruction_scheme: uniform #sobol

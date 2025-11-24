@@ -1,0 +1,28 @@
+
+target_reliability: 1.0
+unit_wise_target_reliability: [1.0, 1.0, 1.0]
+deus: 
+  activity_type: 'dsc'
+
+notion_of_feasibility: 'positive'
+ku_approximation: 'box'
+vol_scale: 0.02
+
+ns:
+  n_live: 3500 # 4000
+  final_sample_live: 3500  #1000 #4000  
+  n_replacements: 50
+  n_iter: 15000 
+  f0: 0.1
+  alpha: 0.2
+  prior: Uniform
+  rejector: suob-ellipsoid
+  log_evidence_estimation: True
+
+bo:
+  bounds: 
+    max: 1
+    min: 0
+  num_initial_points: 3
+  num_iterations: 7 # subsequent to initial samples
+  acq: 'ei'
