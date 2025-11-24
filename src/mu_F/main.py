@@ -1,19 +1,22 @@
 import os
 import multiprocessing
+
+# Force spawn immediately, BEFORE any other imports run
+if __name__ == "__main__":
+    try:
+        multiprocessing.set_start_method('spawn', force=True)
+    except RuntimeError:
+        pass
+
+# Set JAX/Ray flags before JAX inits
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
     multiprocessing.cpu_count()
 )
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 import logging
 import hydra
 from omegaconf import DictConfig
 import networkx as nx
-
-from mu_F.direct import apply_direct_method
-from mu_F.decomposition import decomposition, decomposition_constraint_tuner
-from mu_F.cs_assembly import case_study_constructor
-from mu_F.utils import *
 
 
 """
@@ -25,7 +28,23 @@ TODO :
 
 @hydra.main(config_path="config", config_name="integrator")
 def main(cfg: DictConfig) -> None:
+    import ray
+    from hydra.utils import get_original_cwd
+    if not cfg.method == 'direct':
+        ray.init(
+            _node_ip_address="127.0.0.1",  
+            include_dashboard=False, 
+            runtime_env={"working_dir": get_original_cwd(), 'excludes': ['/multirun/', '/outputs/', '/config/', '../.git/']},
+            num_cpus=min(cfg.max_devices, multiprocessing.cpu_count()))  # , ,
+    
     # Set the maximum number of devices
+    from mu_F.direct import apply_direct_method
+    from mu_F.decomposition import decomposition, decomposition_constraint_tuner
+    from mu_F.cs_assembly import case_study_constructor
+    from mu_F.utils import save_graph
+    import jax
+    jax.config.update('jax_platform_name', 'cpu')
+
     print(get_original_cwd())
     max_devices = len(jax.devices('cpu'))
 
@@ -53,6 +72,9 @@ def main(cfg: DictConfig) -> None:
     else:
         # raise an error
         raise ValueError("Method not recognised")
+    
+    if not cfg.method == 'direct':
+        ray.shutdown()
         
     # Log the function evaluations for each node in the graph.
     for node in G.nodes():
@@ -63,11 +85,8 @@ def main(cfg: DictConfig) -> None:
 
 if __name__ == "__main__":
     
-    import jax
-    import sys
-    from hydra.utils import get_original_cwd
-    jax.config.update('jax_platform_name', 'cpu')
-    platform = jax.lib.xla_bridge.get_backend().platform.casefold()
+    
+    import sys  
 
     # Enable 64 bit floating point precision
     #jax.config.update("jax_enable_x64", True)

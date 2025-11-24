@@ -45,7 +45,7 @@ The second installation is the sipsolve repository. Again simply navigate to mu_
 
 # Algorithmic details
 
-If you are interested in further details please find the pre-print:
+For details please find the pre-print:
 ```
 @misc{mowbray2025decompositionapproachsolvingnumerical,
       title={A Decomposition Approach to Solving Numerical Constraint Satisfaction Problems on Directed Acyclic Graphs}, 
