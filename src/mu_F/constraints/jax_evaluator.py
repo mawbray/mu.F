@@ -4,7 +4,8 @@ from scipy.stats import beta
 from jax import jit, pmap, devices, lax
 from functools import partial
 
-from mu_F.solvers.functions import generate_initial_guess, multi_start_solve_bounds_nonlinear_program
+from mu_F.solvers.utilities import generate_initial_guess
+from mu_F.solvers.functions import multi_start_solve_bounds_nonlinear_program
 from mu_F.constraints.utils import standardise_inputs, standardise_model_decisions, mask_classifier, get_successor_inputs
 from mu_F.solvers.utilities import determine_batches, create_batches
        
