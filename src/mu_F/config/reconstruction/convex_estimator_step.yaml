@@ -4,8 +4,7 @@ reconstruct:
   - True
 
 
-post_process: 
-  - True
+post_process: True
 
 post_process_sip:
   
