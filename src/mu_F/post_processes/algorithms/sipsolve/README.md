@@ -36,3 +36,7 @@ If not then we define $\mathcal{Y}_{k+1} = \mathcal{Y}_k \bigcup \\{\textbf{y}_k
   publisher={Springer}
 }
 ```
+
+### Installation
+
+Simply navigate to /dist and run `pip install sipsolve-0.0.1.tar.gz`
