@@ -22,7 +22,6 @@ def plotting_format():
 
 def initializer_cp(df):
     plotting_format()
-    fig = plt.figure(figsize=(35, 35))
     cols = df.columns
     pp = sns.PairGrid(
         df[cols],
@@ -32,6 +31,7 @@ def initializer_cp(df):
     pp.map_upper(hide_current_axis)
     
     return pp
+
 
 def get_ds_bounds(cfg, G):
     DS_bounds = [np.array(G.nodes[unit_index]['KS_bounds']) for unit_index in G.nodes if G.nodes[unit_index]['KS_bounds'][0][0] != 'None']
@@ -47,10 +47,11 @@ def init_plot(cfg, G, pp= None, init=True, save=True):
 
     if init:
         pp = initializer_cp(init_df)
+        pp.map_lower(sns.scatterplot, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5)
     else:
-        assert pp is not None, "PairGrid object is None. Please provide a valid PairGrid object."
-    
-    pp.map_lower(sns.scatterplot, data=init_df, edgecolor="k", c="k", size=0.01, alpha=0.05,  linewidth=0.5)
+        pp = initializer_cp(init_df)
+
+    assert pp is not None, "PairGrid object is None. Please provide a valid PairGrid object."   
         
     indices = zip(*np.tril_indices_from(pp.axes, -1))
 

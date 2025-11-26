@@ -39,7 +39,7 @@ def case_study_constructor(cfg):
     G = graph_constructor(cfg, cfg.case_study.adjacency_matrix)
 
     # construct dummy dataframe for initial forward pass
-    init_df_samples = pd.DataFrame({col: np.zeros((2,)) for i,col in enumerate(cfg.case_study.design_space_dimensions)})
+    init_df_samples = pd.DataFrame({col: [] for i,col in enumerate(cfg.case_study.design_space_dimensions)})
 
     # Call the case_study_allocation function
     G = case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solvers=solver_constructor(cfg, G), unit_params_fn=unit_params_fn(cfg, G), initial_forward_pass=init_df_samples)
