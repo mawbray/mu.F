@@ -245,11 +245,17 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         return pred_inputs, pred_aux
 
 
-    def load_solver(self):
+    def load_solver(self) -> solver_construction:
         """
-        Loads the solver
+        Loads the solver factory instance.
+        
+        Returns:
+            solver_construction instance (not yet configured with objective/constraints)
         """
-        return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)
+        from mu_F.solvers.constructor import SolverType
+        # Convert string config to SolverType enum
+        solver_type = SolverType(self.cfg.solvers.forward_coupling_solver)
+        return solver_construction(self.cfg.solvers.forward_coupling, solver_type)
 
 
     def evaluate(self, inputs, aux):
@@ -304,7 +310,13 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         # iterate over predecessors and evaluate the constraints
         for pred in self.graph.predecessors(self.node):
             for p in range(len(problem_data[pred])): 
-                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, problem_data[pred][p]['objective_func'], problem_data[pred][p]['bounds'], problem_data[pred][p]['constraints'])
+                forward_solver = solver_object.from_method(
+                    self.cfg.solvers.forward_coupling,
+                    solver_object.solver_type.value,  # Convert enum to string
+                    problem_data[pred][p]['objective_func'],
+                    problem_data[pred][p]['bounds'],
+                    problem_data[pred][p]['constraints']
+                )
                 initial_guess = forward_solver.initial_guess()
                 forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
                 forward_solver.solver.problem_data['data']['eq_rhs'] = problem_data[pred][p]['eq_rhs']
@@ -624,7 +636,13 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
         # iterate over successors and evaluate the constraints
         for succ in self.graph.successors(self.node):
             for p in range(len(problem_data[succ])): 
-                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, problem_data[succ][p]['objective_func'], problem_data[succ][p]['bounds'], problem_data[succ][p]['constraints'])
+                forward_solver = solver_object.from_method(
+                    self.cfg.solvers.forward_coupling,
+                    solver_object.solver_type.value,  # Convert enum to string
+                    problem_data[succ][p]['objective_func'],
+                    problem_data[succ][p]['bounds'],
+                    problem_data[succ][p]['constraints']
+                )
                 initial_guess = forward_solver.initial_guess()
                 forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
                 forward_solver.solver.problem_data['data']['eq_rhs'] = problem_data[succ][p]['eq_rhs']
@@ -724,7 +742,13 @@ class forward_constraint_decentralised_evaluator(forward_constraint_evaluator):
         # iterate over predecessors and evaluate the constraints
         for pred in range(1):
             for p in range(1): 
-                forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, problem_data[pred][p]['objective_func'], problem_data[pred][p]['bounds'], problem_data[pred][p]['constraints'])
+                forward_solver = solver_object.from_method(
+                    self.cfg.solvers.forward_coupling,
+                    solver_object.solver_type.value,  # Convert enum to string
+                    problem_data[pred][p]['objective_func'],
+                    problem_data[pred][p]['bounds'],
+                    problem_data[pred][p]['constraints']
+                )
                 initial_guess = forward_solver.initial_guess()
                 forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
                 forward_solver.solver.problem_data['data']['eq_rhs'] = problem_data[pred][p]['eq_rhs']

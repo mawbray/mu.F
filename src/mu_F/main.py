@@ -27,7 +27,7 @@ TODO :
 """
 
 @hydra.main(config_path="config", config_name="integrator")
-def main(cfg: DictConfig) -> None:
+def main(cfg: DictConfig) -> nx.DiGraph:
     import ray
     from hydra.utils import get_original_cwd
     if not cfg.method == 'direct':

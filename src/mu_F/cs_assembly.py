@@ -1,10 +1,12 @@
 # standard library imports
 from functools import partial
 from itertools import chain
+from typing import Dict
 import jax.numpy as jnp
 import numpy as np
 import pandas as pd
-
+from omegaconf import DictConfig
+import networkx as nx
 
 from mu_F.unit_evaluators.constructor import unit_evaluation, post_process_evaluation
 from mu_F.constraints.functions import CS_holder, post_process_visualiser
@@ -139,7 +141,33 @@ def aux_filter(cfg, G):
     else:
         return {edge: lambda x: [x[0][:,:-G.G.graph['n_aux_args']], x[1][:,:-G.G.graph['n_aux_args']]] for edge in G.G.edges}
 
-def solver_constructor(cfg, G):
-
-    return  {'forward_coupling_solver': {node: solver_construction for node in G.G.nodes },  # if G.G.in_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 
-            'backward_coupling_solver': {node: solver_construction for node in G.G.nodes}}# if G.G.out_degree()[node] > 0 (this is better, but raises errors downstream, so we'll roll with it for now) 
+def solver_constructor(cfg: DictConfig, G: graph_constructor) -> Dict[str, Dict[int, type]]:
+    """
+    Construct solver factory references for each node.
+    
+    This function creates a dictionary mapping solver types to node-to-class mappings.
+    The classes are factory classes (solver_construction), not instances. Instances
+    are created later using the from_method() class method.
+    
+    Args:
+        cfg: Configuration object (not directly used here, but kept for consistency)
+        G: Graph constructor object containing the graph structure
+        
+    Returns:
+        Dictionary with keys 'forward_coupling_solver' and 'backward_coupling_solver',
+        each mapping to a dictionary of node_id -> solver_construction class.
+        
+    Note:
+        Currently creates solver factories for all nodes regardless of in/out degree.
+        This could be optimized to only create solvers where needed (e.g., forward
+        solvers only for nodes with predecessors, backward solvers only for nodes
+        with successors), but this would require changes downstream.
+    """
+    return {
+        'forward_coupling_solver': {
+            node: solver_construction for node in G.G.nodes
+        },
+        'backward_coupling_solver': {
+            node: solver_construction for node in G.G.nodes
+        }
+    } 

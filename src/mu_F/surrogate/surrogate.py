@@ -1,6 +1,6 @@
 from abc import ABC
-from typing import Tuple
-
+from typing import Tuple, Callable, Any, Optional
+import networkx as nx
 from omegaconf import DictConfig
 import jax.numpy as jnp
 
@@ -9,7 +9,14 @@ from mu_F.surrogate.trainer import trainer, rebuilder
 
 
 class surrogate_base(ABC):
-    def __init__(self, graph, unit_index: int, cfg: DictConfig, model_type: str, iterate: int) -> None:
+    def __init__(
+        self, 
+        graph: nx.DiGraph, 
+        unit_index: int, 
+        cfg: DictConfig, 
+        model_type: Tuple[str, str, str], 
+        iterate: int
+    ) -> None:
 
         self.cfg = cfg
         self.graph = graph
@@ -35,38 +42,52 @@ class surrogate_base(ABC):
     def predict(self, string: str, X: jnp.ndarray) -> jnp.ndarray:
         pass
 
-    def get_model(self, string:str) -> callable:
+    def get_model(self, string: str) -> Callable[..., Any]:
         pass
 
         
 
 class surrogate(surrogate_base):
-    def __init__(self, graph, unit_index, cfg: DictConfig, model_type: tuple[str], iterate:int, data_str: str='classifier_training') -> None:
+    def __init__(
+        self, 
+        graph: nx.DiGraph, 
+        unit_index: int, 
+        cfg: DictConfig, 
+        model_type: Tuple[str, str, str], 
+        iterate: int, 
+        data_str: str = 'classifier_training'
+    ) -> None:
         super().__init__(graph, unit_index, cfg, model_type, iterate)
         self.model = None
         self.trainer = trainer(graph, unit_index, cfg, model_type, iterate, data_str)
         self.predictor = predictor(cfg, model_type)
 
-    def fit(self, node=None) -> None:
+    def fit(self, node: Optional[Any] = None) -> None:
         self.trainer.train(node)
         self.predictor.load_trained_model(self.trainer)
 
     def predict(self, string:str, X: jnp.ndarray) -> jnp.ndarray:
         return self.predictor.predict(self.get_model(string), X)
 
-    def get_model(self, string: str) -> callable:
+    def get_model(self, string: str) -> Callable[..., Any]:
         return self.predictor.return_prediction_function(string)
     
-    def get_serailised_model_data(self) -> Tuple:
+    def get_serailised_model_data(self) -> Tuple[Any, ...]:
         return self.predictor.get_serialised_model_data()
     
-    def from_method(cls, graph, data_str) -> None:
+    @classmethod
+    def from_method(cls, graph: nx.DiGraph, data_str: str) -> "surrogate":
         return surrogate(graph, cls.unit_index, cls.cfg, (cls.model_class, cls.model_subclass, cls.model_surrogate), cls.iterate, data_str)
 
     
 
 class surrogate_reconstruction(ABC):
-    def __init__(self, cfg: DictConfig, model_type: str, problem_data: dict) -> None:
+    def __init__(
+        self, 
+        cfg: DictConfig, 
+        model_type: Tuple[str, str, str], 
+        problem_data: dict[str, Any]
+    ) -> None:
         self.cfg = cfg
         self.model_type = model_type
         self.problem_data = problem_data
@@ -84,5 +105,5 @@ class surrogate_reconstruction(ABC):
         assert self.model_surrogate in ["live_set_surrogate", "probability_map_surrogate", "forward_evaluation_surrogate", "post_process_forward"], "model_surrogate must be one of ['live_set_surrogate', 'probability_map_surrogate', 'forward_evaluation_surrogate', 'post_process_forward'] indicating a parameterisation of the feasible region, probability map or unit dynamics respectively."
 
 
-    def rebuild_model(self):
+    def rebuild_model(self) -> Any:
         return rebuilder(self.cfg, self.model_type, self.problem_data).rebuild()

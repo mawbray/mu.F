@@ -30,8 +30,17 @@ class global_graph_solver_base(coupling_surrogate_constraint_base):
     def evaluate(self):
         return self.wrapper()
     
-    def load_solver(self):
-        return solver_construction(self.cfg.solvers.post_upper_level, self.cfg.solvers.post_process_solver.upper_level)
+    def load_solver(self) -> solver_construction:
+        """
+        Loads the solver factory instance.
+        
+        Returns:
+            solver_construction instance (not yet configured with objective/constraints)
+        """
+        from mu_F.solvers.constructor import SolverType
+        # Convert string config to SolverType enum
+        solver_type = SolverType(self.cfg.solvers.post_process_solver.upper_level)
+        return solver_construction(self.cfg.solvers.post_upper_level, solver_type)
 
     def evaluation(self, solver: list, get_results: callable):    
         """
@@ -68,11 +77,12 @@ class global_graph_solver_base(coupling_surrogate_constraint_base):
         # solver type has been defined elsewhere in the case study/graph construction. 
         solver_object = self.load_solver()  
         # instantiate the solver and major functions
-        forward_solver = solver_object.from_method(self.cfg.solvers.post_upper_level, 
-                                                   solver_object.solver_type, 
-                                                   problem_data['objective_func'], 
-                                                   problem_data['bounds'], 
-                                                   problem_data['constraints']
+        forward_solver = solver_object.from_method(
+            self.cfg.solvers.post_upper_level,
+            solver_object.solver_type.value,  # Convert enum to string
+            problem_data['objective_func'],
+            problem_data['bounds'],
+            problem_data['constraints']
         )
         # finish problem set up
         initial_guess = forward_solver.initial_guess()
@@ -168,7 +178,16 @@ class local_sip_base(coupling_surrogate_constraint_base):
         return self.wrapper(problem_data)
 
     def load_solver(self) -> solver_construction:
-        return solver_construction(self.cfg.solvers.post_upper_level, self.cfg.solvers.post_process_solver.upper_level)
+        """
+        Loads the solver factory instance.
+        
+        Returns:
+            solver_construction instance (not yet configured with objective/constraints)
+        """
+        from mu_F.solvers.constructor import SolverType
+        # Convert string config to SolverType enum
+        solver_type = SolverType(self.cfg.solvers.post_process_solver.upper_level)
+        return solver_construction(self.cfg.solvers.post_upper_level, solver_type)
 
     def wrapper(self, problem_data: list[jnp.ndarray] | jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
         """ first prepare the problem set up, 
@@ -202,7 +221,13 @@ class local_sip_base(coupling_surrogate_constraint_base):
         problem_data = self.prepare_global_problem(problem_data)
         solver_object = self.load_solver()  # solver type has been defined elsewhere in the case study/graph construction. 
         # iterate over predecessors and evaluate the constraints:
-        forward_solver = solver_object.from_method(self.cfg.solvers.post_upper_level, solver_object.solver_type, problem_data['objective_func'], problem_data['bounds'], problem_data['constraints'])
+        forward_solver = solver_object.from_method(
+            self.cfg.solvers.post_upper_level,
+            solver_object.solver_type.value,  # Convert enum to string
+            problem_data['objective_func'],
+            problem_data['bounds'],
+            problem_data['constraints']
+        )
         initial_guess = forward_solver.initial_guess()
         forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
         forward_solver.solver.problem_data['data']['eq_rhs'] = problem_data['eq_rhs']

@@ -1,9 +1,11 @@
 import pickle
-from abc import ABC
+from typing import Optional, Union, Tuple, List, Any, Callable
+from collections.abc import Iterator
+import networkx as nx
 import jax.numpy as jnp
-from typing import List
+from omegaconf import DictConfig
 
-def save_graph(G, mode):
+def save_graph(G: nx.DiGraph, mode: str) -> None:
     """
     Save the graph to a file
     :param G: The graph
@@ -43,8 +45,8 @@ def save_graph(G, mode):
     return
 
 
-class dataset_object(ABC):
-    def __init__(self, d, p, y):
+class dataset_object:
+    def __init__(self, d: jnp.ndarray, p: jnp.ndarray, y: jnp.ndarray) -> None:
         self.input_rank = len(d.shape)
         self.p_rank = len(p.shape)
         self.output_rank = len(y.shape)
@@ -62,14 +64,14 @@ class dataset_object(ABC):
         self.y = [y if self.output_rank >2 else jnp.expand_dims(y,axis=-1)]
         
 
-    def add(self, d_in, p_in, y_in):
+    def add(self, d_in: jnp.ndarray, p_in: jnp.ndarray, y_in: jnp.ndarray) -> None:
         input_rank = len(d_in.shape)
         p_rank = len(p_in.shape)
         output_rank = len(y_in.shape)
 
-        d_in = d_in if input_rank > 1 else jnp.expand_dims(d,axis=-1)
-        p_in = p_in if p_rank > 1 else jnp.expand_dims(p,axis=-1)
-        y_in = y_in if output_rank >1 else jnp.expand_dims(y,axis=-1)
+        d_in = d_in if input_rank > 1 else jnp.expand_dims(d_in,axis=-1)
+        p_in = p_in if p_rank > 1 else jnp.expand_dims(p_in,axis=-1)
+        y_in = y_in if output_rank >1 else jnp.expand_dims(y_in,axis=-1)
 
         input_rank = len(d_in.shape)
         p_rank = len(p_in.shape)
@@ -77,21 +79,21 @@ class dataset_object(ABC):
         
 
         self.d.append(d_in if input_rank > 2 else jnp.expand_dims(d_in,axis=-1))
-        self.p.append(p_in if input_rank > 2 else jnp.expand_dims(p_in,axis=-1))
+        self.p.append(p_in if p_rank > 2 else jnp.expand_dims(p_in,axis=-1))
         self.y.append(y_in if output_rank >2 else jnp.expand_dims(y_in,axis=-1))
         return 
     
 
-class dataset(ABC):
-    def __init__(self, X, y):
+class dataset:
+    def __init__(self, X: jnp.ndarray, y: jnp.ndarray) -> None:
         self.input_rank = len(X.shape)
         self.output_rank = len(y.shape)
         self.X = X if self.input_rank >= 2 else jnp.expand_dims(X,axis=-1)
         self.y = y if self.output_rank >=2 else jnp.expand_dims(y, axis=-1)
             
         
-class data_processing(ABC):
-    def __init__(self, dataset_object, index_on=None):
+class data_processing:
+    def __init__(self, dataset_object: dataset_object, index_on: Optional[int] = None) -> None:
         self.dataset_object = dataset_object
         self.index_on = index_on
         if index_on is None:
@@ -105,15 +107,20 @@ class data_processing(ABC):
         
         self.check_data()
 
-    def check_data(self):
+    def check_data(self) -> None:
         n_d = len(self.d)
         assert n_d == len(self.p) == len(self.y), "The number of design, parameters and outputs objects within the data object should be the same, currently {} n_d, {} n_p and {} n_o".format(n_d, len(self.p), len(self.y))
 
-    def get_data(self):
+    def get_data(self) -> Iterator[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
         for i in range(len(self.d)):
             yield self.d[i], self.p[i], self.y[i]
 
-    def transform_data_to_matrix(self, edge_fn, feasible_indices=None, index_on=None):
+    def transform_data_to_matrix(
+        self, 
+        edge_fn: Callable[[jnp.ndarray], jnp.ndarray], 
+        feasible_indices: Optional[jnp.ndarray] = None, 
+        index_on: Optional[int] = None
+    ) -> Union[Tuple[jnp.ndarray, jnp.ndarray, None], Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
         """
         Dealing with the data in a matrix format
          - This is useful for training neural networks / any other input-output model
@@ -163,8 +170,15 @@ class data_processing(ABC):
             return jnp.vstack(data_store_X), jnp.vstack(data_store_Y), None
     
 
-class feasibility_base(ABC):
-    def __init__(self, dataset_X, dataset_Y, cfg, node, feasibility):
+class feasibility_base:
+    def __init__(
+        self, 
+        dataset_X: jnp.ndarray, 
+        dataset_Y: jnp.ndarray, 
+        cfg: DictConfig, 
+        node: Any, 
+        feasibility: str
+    ) -> None:
         self.dataset_X = dataset_X
         self.dataset_Y = dataset_Y
         self.node = node
@@ -176,13 +190,13 @@ class feasibility_base(ABC):
         else:
             raise ValueError(f"Formulation {self.cfg.formulation} not recognised. Please use 'probabilistic' or 'deterministic'.")
     
-    def probabilistic_feasibility(self, X, Y):
+    def probabilistic_feasibility(self, X: jnp.ndarray, Y: jnp.ndarray) -> Any:
         """
         Method to evaluate the probabilistic feasibility of the data
         """
         pass
 
-    def deterministic_feasibility(self, X, Y):
+    def deterministic_feasibility(self, X: jnp.ndarray, Y: jnp.ndarray) -> Any:
         """
         Method to evaluate the deterministic feasibility of the data
         """
@@ -190,13 +204,28 @@ class feasibility_base(ABC):
 
 
 class apply_feasibility(feasibility_base):
-    def __init__(self, dataset_X, dataset_Y, cfg, node, feasibility):
+    def __init__(
+        self, 
+        dataset_X: jnp.ndarray, 
+        dataset_Y: jnp.ndarray, 
+        cfg: DictConfig, 
+        node: Any, 
+        feasibility: str
+    ) -> None:
         super().__init__(dataset_X, dataset_Y, cfg, node, feasibility)
 
-    def get_feasible(self, return_indices=True):
+    def get_feasible(
+        self, return_indices: bool = True
+    ) -> Union[
+        Tuple[jnp.ndarray, jnp.ndarray], 
+        Tuple[jnp.ndarray, jnp.ndarray, List[Any]]
+    ]:
         return self.feasible_function(self.dataset_X, self.dataset_Y, return_indices)
 
-    def probabilistic_feasibility(self, return_indices=True):
+    def probabilistic_feasibility(self, return_indices: bool = True) -> Union[
+        Tuple[jnp.ndarray, jnp.ndarray], 
+        Tuple[jnp.ndarray, jnp.ndarray, List[Any]]
+    ]:
         """
         Method to evaluate the probabilistic feasibility of the data
 
@@ -225,7 +254,12 @@ class apply_feasibility(feasibility_base):
         else:
             return jnp.vstack(X), jnp.vstack(Y_s), [ys >= self.cfg.samplers.unit_wise_target_reliability[self.node] for ys in Y_s]
 
-    def deterministic_feasibility(self, X, Y, return_indices=True):
+    def deterministic_feasibility(
+        self, X: jnp.ndarray, Y: jnp.ndarray, return_indices: bool = True
+    ) -> Union[
+        Tuple[jnp.ndarray, jnp.ndarray], 
+        Tuple[jnp.ndarray, jnp.ndarray, List[Any]]
+    ]:
         """
         Method to evaluate the deterministic feasibility of the data
         """

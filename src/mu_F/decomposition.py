@@ -100,11 +100,11 @@ class decomposition:
     def update_precedence_order(self, m):
         precedence_order = self.original_precedence_order.copy()
         if self.cfg.method != 'decomposition_constraint_tuner': 
-            if m == 'backward' or 'forward-backward':
+            if m == 'backward' or m == 'forward-backward':
                 for node in self.G.nodes():
                     if (self.G.in_degree(node) == 0) and (node in precedence_order):
                         precedence_order.remove(node)
-            elif m == 'forward' or 'backward-forward':
+            elif m == 'forward' or m == 'backward-forward':
                 for node in self.G.nodes():
                     if (self.G.out_degree(node) == 0) and (node in precedence_order):
                         precedence_order.remove(node)
