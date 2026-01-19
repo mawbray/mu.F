@@ -181,4 +181,4 @@ CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_
              'convex_estimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [estimation_bound_lb]},
              'convex_underestimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [underestimation_constraint]},
              'affine_study': {0: [negative_output_constraint], 1: [negative_output_constraint], 2: [negative_output_constraint], 3: [negative_output_constraint], 4: [negative_output_constraint]},
-             'temporal_study': {0: [temporal_study_1], 'n': [temporal_study_n]}}
+             'temporal_study': {0: [temporal_study_n], 'n': [temporal_study_n]}}

@@ -151,7 +151,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "numpy>=1.26.0",
-        "scipy>=1.11.0",
+        "scipy==1.11.4",
         "pandas>=2.2.0",
 
         # JAX Ecosystem
@@ -161,6 +161,7 @@ setup(
         "diffrax==0.3.1",
         "flax==0.8.3",
         "optax==0.1.7",
+        "openpyxl==3.1.2",
 
         # Machine Learning
         "scikit-learn>=1.3.0",

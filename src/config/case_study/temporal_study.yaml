@@ -52,7 +52,7 @@ evaluation_mode: 'jax-pmap'
 
 serial_graph: True
 
-number_repeats: 3
+number_repeats: 2
 
 unit_op:
   - 'steady_state'
