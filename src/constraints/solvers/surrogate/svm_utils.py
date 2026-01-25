@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 from sklearn import svm
 from sklearn.metrics import confusion_matrix
@@ -42,6 +43,14 @@ def train(cfg, dataset, num_folds, unit_index, iterate):
     None
     """
     data_points, labels = dataset
+    logging.info(
+        "svm_train_input: unit=%s iterate=%s data_shape=%s labels_shape=%s unique_labels=%s",
+        unit_index,
+        iterate,
+        getattr(data_points, "shape", None),
+        getattr(labels, "shape", None),
+        np.unique(np.array(labels)),
+    )
     # construct a classifier based on the data available # NOTE simple classifier for now
     s_vectors, classifier, p_dict, labels = compute_best_svm_classifier(
         data_points, labels, unit_index=unit_index, iterate=iterate, cfg=cfg, num_folds=num_folds
@@ -78,9 +87,24 @@ def compute_best_svm_classifier(
     model = GridSearchCV(clf, parameters, scoring="accuracy", cv=num_folds)
     try:
         if data_points.ndim > 2: data_points = data_points.squeeze()
+        logging.info(
+            "svm_fit_start: unit=%s iterate=%s x_shape=%s y_shape=%s classes=%s num_folds=%s",
+            unit_index,
+            iterate,
+            getattr(data_points, "shape", None),
+            getattr(labels, "shape", None),
+            np.unique(np.array(labels)),
+            num_folds,
+        )
         model.fit(data_points, labels.squeeze())
-    except: 
-        logging.info("error in fitting classification model")
+    except Exception:
+        logging.exception(
+            "svm_fit_failed: unit=%s iterate=%s x_shape=%s y_shape=%s",
+            unit_index,
+            iterate,
+            getattr(data_points, "shape", None),
+            getattr(labels, "shape", None),
+        )
 
         return None, None, None, labels
     # get support vectors
@@ -191,7 +215,6 @@ def build_svm(cfg, model_data):
             return decision.reshape(-1,1)
         return svm_unstandardised
         
-
 
 
 

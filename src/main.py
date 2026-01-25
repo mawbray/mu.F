@@ -1,3 +1,4 @@
+from logging import config
 import os
 import multiprocessing
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
@@ -10,6 +11,7 @@ from decomposition import decomposition, decomposition_constraint_tuner
 from cs_assembly import case_study_constructor
 from graph.graph_assembly import build_graph_structure
 from utils import *
+from pprint import pprint
 
 import logging
 import hydra
@@ -27,15 +29,12 @@ TODO :
 @hydra.main(config_path="config", config_name="integrator")
 def main(cfg: DictConfig) -> None:
     # Set the maximum number of devices
-    print(get_original_cwd())
     max_devices = len(jax.devices('cpu'))
 
     # Querying if the case study is a repeated single node
     if hasattr(cfg.case_study, 'serial_graph'):
         if cfg.case_study.serial_graph is True:
             cfg = build_graph_structure(cfg)
-
-
     # Construct the case study graph
     G = case_study_constructor(cfg)   # TODO integration of case study construction G is a networkx graph - need to update case study contructor
 

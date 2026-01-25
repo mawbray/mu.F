@@ -19,6 +19,8 @@ root_node_inputs:
     - 0. # component 2
     - 0. # component 3
 
+number_repeats: 1
+
 node_aux: 
   - None
   - None
@@ -40,5 +42,4 @@ integration:
   tf: 1
   dt0: 1.0e-1
   max_steps: 10000
-
 

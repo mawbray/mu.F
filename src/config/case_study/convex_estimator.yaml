@@ -72,7 +72,7 @@ KS_bounds:
   # global_auxiliary_args
     - - - -0.25
         - 0.25
-    - - - 0.25
+      - - 0.25
         - 0.75
 
 

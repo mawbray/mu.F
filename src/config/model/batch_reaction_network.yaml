@@ -18,6 +18,8 @@ root_node_inputs:
     - 0. # component 4
     - 0. # component 5
 
+number_repeats: 1
+
 
 constraint:
   purity_u1: 0.65

@@ -1,4 +1,4 @@
-case_study: temporal_study
+case_study: hydrogen_export
 
 vmap_evaluations: True
 
@@ -6,7 +6,7 @@ eval_rewards: True
 
 adjacency_matrix: None
 
-n_design_args: 2
+n_design_args: 1
 
 n_aux_args:
   # auxiliary arguments per edge
@@ -14,17 +14,15 @@ n_aux_args:
   # auxiliary arguments per node
   node_n: 0
 
-n_input_args: 1
+n_input_args: 2 
 
 discount_factor: 0.99999
 
 KS_bounds:
   design_args: 
     - - - 0
-        - 4
-      - - 0
-        - 2
-  aux_args: 
+        - 8572.8
+  aux_args:
     - - - None
         - None
 
@@ -37,13 +35,12 @@ parameters_best_estimate:
 extendedDS_bounds: [None] 
 
 design_space_dimensions:
-- 'X'
-- 'Y'
+- 'vector_throughput'
 
 global_n_aux_args: 0
 
 process_space_names:
-  - ['X', 'Y']
+  - ['vector_throughput']
 
 mode:
   - backward
@@ -52,7 +49,6 @@ evaluation_mode: 'jax-pmap'
 
 serial_graph: True
 
-number_repeats: 2
 
 unit_op:
   - 'steady_state'

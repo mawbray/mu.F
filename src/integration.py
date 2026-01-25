@@ -26,7 +26,7 @@ import time
 import ray
 import gc
 from jax.lib import xla_bridge
-
+import jax
 
 
 class apply_decomposition:
@@ -256,9 +256,6 @@ def process_data_forward(cfg, graph, node, model, live_set, mode, notion_of_feas
             # --- apply edge function to output data --- #
             io_fn = graph.edges[node, successor]["edge_fn"]
 
-            # Could defined a reward function that takes it from the graph functions like the edge functions.
-            reward_fn = graph.edges[node, successor]["reward_fn"]
-
             # --- select the approximation method
             if cfg.surrogate.forward_evaluation_surrogate:
                 # Extract the input-output and classifier data from the model
@@ -403,7 +400,7 @@ class subproblem_model(ABC):
             self.forward_decentralised = None
             self.root_node_constraint = None
             if self.cfg.case_study.eval_rewards is True:
-                self.q_func_evalutor = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.reward, constraint_type='reward')
+                self.q_func_evalutor = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.reward, constraint_type='value_function')
         elif (mode in ['forward-backward','backward-forward']):
             self.forward_constraints = constraint_evaluator(cfg, G, unit_index, pool=cfg.solvers.evaluation_mode.forward, constraint_type='forward')
             if self.cfg.method == 'decomposition_constraint_tuner': 
@@ -567,11 +564,13 @@ class subproblem_model(ABC):
         return cons_g, outputs
 
     def q_target_evaluation(self, d, p, output):
-        rewards = self.unit_forward_evaluator.get_rewards(d,p)
+        rewards = get_reward(output)
         if self.G.out_degree(self.unit_index) > 0:
             _, _, aux_args = self.unit_forward_evaluator.get_auxilliary_input_decision_split(d)
             start_time = time.time()
             q_function_evals = self.q_func_evalutor.evaluate(output, aux_args)
+            if q_function_evals.ndim == 2:
+                q_function_evals = jnp.expand_dims(q_function_evals, axis=-1)
             q_learning_target = -rewards + self.cfg.case_study.discount_factor * q_function_evals
             end_time = time.time()
             execution_time = end_time - start_time
@@ -638,3 +637,8 @@ def update_data(data, *args):
 
     return data
 
+
+def get_reward(output):
+    """ Method to get the reward from the unit output"""
+    # We assume the reward is always the last ouput of F.
+    return output[..., -1:]

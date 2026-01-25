@@ -22,6 +22,8 @@ root_node_inputs:
   - None
   - None
 
+number_repeats: 1
+
 node_aux: 
   - None
   - None

@@ -112,7 +112,7 @@ class TestTemporalStudyRewards(unittest.TestCase):
             self.cfg = compose(config_name='integrator.yaml', 
                               overrides=['case_study=temporal_study',
                                          'model=temporal_study',
-                                       'case_study.number_repeats=3',
+                                       'model.number_repeats=3',
                                        'case_study.eval_rewards=true'])
     
     def test_graph_reward_integration(self):

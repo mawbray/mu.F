@@ -12,9 +12,7 @@ penalty_method_coupler:
 
 
 evaluation_mode: 
-  forward: ray    # ray #
   backward: jax-pmap #serial 
-  temporal: ray
   reward: ray
 
 

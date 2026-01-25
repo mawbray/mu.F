@@ -3,6 +3,8 @@
 root_node_inputs:
   - None 
 
+number_repeats: 1
+
 
 constraint:
   auxiliary: 'None'

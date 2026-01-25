@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from jax import vmap, jit
 
 from unit_evaluators.integrators import unit_dynamics
-from unit_evaluators.steady_state import unit_steady_state, unit_reward_fn
+from unit_evaluators.steady_state import unit_steady_state
 from unit_evaluators.utils import arrhenius_kinetics_fn as arrhenius
 
 
@@ -73,27 +73,6 @@ class unit_evaluation(base_unit):
         aux_args = expand_dims(aux_args, axis=1)            
 
         return self.unit_cfg.evaluator(design_args, input_args, aux_args, dd_params, uncertain_params)
-    
-    def rewards(self, design_args, input_args, aux_args, uncertain_params=None):
-        """
-        Returns the rewards for the given design arguments, input arguments, auxiliary arguments, and uncertain parameters.
-
-        Args:
-            design_args (array): Array of design arguments selected by sampler.
-            input_args (array): Array of input arguments selected by sampler or by previous unit operation.
-            aux_args (array): Array of auxiliary arguments.
-            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
-
-        Returns:
-            array: The rewards for the given design arguments, input arguments, auxiliary arguments, and uncertain parameters.
-        """
-        dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
-        dd_params = expand_dims(dd_params, axis=-1)
-        input_args = expand_dims(input_args, axis=1)
-        design_args = expand_dims(design_args, axis=1)
-        aux_args = expand_dims(aux_args, axis=1)            
-
-        return self.unit_cfg.reward_fn(design_args, input_args, aux_args, dd_params, uncertain_params)
 
 def expand_dims(array, axis):
     if array.ndim < 3:
@@ -115,42 +94,6 @@ class subproblem_unit_wrapper(unit_evaluation):
         """
         super().__init__(cfg, graph, node)
 
-    def get_rewards(self, decisions, uncertain_params = None):
-        """
-        Returns the constraints for the given decisions and uncertain parameters.
-
-        Args:
-            decisions (array): Array of decisions.
-            uncertain_params (array, optional): Array of uncertain parameters. Defaults to None.
-
-        Returns:
-            array: The constraints for the given decisions and uncertain parameters.
-
-        The method splits the decisions into design arguments and input arguments based on the number of design arguments in the node, 
-        and then evaluates the unit using these arguments and the uncertain parameters.
-        """
-        if uncertain_params is None:
-            uncertain_params = jnp.empty((1,1))
-        
-        design_args, input_args, aux_args = self.get_auxilliary_input_decision_split(decisions)
-        
-        # if no inputs to the unit, use the root node inputs or add empty array
-        if input_args.shape[1] == 0: 
-            if not (self.cfg.model.root_node_inputs[self.node] == 'None'):
-                input_args = jnp.array([self.cfg.model.root_node_inputs[self.node]]*design_args.shape[0])
-            else:
-                input_args = jnp.empty((design_args.shape[0], 0))
-        # if no inputs to the unit, use the root node inputs or add empty array
-        if aux_args.shape[1] == 0: 
-            if not (self.cfg.model.node_aux[self.node] == 'None'):
-                aux_args = jnp.array([self.cfg.model.root_node_aux[self.node]]*design_args.shape[0])
-            else:
-                aux_args = jnp.empty((design_args.shape[0], 0))
-            
-        input_args = expand_input_args(input_args, uncertain_params)
-        #aux_args = expand_input_args(aux_args, uncertain_params)
-        
-        return self.rewards(design_args, input_args, aux_args, uncertain_params)
     
     def get_constraints(self, decisions, uncertain_params=None):
         """
@@ -242,10 +185,7 @@ class unit_cfg:
             # --- set the decision dependent evaluation 
             fn = graph.nodes[node]['unit_params_fn']
             self.decision_dependent_params = vmap(vmap(fn, in_axes=(0, None), out_axes=0), in_axes=(None, 0), out_axes=1)
-             # If we are 
-            if hasattr(cfg.case_study, 'eval_rewards'):
-                if cfg.case_study.eval_rewards is True:
-                    self.reward_fn = vmap(vmap(jit(partial(unit_reward_fn, cfg=cfg, node=node)), in_axes=(0, 0, 0, 0, None), out_axes=0), in_axes=(None, 1, None, 1, 0), out_axes=1)
+
         # if vmap is not enabled in cfg, set the unit evaluation and decision dependent evaluation functions without using vmap
         else: 
             # --- set the unit evaluation fn
@@ -260,10 +200,6 @@ class unit_cfg:
             fn = graph.nodes[node]['unit_params_fn']
             self.decision_dependent_params = fn
 
-            # If we are 
-            if hasattr(cfg.case_study, 'eval_rewards'):
-                if cfg.case_study.eval_rewards is True:
-                    self.reward_fn = lambda x, y, z: jit(partial(unit_reward_fn, cfg=cfg, node=node))(x.squeeze(), y.squeeze(), z.squeeze())
         return
     
 class network_simulator(ABC):

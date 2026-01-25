@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+from environment.h2_export import H2ExportEnvironment
 from jax import vmap, jit
 
 
@@ -57,20 +58,19 @@ vmap_cs35 = vmap(vmap(affine_cs35, in_axes=(0), out_axes=0), in_axes=(1), out_ax
 """ temporal study methods """
 
 @jit
-def temporal_study(dynamic_profile):
-    return dynamic_profile[0]
+def hydrogen_export(dynamic_profile):
+    return  H2ExportEnvironment.F(dynamic_profile)
 
-vmap_temporal_study = vmap(vmap(temporal_study, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
+vmap_hydrogen_export = vmap(vmap(hydrogen_export, in_axes=(0), out_axes=0), in_axes=(1), out_axes=1)
 
-
-""" insert case study specific functions for constraints here"""
+""" insert case study specific function s for constraints here"""
 CS_edge_holder = {  'tablet_press': {(0,1): data_IO_1, (1,2): data_IO_2}, 'serial_mechanism_batch': {(0,1): data_transform}, 
                     'convex_estimator': {(0,5): data_transform_cvx, (1,5): data_transform_cvx, (2,5): data_transform_cvx, 
                                             (3,5): data_transform_cvx, (4,5): data_transform_cvx},
                     'convex_underestimator': {(0,5): data_transform_cvx, (1,5): data_transform_cvx, (2,5): data_transform_cvx, 
                                         (3,5): data_transform_cvx, (4,5): data_transform_cvx},
                     'affine_study': {(0,2): data_transform_cvx, (1,2): data_transform_cvx, (2,3): affine_cs34, (2,4): affine_cs35},
-                    'temporal_study': {('n','n+1'): temporal_study}}
+                    'hydrogen_export': {('n','n+1'): hydrogen_export}}
 
 vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_IO_2}, 'serial_mechanism_batch': {(0,1): vmap_data_transform},
                        'convex_estimator': {(0,5): vmap_data_transform_cvx, (1,5): vmap_data_transform_cvx, (2,5): vmap_data_transform_cvx, 
@@ -78,5 +78,4 @@ vmap_CS_edge_holder = {'tablet_press': {(0,1): vmap_data_IO_1, (1,2): vmap_data_
                         'convex_underestimator': {(0,5): vmap_data_transform_cvx, (1,5): vmap_data_transform_cvx, (2,5): vmap_data_transform_cvx, 
                                             (3,5): vmap_data_transform_cvx, (4,5): vmap_data_transform_cvx},
                         'affine_study': {(0,2): vmap_data_transform_cvx, (1,2): vmap_data_transform_cvx, (2,3): vmap_cs34, (2,4): vmap_cs35},
-                        'temporal_study': {('n','n+1'): vmap_temporal_study}}
-
+                        'hydrogen_export': {('n','n+1'): vmap_hydrogen_export}}

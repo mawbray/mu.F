@@ -1,0 +1,31 @@
+root_node_inputs:
+  - [147717.5, 8572.4]
+
+number_repeats: 4
+  
+constraint:
+  auxiliary: 'None'
+
+node_aux: 
+  - None
+
+memory: false
+feas_thresh: 0.0
+hydrogen_storage_capacity: 295435
+vector_storage_capacity: 0.0
+number_of_turbines: 1513
+number_of_trains_conversion: 4
+hfc_capacity: 0.0
+renewable_energy_value: 11.8
+constants:
+  train_throughput_capacity: 114
+  vector_molar_efficiency: 0.888
+  electrolyser_efficiency: 0.85
+  fuelcell_efficiency: 0.6
+  fixed_energy_penalty: 0.4
+  variable_energy_penalty: 1.826
+  vector_calorific_value: 18.8
+  lower_ramp_limit: 0.25
+  upper_ramp_limit: 0.1
+  lower_storage_limit: 0.2
+  upper_storage_limit: 295435

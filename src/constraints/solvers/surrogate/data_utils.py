@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import jax
 import pandas as pd
+import logging
 from omegaconf import DictConfig
 from dataclasses import dataclass
 
@@ -48,6 +49,12 @@ def binary_classifier_data_preparation(
     data = graph.nodes[unit_index]["classifier_training"]
     support = data.X
     labels = data.y
+    logging.info(
+        "classifier_data: unit=%s support_shape=%s labels_shape=%s",
+        unit_index,
+        getattr(support, "shape", None),
+        getattr(labels, "shape", None),
+    )
     
     if cfg.formulation == 'deterministic':
         if cfg.samplers.notion_of_feasibility == 'positive':
@@ -60,10 +67,24 @@ def binary_classifier_data_preparation(
         raise ValueError(f"Formulation {cfg.formulation} not recognised. Please use 'probabilistic' or 'deterministic'.")
 
     labels = jnp.where(select_cond, -1, 1) # binary classifier (feasible label is always negative because we are always minimizing in problem coupling, just depends on which data we label)
+    logging.info(
+        "classifier_labels: unit=%s formulation=%s notion=%s select_true=%s select_false=%s",
+        unit_index,
+        cfg.formulation,
+        cfg.samplers.notion_of_feasibility,
+        int(jnp.sum(select_cond)),
+        int(select_cond.shape[0] - jnp.sum(select_cond)),
+    )
 
     # Data augmentation to equalize the number of negative and positive classes
     num_pos = jnp.sum(labels == 1)
     num_neg = jnp.sum(labels == -1)
+    logging.info(
+        "classifier_class_counts: unit=%s pos=%s neg=%s",
+        unit_index,
+        int(num_pos),
+        int(num_neg),
+    )
     Key = jax.random.PRNGKey(0)
     # Add 1% Gaussian noise to the datapoints in the support
     
@@ -81,6 +102,9 @@ def binary_classifier_data_preparation(
         labels = jnp.concatenate([labels, labels[selected_indices]], axis=0)
     else:
         support = support.squeeze()
+
+    if support.ndim == 1:
+        support = support.reshape(-1, 1)
     
     return support, labels
 

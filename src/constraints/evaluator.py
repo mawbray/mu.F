@@ -98,6 +98,36 @@ class process_constraint_evaluator(constraint_evaluator_base):
 
         return 
 
+class reward_evaluator(process_constraint_evaluator):
+    """
+    Means to simply evaluate the process constraints imposed on a unit.
+    """
+
+    def __init__(self, cfg, graph, node, pool=None):
+        super().__init__(cfg, graph, node)
+
+    def load_unit_constraints(self):
+        """
+        Loads the constraints from the graph 
+        """
+        if self.cfg.case_study.vmap_evaluations:
+            return list(self.graph.nodes[self.node]['reward_func_vmap'].copy())
+        else:
+            return list(self.graph.nodes[self.node]['reward_func'].copy()) 
+    
+    def vmap_evaluation(self):
+        """
+        Vectorizes the the constraints and then loads them back onto the graph
+        """
+        # get constraints from the graph
+        constraints = self.graph.nodes[self.node]['reward_func'].copy()
+        # vectorize each constraint
+        cons = [jit(vmap(jit(vmap(partial(constraint, cfg=self.cfg.model), in_axes=(0), out_axes=0)), in_axes=(1), out_axes=1)) for constraint in constraints]
+        # load the vectorized constraints back onto the graph
+        self.graph.nodes[self.node]['reward_func_vmap'] = cons
+        return 
+
+
 class coupling_surrogate_constraint_base(constraint_evaluator_base):
     def __init__(self, cfg, graph, node):
         super().__init__(cfg, graph, node)
@@ -541,11 +571,7 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
 
         succ_inputs = get_successor_inputs(graph, node, outputs)
         # prepare the forward surrogates
-        problem_data = {succ: {p: {} for p in range(succ_inputs[succ].shape[1])} for succ in self.graph.successors(self.node)}
-
-
-        for succ in self.graph.successors(self.node):
-            assert succ_inputs[succ].shape[1]  == 1, f"Problem data shape mismatch: {succ_inputs[succ].shape[1]} != {1}"
+        problem_data = {succ: {0: {}} for succ in self.graph.successors(self.node)}
 
         p=0 
         for succ in self.graph.successors(self.node):

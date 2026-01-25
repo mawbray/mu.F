@@ -23,8 +23,9 @@ def case_study_constructor(cfg):
     constraint_dictionary = CS_holder[cfg.case_study.case_study]
 
     if 'n' in constraint_dictionary.keys():
-        for i in range(cfg.case_study.number_repeats):
+        for i in range(cfg.model.number_repeats):
             constraint_dictionary[i] = constraint_dictionary['n']
+
 
     # create edge functions
     if cfg.case_study.vmap_evaluations:
@@ -33,9 +34,10 @@ def case_study_constructor(cfg):
         dict_of_edge_fn = CS_edge_holder[cfg.case_study.case_study]
     
     if ('n','n+1') in dict_of_edge_fn.keys():
-        for i in range(cfg.case_study.number_repeats-1):
+        for i in range(cfg.model.number_repeats-1):
             dict_of_edge_fn[(i,i+1)] = dict_of_edge_fn[('n','n+1')]
         dict_of_edge_fn.pop(('n','n+1'))
+
 
     # Create a graph constructor object
     G = graph_constructor(cfg, cfg.case_study.adjacency_matrix)
@@ -79,8 +81,6 @@ def case_study_allocation(G, cfg, dict_of_edge_fn, constraint_dictionary, solver
         b_off = [0 for _ in range(len(cfg.case_study.adjacency_matrix))]
         G.add_arg_to_nodes('constraint_backoff', b_off)
 
-
-
     # add miscellaneous information to the graph
     G.add_n_input_args(cfg.case_study.n_input_args)
     G.add_n_aux_args(cfg.case_study.n_aux_args)
@@ -110,7 +110,7 @@ def unit_params_fn(cfg, G):
         return {node: partial(arrhenius_kinetics_fn_2,Ea=jnp.array(cfg.model.arrhenius.EA[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
     elif cfg.case_study.case_study == 'serial_mechanism_batch':
         return {node: partial(arrhenius_kinetics_fn,Ea=jnp.array(cfg.model.arrhenius.EA[node]), A=jnp.array(cfg.model.arrhenius.A[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
-    elif cfg.case_study.case_study in ['tablet_press', 'convex_estimator', 'convex_underestimator', 'affine_study', 'temporal_study']:
+    elif cfg.case_study.case_study in ['tablet_press', 'convex_estimator', 'convex_underestimator', 'affine_study', 'hydrogen_export']:
         return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
     else :
         raise ValueError('Invalid case study')
