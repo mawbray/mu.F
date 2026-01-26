@@ -171,3 +171,7 @@ outputs/
 /feasible*
 
 /src/memray*
+
+# Ignoring HPC files
+**/*.pbs
+/jobs

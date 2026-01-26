@@ -1,7 +1,7 @@
 root_node_inputs:
   - [147717.5, 8572.4]
 
-number_repeats: 4
+number_repeats: 10
   
 constraint:
   auxiliary: 'None'

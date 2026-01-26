@@ -18,6 +18,7 @@ import hydra
 from omegaconf import DictConfig
 import pandas as pd
 import networkx as nx
+import argparse
 
 """
 TODO :
@@ -66,13 +67,18 @@ def main(cfg: DictConfig) -> None:
 
     return G
 
+def use_gpu():
+    p = argparse.ArgumentParser()
+    p.add_argument("--gpu", action="store_true",
+                   help="Use GPU, defaults to CPU.")
+    return p.parse_args().gpu
 
 if __name__ == "__main__":
     
     import jax
     import sys
     from hydra.utils import get_original_cwd
-    jax.config.update('jax_platform_name', 'cpu')
+    jax.config.update('jax_platform_name', 'gpu' if use_gpu() else 'cpu')
     platform = jax.lib.xla_bridge.get_backend().platform.casefold()
     
     # Enable 64 bit floating point precision

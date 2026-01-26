@@ -8,47 +8,17 @@ from setuptools.command.develop import develop
 
 
 def print_visible(message):
-    """Print message that's visible during pip install."""
-    # Try multiple approaches to ensure visibility
+    """Print message"""
     msg = f"\n{'='*60}\nSUBMODULE SETUP: {message}\n{'='*60}\n"
-
-    # Method 1: Print to stderr (less likely to be captured)
-    print(msg, file=sys.stderr)
-    sys.stderr.flush()
-
-    # Method 2: Also print to stdout
     print(msg, file=sys.stdout)
     sys.stdout.flush()
-
-    # Method 3: Write directly to terminal if available
-    try:
-        with open("/dev/tty", "w") as tty:
-            tty.write(msg)
-            tty.flush()
-    except:
-        pass  # Not available on all systems
-
 
 def init_submodules():
     """Initialize git submodules if they haven't been initialized yet."""
     try:
-        # Check if we're in a git repository
-        if not os.path.exists(".git"):
-            print_visible("Not in a git repository, skipping submodule initialization")
-            return
-
-        # Get the directory where setup.py is located
         setup_dir = os.path.dirname(os.path.abspath(__file__))
-
-        # Check if submodules exist and are empty
         gitmodules_path = os.path.join(setup_dir, ".gitmodules")
-        if not os.path.exists(gitmodules_path):
-            print_visible(
-                "No .gitmodules file found, skipping submodule initialization"
-            )
-            return
-
-        # Parse .gitmodules to find submodule paths
+        
         submodule_paths = []
         with open(gitmodules_path, "r") as f:
             for line in f:
@@ -56,11 +26,7 @@ def init_submodules():
                 if line.startswith("path = "):
                     path = line.split("path = ")[1]
                     submodule_paths.append(path)
-
-        print_visible(
-            f"Found {len(submodule_paths)} submodule(s): {', '.join(submodule_paths)}"
-        )
-
+                    
         # Check if any submodules are uninitialized (empty directories)
         needs_init = False
         uninit_modules = []
@@ -111,7 +77,7 @@ def init_submodules():
     except Exception as e:
         print_visible(f"Could not initialize submodules: {e}")
         print(
-            "You may need to run 'git submodule update --init --recursive' manually",
+            "Auto init failed: Run: 'git submodule update --init --recursive' manually",
             file=sys.stderr,
         )
         sys.stderr.flush()
@@ -121,7 +87,6 @@ class PostInstallCommand(install):
     """Custom install command that initializes submodules after installation."""
 
     def run(self):
-        # Initialize submodules before installation to ensure dependencies are available
         init_submodules()
         install.run(self)
 
@@ -129,11 +94,19 @@ class PostInstallCommand(install):
 class PostDevelopCommand(develop):
     """Custom develop command that initializes submodules after installation."""
 
-    def run(self):
-        # Initialize submodules before installation to ensure dependencies are available
+    def run(self):e
         init_submodules()
         develop.run(self)
 
+# Defining GPU-Specific Packages
+_GPU_PACKAGES = [
+    "jax-cuda12-pjrt==0.4.23",
+    "jax-cuda12-plugin==0.4.23",
+    "nvidia-cuda-cupti-cu12==12.8.90",
+    "nvidia-cuda-nvcc-cu12==12.9.86",
+    "nvidia-cuda-nvrtc-cu12==12.8.93",
+    "nvidia-cuda-runtime-cu12==12.8.90",
+] 
 
 # Resolve the relative path at build time
 deus_path = (
@@ -188,6 +161,9 @@ setup(
         "tensorflow==2.19.0",
         f"deus @ {deus_path}",  # Dynamic relative path resolution!
     ],
+    extras_require={
+        "gpu": _GPU_PACKAGES,
+    },
     cmdclass={
         "install": PostInstallCommand,
         "develop": PostDevelopCommand,
