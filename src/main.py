@@ -4,6 +4,8 @@ import multiprocessing
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
     multiprocessing.cpu_count()
 )
+os.environ["JAX_PLATFORMS"] = "cpu"
+os.environ["CUDA_VISIBLE_DEVICES"] = "" 
 from visualisation.visualiser import visualiser
 
 from direct import apply_direct_method
@@ -11,6 +13,7 @@ from decomposition import decomposition, decomposition_constraint_tuner
 from cs_assembly import case_study_constructor
 from graph.graph_assembly import build_graph_structure
 from utils import *
+from pprint import pprint
 
 import logging
 import hydra
@@ -35,7 +38,6 @@ def main(cfg: DictConfig) -> None:
     if hasattr(cfg.case_study, 'serial_graph'):
         if cfg.case_study.serial_graph is True:
             cfg = build_graph_structure(cfg)
-
     # Construct the case study graph
     G = case_study_constructor(cfg)   # TODO integration of case study construction G is a networkx graph - need to update case study contructor
 
@@ -73,7 +75,7 @@ if __name__ == "__main__":
     import jax
     import sys
     from hydra.utils import get_original_cwd
-    jax.config.update('jax_platform_name', 'gpu' if use_gpu() else 'cpu')
+    jax.config.update('jax_platform_name', 'cpu')
     platform = jax.lib.xla_bridge.get_backend().platform.casefold()
     
     # Enable 64 bit floating point precision

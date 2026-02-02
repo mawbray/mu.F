@@ -1,7 +1,7 @@
 root_node_inputs:
   - [147717.5, 8572.4]
 
-number_repeats: 3
+number_repeats: 10
   
 constraint:
   auxiliary: 'None'
@@ -16,7 +16,7 @@ vector_storage_capacity: 0.0
 number_of_turbines: 1513
 number_of_trains_conversion: 4
 hfc_capacity: 0.0
-renewable_energy_value: 11.8
+renewable_energy_value: 5.9
 constants:
   train_throughput_capacity: 114
   vector_molar_efficiency: 0.888

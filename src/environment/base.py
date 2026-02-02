@@ -32,7 +32,7 @@ class DeterministicNode(ABC):
     """
     def __init__(self, **kwargs):
         self.cfg = self._build_cfg(**kwargs)
-        self._infeas_sign = le if self.cfg.samplers.notion_of_feasibility == 'positive' else ge
+        self._set_infeas_sign()
         self.model_cfg = self.cfg.model if hasattr(self.cfg, "model") else self.cfg
         self.current_step = 0
         self.max_steps = self.model_cfg.number_repeats
@@ -130,4 +130,11 @@ class DeterministicNode(ABC):
         else:
             raise ValueError('No configuration provided for environment')
         return cfg
-    
+
+    def _set_infeas_sign(self):
+        """Sets the notion of infeasibility"""
+        if hasattr(self.cfg, 'samplers'):
+            self._infeas_sign = le if self.cfg.samplers.notion_of_feasibility == 'positive' else ge
+        else:
+            self._infeas_sign = None
+        
