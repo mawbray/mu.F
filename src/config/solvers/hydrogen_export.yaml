@@ -32,11 +32,11 @@ backward_coupling:
   
 # Forward coupling is for rewards
 forward_coupling:
-  max_solution_time: 1. 
+  max_solution_time: 2. 
   parallelised: True
-  n_starts: 4
+  n_starts: 10
   casadi_ipopt_options:
-    maxiter: 500
+    maxiter: 1000
     verbose: False
     tol: 1e-6
     options:

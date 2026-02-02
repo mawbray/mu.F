@@ -134,22 +134,15 @@ def design_space_plot(cfg, G, joint_data_direct, path):
 def add_policy(pp, policy_data, cfg=None, color="r", marker="o", size=60):
     """
     Overlay policy points on an existing PairGrid.
-    policy_data can be:
-      - a DataFrame with columns matching design_space_dimensions
-      - a 1D array-like action vector
     """
-    if isinstance(policy_data, pd.DataFrame):
-        policy_df = policy_data.iloc[:1]
+
+    cols = list(cfg.case_study.design_space_dimensions)
+    vec = np.ravel(policy_data)
+    if vec.shape[0] < len(cols):
+        vec = np.hstack([vec, np.full(len(cols) - vec.shape[0], np.nan)])
     else:
-        if cfg is None:
-            raise ValueError("cfg is required to build policy points from actions.")
-        cols = list(cfg.case_study.design_space_dimensions)
-        vec = np.ravel(policy_data)
-        if vec.shape[0] < len(cols):
-            vec = np.hstack([vec, np.full(len(cols) - vec.shape[0], np.nan)])
-        else:
-            vec = vec[:len(cols)]
-        policy_df = pd.DataFrame([vec], columns=cols)
+        vec = vec[:len(cols)]
+    policy_df = pd.DataFrame([vec], columns=cols)
 
     # Manually overlay a single point per subplot to avoid seaborn re-plotting
     row = policy_df.iloc[0]

@@ -885,11 +885,8 @@ class current_q_evaluator(current_constraint_evaluator):
         """
         De-standardises the decisions for the optimised decision dimensions only.
         """
-        scaler = self.graph.nodes[in_node].get('q_function_x_scalar')
-        if scaler is None:
-            scaler = self.graph.nodes[in_node].get('x_scalar')
-        if scaler is None:
-            return decisions
+        
+        scaler = self.graph.nodes[in_node].get('classifier_x_scalar')
 
         n_d = self.graph.nodes[in_node]['n_design_args']
         n_u = self.graph.nodes[in_node]['n_input_args']
