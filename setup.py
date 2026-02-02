@@ -94,7 +94,7 @@ class PostInstallCommand(install):
 class PostDevelopCommand(develop):
     """Custom develop command that initializes submodules after installation."""
 
-    def run(self):e
+    def run(self):
         init_submodules()
         develop.run(self)
 

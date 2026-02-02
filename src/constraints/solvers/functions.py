@@ -83,9 +83,11 @@ def casadi_nlp_optimizer_no_gcons(objective, bounds, initial_guess):
     initial_guess: numpy array
     Operates in a session via the casadi callbacks and tensorflow V1
     """
-    n_d = len(bounds[0].squeeze())
-    lb = [bounds[0].squeeze()[i] for i in range(n_d)]
-    ub = [bounds[1].squeeze()[i] for i in range(n_d)]
+    lb_arr = jnp.ravel(bounds[0])
+    ub_arr = jnp.ravel(bounds[1])
+    n_d = lb_arr.shape[0]
+    lb = [lb_arr[i] for i in range(n_d)]
+    ub = [ub_arr[i] for i in range(n_d)]
     #tf.keras.backend.clear_session()
     tf.reset_default_graph()
     session = tf.Session()
@@ -115,7 +117,8 @@ def casadi_nlp_optimizer_no_gcons(objective, bounds, initial_guess):
         solver = nlpsol('solver', 'ipopt', nlp, options)
 
         # Solve the NLP
-        solution = solver(x0=np.hstack(initial_guess), lbx=lbx, ubx=ubx)
+        x0 = np.atleast_1d(initial_guess)
+        solution = solver(x0=x0, lbx=lbx, ubx=ubx)
   
     session.close()
     
@@ -133,9 +136,11 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
     initial_guess: numpy array
     Operates in a session via the casadi callbacks and tensorflow V1
     """
-    n_d = len(bounds[0].squeeze())
-    lb = [bounds[0].squeeze()[i] for i in range(n_d)]
-    ub = [bounds[1].squeeze()[i] for i in range(n_d)]
+    lb_arr = jnp.ravel(bounds[0])
+    ub_arr = jnp.ravel(bounds[1])
+    n_d = lb_arr.shape[0]
+    lb = [lb_arr[i] for i in range(n_d)]
+    ub = [ub_arr[i] for i in range(n_d)]
     #tf.keras.backend.clear_session()
     tf.reset_default_graph()
     session = tf.Session()
@@ -171,7 +176,8 @@ def casadi_nlp_optimizer_eq_cons(objective, equality_constraints, bounds, initia
         solver = nlpsol('solver', 'ipopt', nlp, options)
 
         # Solve the NLP
-        solution = solver(x0=np.hstack(initial_guess), lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+        x0 = np.atleast_1d(initial_guess)
+        solution = solver(x0=x0, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
   
     session.close()
     
@@ -229,8 +235,6 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     bounds: list
     initial_guess: numpy array
     """
-
-    # Entry point, use if problem_data['q_function'] then modify the objective function to incorporate the rewards. 
     # TODO update this to handle the case where the problem_data is a dictionary and the contraints are inequality constraints
     initial_guess, bounds, lhs, rhs = \
       problem_data['initial_guess'], problem_data['bounds'], problem_data['eq_lhs'], problem_data['eq_rhs']

@@ -133,13 +133,8 @@ def build_graph_structure(cfg):
     cfg.case_study.process_space_names = list(cfg.case_study.process_space_names) * cfg.model.number_repeats
     cfg.case_study.n_input_args = {f'({n},{n+1})': cfg.case_study.n_input_args for n in range(cfg.model.number_repeats-1)}
     cfg.case_study.unit_op = list(cfg.case_study.unit_op) * cfg.model.number_repeats
-    print("cfg.case_study.KS_bounds.design_args before:", cfg.case_study.KS_bounds.design_args)
     cfg.case_study.KS_bounds.design_args = list(cfg.case_study.KS_bounds.design_args) * cfg.model.number_repeats
-    print("cfg.case_study.KS_bounds.design_args after:", cfg.case_study.KS_bounds.design_args)
-
-    print("cfg.case_study.KS_bounds.aux_args before:", cfg.case_study.KS_bounds.aux_args)
     cfg.case_study.KS_bounds.aux_args = list(cfg.case_study.KS_bounds.aux_args) * cfg.model.number_repeats
-    print("cfg.case_study.KS_bounds.aux_args after:", cfg.case_study.KS_bounds.aux_args)
     cfg.case_study.n_theta = list(cfg.case_study.n_theta) * cfg.model.number_repeats
     cfg.case_study.fn_evals = list(cfg.case_study.fn_evals) * cfg.model.number_repeats
     old_n_aux_args = cfg.case_study.n_aux_args
@@ -149,3 +144,7 @@ def build_graph_structure(cfg):
     cfg.case_study.n_aux_args = new_n_aux_args
     return cfg
     
+def reward_override(cfg):
+    if cfg.case_study.eval_rewards is True:
+        cfg.surrogate.surrogate_forward = cfg.surrogate.q_func_surrogate
+    return cfg

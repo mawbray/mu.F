@@ -677,6 +677,233 @@ class backward_constraint_evaluator_general(forward_constraint_evaluator):
 
         return succ_fn_input_i
 
+class current_constraint_evaluator(backward_constraint_evaluator_general):
+    """
+    A current node surrogate constraint evaluator
+    - solved using casadi interface with jax and IPOPT
+    - no parallelism needed as only one constraint surrogate per node.
+
+    Syntax: 
+        initialise: class_instance(cfg, graph, node, pool)
+        call: class_instance.evaluate(inputs)
+    """
+    def __init__(self, cfg, graph, node, pool=None):
+        super().__init__(cfg, graph, node, pool = pool)
+    
+    def __call__(self, inputs, aux):
+        return self.evaluate(inputs, aux)
+    
+    def evaluate(self, inputs, aux):
+        """
+        Evaluates the constraints by iterating sequentially over the design and the uncertain params
+        inputs: samples in the extended design space
+        outputs: the constraint evaluations
+        """
+        return self.wrapper(inputs, aux)
+    
+    def wrapper(self, inputs, aux):
+        """ first prepare the problem set up, 
+        then evaluate the constraints in parallel using ray.
+        """
+
+        solver_inputs = []
+        # Combine the dimensions of outputs and aux
+        # Iterate over each dimension. 
+        for i in range(inputs.shape[0]):
+            solver_inputs.append(self.evaluate_parallel(i, inputs[i,:].reshape(1,-1)))        
+
+        results = []
+        # run solvers in parallel
+        for s_i in solver_inputs:
+            solver_reshape = []
+            # NOTE currently this iterates over uncertainty realisations (although not actually implemented in the code following) - think about expectations here.)
+            solver_reshape.append((s_i[self.node][0].solver, s_i[self.node][0].problem_data))
+            # evaluate inputs for in parallel for each evaluation of uncertainty
+            results.append(self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[self.node][0]))
+
+
+        return jnp.concatenate([jnp.array(v).reshape(-1,1) for v in results], axis=-1)
+
+    def prepare_forward_problem(self, inputs):
+        """
+        Building the forward problem by extracting this node's constraint surrogate and building it 
+        into the problem data structure. This will just be loaded as an objective in the base case.
+        """
+        graph, node, cfg = self.graph, self.node, self.cfg
+
+        problem_data = {} # Only one problem
+
+        # Extracting problem dimensionality
+        n_design_args = self.graph.nodes[self.node]['n_design_args']
+        n_input_args = self.graph.nodes[self.node]['n_input_args']
+        n_aux_args = self.graph.graph['n_aux_args']
+
+        # Dimensionality parameters - ndim is total, n_d_k is optimised dimensions
+        ndim = n_design_args + n_input_args + n_aux_args
+        n_d_k = n_design_args + n_aux_args
+        
+        # Getting inputs for the model
+        input_indices = np.copy(np.array([n_design_args + input_ for input_ in range(n_input_args)]))
+        aux_indices = np.copy(np.array([input_ for input_ in range(ndim - n_aux_args, ndim)]))
+
+        # Standardising inputs if required
+        if self.cfg.solvers.standardised: 
+           inputs = inputs.at[:].set(
+            standardise_inputs(
+                graph,
+                inputs,
+                node,
+                jnp.hstack([input_indices, aux_indices]).astype(int)
+                )
+            )
+           
+           decision_bounds = self.standardise_model_decisions(
+                self.graph.nodes[self.node]["extendedDS_bounds"],
+                self.node
+                )
+        else:
+            decision_bounds = self.graph.nodes[self.node]["extendedDS_bounds"]
+
+        # Masking off decision bounds for inputs and aux
+        decision_bounds = [jnp.delete(bound, jnp.hstack([input_indices, aux_indices]).astype(int), axis=1) for bound in decision_bounds]
+
+        # Equality constraints are not needed as ouputs are used
+        problem_data['eq_rhs'] = jnp.empty((0,1))
+        problem_data['eq_lhs'] = jnp.empty((0,1))
+
+        # Loading the constraint surrogate
+        problem_data['objective_func'] = {'f0': {
+            'params': self.graph.nodes[node]["classifier_serialised"],
+            'args': [i for i in range(n_d_k)],
+            'model_class': 'classification', 'model_surrogate': 'live_set_surrogate',
+            'model_type': self.cfg.surrogate.classifier_selection},
+            'obj_fn': partial(lambda x, f1, y: mask_classifier(f1, n_design_args, ndim, input_indices, aux_indices)(x.reshape(1,-1)[:,:n_d_k],y).reshape(-1,1), y=inputs.reshape(1,-1)),
+            'decision_bounds': decision_bounds
+            }
+        
+        problem_data['bounds'] = decision_bounds
+        problem_data['constraints'] = {}
+        
+        return problem_data
+    
+    def load_solver(self):
+        """
+        Loads the solver
+        """
+        return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)    
+            
+    def evaluate_parallel(self, i, inputs):
+
+        problem_data = self.prepare_forward_problem(inputs)
+        solver_object = self.load_solver()  # solver type has been defined elsewhere in the case study/graph construction. 
+        curr_fn_input_i = {self.node: {}}
+
+        # only one problem to solve here
+        forward_solver = solver_object.from_method(self.cfg.solvers.forward_coupling, solver_object.solver_type, problem_data['objective_func'], problem_data['bounds'], problem_data['constraints'])
+        initial_guess = forward_solver.initial_guess()
+        forward_solver.solver.problem_data['data']['initial_guess'] = initial_guess
+        forward_solver.solver.problem_data['data']['eq_rhs'] = problem_data['eq_rhs']
+        forward_solver.solver.problem_data['data']['eq_lhs'] = problem_data['eq_lhs']
+        forward_solver.solver.problem_data['data']['cfg'] = dict(self.cfg)
+        forward_solver.solver.problem_data['data']['uncertain_params'] = None
+        forward_solver.solver.problem_data['id'] = i
+        curr_fn_input_i[self.node][0] = forward_solver.solver
+
+        return curr_fn_input_i
+        
+class current_q_evaluator(current_constraint_evaluator):
+    """
+    A Q-learning based evaluator for the current node
+    """
+    def __init__(self, cfg, graph, node, pool):
+        super().__init__(cfg, graph, node, pool)
+    
+
+    def prepare_forward_problem(self, inputs):
+        problem_data = super().prepare_forward_problem(inputs)
+
+        node, graph, cfg = self.node, self.graph, self.cfg
+
+        # Move the objective function into the constraints for this node
+        problem_data['constraints'][0] = problem_data['objective_func']['f0']
+        obj_fn_original = problem_data['objective_func']['obj_fn']
+        problem_data['constraints'][0]['g_fn'] = lambda x, fn: obj_fn_original(x, f1=fn)
+
+        # Extracting problem dimensionality
+        n_design_args = self.graph.nodes[self.node]['n_design_args']
+        n_input_args = self.graph.nodes[self.node]['n_input_args']
+        n_aux_args = self.graph.graph['n_aux_args']
+
+        # Dimensionality parameters - ndim is total, n_d is optimised dimensions
+        ndim = n_design_args + n_input_args + n_aux_args
+        n_d = n_design_args + n_aux_args
+        
+        # Getting inputs for the model
+        input_indices = np.copy(np.array([n_design_args + input_ for input_ in range(n_input_args)]))
+        aux_indices = np.copy(np.array([input_ for input_ in range(ndim - n_aux_args, ndim)]))
+
+
+        # Then we need to redefine the objective function for our q-learning target.
+        problem_data['objective_func'] = {'f0': {
+            'params': self.graph.nodes[node]["q_function_serialised"], # TODO <- Need to change how the name is saved for the q function surrogate. 
+            'args': [i for i in range(n_d)],
+            'model_class': 'regression', 'model_surrogate': 'q_func_surrogate', 
+            'model_type': self.cfg.surrogate.regressor_selection},
+            'obj_fn': partial(lambda x, f1, y: mask_classifier(f1, n_d, ndim, input_indices, aux_indices)(x.reshape(1,-1)[:,:n_d],y).reshape(-1,1), y=inputs.reshape(1,-1))}
+
+        return problem_data
+    
+    def load_solver(self):
+        """
+        Loads the solver
+        """
+        self.cfg.solvers.forward_coupling.parallelised = False 
+        return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)
+    
+        
+    def serial_evaluation(self, solver, max_devices, solver_processing):
+
+        # determine the batch size
+        workers, remainder = determine_batches(len(solver), 1)
+        # split the problems
+        solver_batches = create_batches(workers, solver)
+
+        # parallelise the batch
+        result_dict = {}
+        evals = 0
+        for i, solve in enumerate(solver_batches): 
+            results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve] # set off and then synchronize before moving on
+            for j, result in enumerate(results):
+                result_dict[evals + j] = self.destandardise_model_decisions(solver_processing.solve_digest(*result, return_results=True)['result'], self.node)
+            evals += j+1
+
+        del solver_batches, results
+
+        return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
+    
+    def destandardise_model_decisions(self, decisions, in_node):
+        """
+        De-standardises the decisions for the optimised decision dimensions only.
+        """
+        scaler = self.graph.nodes[in_node].get('q_function_x_scalar')
+        if scaler is None:
+            scaler = self.graph.nodes[in_node].get('x_scalar')
+        if scaler is None:
+            return decisions
+
+        n_d = self.graph.nodes[in_node]['n_design_args']
+        n_u = self.graph.nodes[in_node]['n_input_args']
+        n_aux = self.graph.graph['n_aux_args']
+        opt_indices = list(range(n_d)) + list(range(n_d + n_u, n_d + n_u + n_aux))
+
+        opt_idx = jnp.array(opt_indices)
+        mean = scaler.mean[opt_idx]
+        std = scaler.std[opt_idx]
+
+        dec = jnp.ravel(jnp.array(decisions))
+        return (dec * std) + mean
+
+
 
 class q_learning_evaluator(backward_constraint_evaluator_general):
     """
@@ -685,7 +912,12 @@ class q_learning_evaluator(backward_constraint_evaluator_general):
     def __init__(self, cfg, graph, node, pool):
         super().__init__(cfg, graph, node, pool)
 
+
     def prepare_forward_problem(self, outputs):
+        
+        # For the Q-learning evaluator, it is enough to just load the constraint surrogate
+        # for this node as
+
         problem_data = super().prepare_forward_problem(outputs)
 
         # My thoughts are to add the q function evaluation to the logic here
@@ -694,8 +926,6 @@ class q_learning_evaluator(backward_constraint_evaluator_general):
             problem_data[succ][0]['constraints'][0] = problem_data[succ][0]['objective_func']['f0']
             obj_fn_original = problem_data[succ][0]['objective_func']['obj_fn']
             problem_data[succ][0]['constraints'][0]['g_fn'] = lambda x, fn: obj_fn_original(x, f1=fn)
-            # Remove obj_fn
-            #problem_data[succ][0]['constraints'][0].pop('obj_fn')
 
             # Get the necessary inputs for the successor
             graph, node, cfg = self.graph, self.node, self.cfg
@@ -705,21 +935,16 @@ class q_learning_evaluator(backward_constraint_evaluator_general):
             input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices']]))
             aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices']]))
             n_d_k = self.graph.nodes[succ]['n_design_args'] + sum([self.graph.edges[n,succ]['n_input_args'] for n in self.graph.predecessors(succ) if n!=self.node]) + self.graph.graph['n_aux_args']    
-
-
             # Then we need to redefine the objective function for our q-learning target.
             problem_data[succ][0]['objective_func'] = {'f0': {
                 'params': self.graph.nodes[succ]["q_function_serialised"], # TODO <- Need to change how the name is saved for the q function surrogate. 
                 'args': [i for i in range(n_d_k)],
                 'model_class': 'regression', 'model_surrogate': 'q_func_surrogate', 
-                'model_type': self.cfg.surrogate.q_function_selection},
+                'model_type': self.cfg.surrogate.regresor_selection},
                 'obj_fn': partial(lambda x, f1, y: mask_classifier(f1, n_d, ndim, input_indices, aux_indices)(x.reshape(1,-1)[:,:n_d_k],y).reshape(-1,1), y=succ_input.reshape(1,-1))}
 
 
         return problem_data
-    
-    #def evaluate_parallel(self, i, outputs):
-    #    raise NotImplementedError("Parallel evaluation is not implemented.")
 
 class forward_constraint_decentralised_evaluator(forward_constraint_evaluator):
     """
@@ -999,7 +1224,6 @@ def get_successor_inputs(graph, node, outputs):
         if outputs.ndim < 3: outputs = jnp.expand_dims(outputs, axis=0)
         succ_inputs[succ]= output_indices(outputs).reshape(outputs.shape[1],-1)
     return succ_inputs
-
 
 def construct_solver(objective_func, bounds, tol):
     bounds = bounds

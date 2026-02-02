@@ -1,32 +1,7 @@
 
-surrogate_forward:
-  drop_uncertain_params: False
-  ann:
-    hidden_size_options: 
-      - [50, 50]
-      - [25, 10]
-      - [10, 10]
-    activation_functions:
-      - ['tanh', tanh]
-    decaying_lr_and_clip_param: True
-    learning_rate: 0.01
-    terminal_lr: 0.00001  
-    num_epochs: 1000 # 10 #50 # 50 # 500
-    min_delta: 0.00001
-    patience: 10
-    batch_size: 264 #64
-  gp:
-    kernel: 'Matern'
-    n_restarts_optimizer: 10
-    alpha: 0.1
-    normalize_y: True
-    noise: 'gaussian'
-    
-
 classifier: true
 classifier_selection: 'SVM' # or 'SVM'
 regressor_selection: 'ANN' # or 'GP' 
-q_function_selection: 'ANN'
 probability_map: false
 
 subsample_size: 100000
@@ -59,3 +34,21 @@ classifier_args:
 
 
 forward_evaluation_surrogate: false
+
+surrogate_forward: # This is for the q-function surrogate
+  drop_uncertain_params: False
+  ann:
+    hidden_size_options:
+      - [50, 25] #- [100, 25]
+      - [50, 50]
+      - [25, 10]
+    activation_functions:
+      - ['tanh', tanh]
+
+    decaying_lr_and_clip_param: True
+    learning_rate: 0.01
+    terminal_lr: 0.00001  
+    num_epochs: 1000 # 10 #50 # 50 # 500
+    min_delta: 0.00001
+    patience: 50
+    batch_size: 264 #64

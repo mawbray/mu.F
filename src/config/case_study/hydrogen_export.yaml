@@ -32,7 +32,7 @@ parameters_samples:
 parameters_best_estimate: 
   - [0.]
 
-extendedDS_bounds: [None] 
+extendedDS_bounds: [None, None] 
 
 design_space_dimensions:
 - 'vector_throughput'

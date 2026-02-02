@@ -6,10 +6,14 @@ NOTE:
     - The step interfact will be used in simulation, whilst F and G will be used in Mu_F.
 """
 
-import weakref
+
 import jax.numpy as jnp
 
+from omegaconf import OmegaConf, DictConfig
 from abc import ABC, abstractmethod
+from operator import ge, le
+
+from agent.base import HYDRA_CONFIG_FILE, OUTPUTS_DIR
 
 class DeterministicNode(ABC):
     U_SIZE = None  # Size of input observation vector
@@ -26,13 +30,14 @@ class DeterministicNode(ABC):
         - x = G(u,v) are constraint spaces
 
     """
-    def __init__(self, cfg):
-        self.cfg = cfg
-        self.model_cfg = cfg.model if hasattr(cfg, "model") else cfg
+    def __init__(self, **kwargs):
+        self.cfg = self._build_cfg(**kwargs)
+        self._infeas_sign = le if self.cfg.samplers.notion_of_feasibility == 'positive' else ge
+        self.model_cfg = self.cfg.model if hasattr(self.cfg, "model") else self.cfg
         self.current_step = 0
         self.max_steps = self.model_cfg.number_repeats
         self._cache = self.model_cfg.memory
-        self._initialise_env(cfg)
+        self._initialise_env(self.cfg)
 
     # ---- Class methods ---- #
     @classmethod
@@ -63,7 +68,7 @@ class DeterministicNode(ABC):
         """Reset the environment to initial state"""
         self.current_step = 0
         self._initialise_env(self.cfg)
-        pass
+        return jnp.array(self.cfg.model.root_node_inputs)
 
     def step(self, u, v):
         """
@@ -77,22 +82,24 @@ class DeterministicNode(ABC):
             - y : outputs
             - x : constraint spaces
         """
-        u_v = jnp.concatenate([u, v], axis=-1)
-        self._tick()
-
-        output = self.simulate(u_v)
+        
+        
+        output = self.simulate(u, v)
 
         y = self.F(output)
         x = self.G(output)
         reward = self.R(output)
+        
         term, trunc = self._termination_conditions(x)
-        if term and not trunc: reward = self.model_cfg.infeasibility_penalty
+        self._tick()
+    
+        if term and not trunc: reward = 1000
 
         return  y, reward, term, trunc, {'constraint_values': x}
     
     def _termination_conditions(self, x):
         """Termination conditions for the environment"""
-        if jnp.any(x < self.model_cfg.feas_thresh):
+        if jnp.any(self._infeas_sign(x, self.model_cfg.feas_thresh)):
             term = True
             trunc = False
         elif self.current_step >= self.max_steps:
@@ -108,4 +115,19 @@ class DeterministicNode(ABC):
         """Increment the current step"""
         self.current_step += 1
         return self.current_step
+    
+    def _build_cfg(self, **kwargs):
+        """Build the configuration for the environment"""
+        if 'cfg' in kwargs:
+            if isinstance(kwargs['cfg'], dict):
+                cfg = OmegaConf.create(kwargs['cfg'])
+            elif(isinstance(kwargs['cfg'], DictConfig)):
+                cfg = kwargs['cfg']
+            else:
+                pass
+        elif 'solve_date' in kwargs and 'solve_id' in kwargs:
+            cfg = OmegaConf.load(OUTPUTS_DIR.format(solve_date=kwargs['solve_date'], solve_id=kwargs['solve_id']) + HYDRA_CONFIG_FILE)
+        else:
+            raise ValueError('No configuration provided for environment')
+        return cfg
     

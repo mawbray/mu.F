@@ -1,7 +1,7 @@
 root_node_inputs:
   - [147717.5, 8572.4]
 
-number_repeats: 10
+number_repeats: 3
   
 constraint:
   auxiliary: 'None'
@@ -10,7 +10,7 @@ node_aux:
   - None
 
 memory: false
-feas_thresh: 0.0
+feas_thresh: 15
 hydrogen_storage_capacity: 295435
 vector_storage_capacity: 0.0
 number_of_turbines: 1513

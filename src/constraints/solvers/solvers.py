@@ -57,7 +57,7 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
     def get_message(self, solver):
         return solver['return_status']
     
-    def solve_digest(self, solver, result, len_feasible):
+    def solve_digest(self, solver, result, len_feasible, return_results=False):
         message = self.get_message(solver)
         status = self.get_status(solver)
         objective = self.get_objective(result)
@@ -73,10 +73,17 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         if (not status):
             logging.warning(f'{message}')
 
-        del solver, result, t_wall, len_feasible
+        if return_results:
+            del solver, t_wall, len_feasible
+        else:
+            del solver, result, t_wall, len_feasible
 
-        return {'success': status, 'objective': -objective, 'constraints': constraints, 'message': message}
-    
+        out = {'success': status, 'objective': -objective, 'constraints': constraints, 'message': message}
+
+        if return_results:
+            out['result'] = result['x']
+
+        return out        
     
     def get_status(self, solver):
         try:
@@ -193,7 +200,7 @@ class parallel_casadi_box_eq_nlp_solver(solver_base):
     def get_message(self, solver):
         return solver['return_status']
     
-    def solve_digest(self, solver, result, len_feasible):
+    def solve_digest(self, solver, result, len_feasible, return_results=False):
         message = self.get_message(solver)
         status = self.get_status(solver)
         objective = self.get_objective(result)
@@ -209,9 +216,17 @@ class parallel_casadi_box_eq_nlp_solver(solver_base):
         if (not status):
             logging.warning(f'{message}')
 
-        del solver, result, t_wall, len_feasible
+        if return_results:
+            del solver, t_wall, len_feasible
+        else:
+            del solver, result, t_wall, len_feasible
 
-        return {'success': status, 'objective': -objective, 'constraints': constraints, 'message': message}
+        out = {'success': status, 'objective': -objective, 'constraints': constraints, 'message': message}
+
+        if return_results:
+            out['result'] = result['x']
+
+        return out
     
     
     def get_status(self, solver):

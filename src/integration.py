@@ -330,7 +330,7 @@ def update_node_bounds_iplus1(graph, node, cfg):
 
 def q_function_construction(cfg, graph, node, iterate):
     # train the model
-    q_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.regressor_selection, 'q_func_surrogate'), iterate)
+    q_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.q_function_selection, 'q_func_surrogate'), iterate)
     q_surrogate.fit(node=None)
     if cfg.solvers.standardised:
         query_model = q_surrogate.get_model('standardised_model')

@@ -657,7 +657,7 @@ def affine_case_study_5(
 
 @partial(jax.jit, static_argnums=(0,))
 def hydrogen_export(cfg, design_args, input_args, aux, *args):
-    return H2ExportEnvironment(cfg)(u=input_args, v=design_args)
+    return H2ExportEnvironment(cfg=cfg)(u=input_args, v=design_args)
 
 
 case_studies = {'tablet_press': {0: unit_1_dynamics, 1: unit_2_dynamics, 2: unit_3_dynamics}, 

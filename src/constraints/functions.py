@@ -170,19 +170,19 @@ def negative_output_constraint(output, cfg):
 # -------------------------------------------------------------------------------- #
 @partial(jit, static_argnums=(1))
 def hydrogen_export_1(dynamic_profile, cfg):
-    return H2ExportEnvironment(cfg).G(dynamic_profile)[..., 0]
+    return H2ExportEnvironment(cfg=cfg).G(dynamic_profile)[..., 0]
 
 @partial(jit, static_argnums=(1))
 def hydrogen_export_2(dynamic_profile, cfg):
-    return H2ExportEnvironment(cfg).G(dynamic_profile)[..., 1]
+    return H2ExportEnvironment(cfg=cfg).G(dynamic_profile)[..., 1]
 
 @partial(jit, static_argnums=(1))
 def hydrogen_export_3(dynamic_profile, cfg):
-    return H2ExportEnvironment(cfg).G(dynamic_profile)[..., 2]
+    return H2ExportEnvironment(cfg=cfg).G(dynamic_profile)[..., 2]
 
 @partial(jit, static_argnums=(1))
 def hydrogen_export_4(dynamic_profile, cfg):
-    return H2ExportEnvironment(cfg).G(dynamic_profile)[..., 3]
+    return H2ExportEnvironment(cfg=cfg).G(dynamic_profile)[..., 3]
 
 
 

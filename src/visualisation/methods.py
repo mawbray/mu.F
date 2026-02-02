@@ -69,17 +69,12 @@ def decompose_call(cfg, G, path, init=True):
     pp = decomposition_plot(cfg, G, pp, save=True, path=path)
     return pp
 
-
 def decomposition_plot(cfg, G, pp, save=True, path='decomposed_pair_grid_plot'):
     # load live sets for each subproblem from the graph 
     inside_samples_decom = [pd.DataFrame({col:G.nodes[node]['live_set_inner'][:,i] for i, col in enumerate(cfg.case_study.process_space_names[node])}) for node in G.nodes]
-    print('cols', [{i: col for i, col in enumerate(cfg.case_study.process_space_names[node])} for node in G.nodes])
-
-    print("inside_samples_decom", inside_samples_decom)
     # just keep those variables with Ui in the column name # TODO update this to also receive the live set probabilities 
     inside_samples_decom = [in_[[col for col in in_.columns if f"N{i+1}" in col]] for (i,in_) in enumerate(inside_samples_decom)]
-    
-    print("inside_samples_decom", inside_samples_decom)
+
     if cfg.reconstruction.plot_reconstruction == 'probability_map':
         for i, is_ in enumerate(inside_samples_decom):
             is_['probability'] = G.nodes[i]['live_set_inner_prob'] # TODO update this to also receive the live set probabilities
@@ -100,12 +95,13 @@ def decomposition_plot(cfg, G, pp, save=True, path='decomposed_pair_grid_plot'):
 
     return pp
     
-def reconstruction_plot(cfg, G, reconstructed_df, save=True, path='reconstructed_pair_grid_plot'):
+def reconstruction_plot(cfg, G, reconstructed_df, save=True, path='reconstructed_pair_grid_plot', include_decomposition=True):
 
     pp = initializer_cp(reconstructed_df)
     pp = init_plot(cfg, G, pp, init=False, save=False)
-    pp = decomposition_plot(cfg, G, pp, save =False)
-    pp.map_lower(sns.scatterplot, data=reconstructed_df, edgecolor="k", c="b", linewidth=0.5)
+    if include_decomposition:
+        pp = decomposition_plot(cfg, G, pp, save=False)
+    pp.map_lower(sns.scatterplot, data=reconstructed_df, edgecolor="k", color="blue", alpha=0.6, linewidth=0.5)
 
     if save: pp.savefig(path + ".svg", dpi=300)
 
@@ -134,6 +130,40 @@ def design_space_plot(cfg, G, joint_data_direct, path):
     pp.savefig(path + ".svg", dpi=300)
 
     return pp
+
+def add_policy(pp, policy_data, cfg=None, color="r", marker="o", size=60):
+    """
+    Overlay policy points on an existing PairGrid.
+    policy_data can be:
+      - a DataFrame with columns matching design_space_dimensions
+      - a 1D array-like action vector
+    """
+    if isinstance(policy_data, pd.DataFrame):
+        policy_df = policy_data.iloc[:1]
+    else:
+        if cfg is None:
+            raise ValueError("cfg is required to build policy points from actions.")
+        cols = list(cfg.case_study.design_space_dimensions)
+        vec = np.ravel(policy_data)
+        if vec.shape[0] < len(cols):
+            vec = np.hstack([vec, np.full(len(cols) - vec.shape[0], np.nan)])
+        else:
+            vec = vec[:len(cols)]
+        policy_df = pd.DataFrame([vec], columns=cols)
+
+    # Manually overlay a single point per subplot to avoid seaborn re-plotting
+    row = policy_df.iloc[0]
+    indices = zip(*np.tril_indices_from(pp.axes, -1))
+    for i, j in indices:
+        x_var = pp.x_vars[j]
+        y_var = pp.y_vars[i]
+        ax = pp.axes[i, j]
+        x_val = row.get(x_var, np.nan)
+        y_val = row.get(y_var, np.nan)
+        if not (np.isnan(x_val) or np.isnan(y_val)):
+            ax.scatter(x_val, y_val, c=color, marker=marker, s=size, edgecolor="k", linewidth=0.5, zorder=5)
+    return pp
+
 
 
 def design_space_plot_plus_polytope(cfg, G, pp, joint_data_direct, path, save=True):
@@ -209,5 +239,3 @@ def polytope_plot_2(pp, polytope):
 def hide_current_axis(*args, **kwds):
     plt.gca().set_visible(False)
     return
-
-

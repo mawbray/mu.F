@@ -11,7 +11,6 @@ from decomposition import decomposition, decomposition_constraint_tuner
 from cs_assembly import case_study_constructor
 from graph.graph_assembly import build_graph_structure
 from utils import *
-from pprint import pprint
 
 import logging
 import hydra
@@ -36,6 +35,7 @@ def main(cfg: DictConfig) -> None:
     if hasattr(cfg.case_study, 'serial_graph'):
         if cfg.case_study.serial_graph is True:
             cfg = build_graph_structure(cfg)
+
     # Construct the case study graph
     G = case_study_constructor(cfg)   # TODO integration of case study construction G is a networkx graph - need to update case study contructor
 
@@ -67,11 +67,6 @@ def main(cfg: DictConfig) -> None:
 
     return G
 
-def use_gpu():
-    p = argparse.ArgumentParser()
-    p.add_argument("--gpu", action="store_true",
-                   help="Use GPU, defaults to CPU.")
-    return p.parse_args().gpu
 
 if __name__ == "__main__":
     

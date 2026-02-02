@@ -24,8 +24,8 @@ class H2ExportEnvironment(DeterministicNode):
                 upper_h2_storage]
     """
 
-    def __init__(self, cfg):
-        super().__init__(cfg)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     # ---- Interface with Mu.F ---- #
     def __call__(self, u: jnp.ndarray, v: jnp.ndarray) -> jnp.ndarray:
@@ -102,7 +102,7 @@ class H2ExportEnvironment(DeterministicNode):
         upper_h2_storage_cons = hydrogen_storage_upper_cons(hydrogen_storage, self._upper_storage_limit)
 
         # Calculate reward
-        reward = jnp.broadcast_to(vector_throughput, hydrogen_storage.shape)
+        reward = jnp.broadcast_to(-vector_throughput, hydrogen_storage.shape)
 
         # Stack outputs and constraints
         outputs = jnp.stack([hydrogen_storage, vector_throughput], axis=-1)
