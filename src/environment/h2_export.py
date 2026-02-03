@@ -31,7 +31,7 @@ class H2ExportEnvironment(DeterministicNode):
     def __call__(self, u: jnp.ndarray, v: jnp.ndarray) -> jnp.ndarray:
         assert u.shape[-1] == self.U_SIZE, f"Expected last dimension {self.U_SIZE}, got {u.shape[-1]}"
         assert v.shape[-1] == self.V_SIZE, f"Expected last dimension {self.V_SIZE}, got {v.shape[-1]}"
-        return self.simulate(u, v, z = 11.8 * jnp.ones_like(u[..., :1]))
+        return self.simulate(u, v, z = 5.9 * jnp.ones_like(u[..., :1]))
     
     @partial(jax.jit, static_argnums=0)
     def simulate(self, u: jnp.ndarray, v: jnp.ndarray, z: jnp.ndarray = None) -> jnp.ndarray:

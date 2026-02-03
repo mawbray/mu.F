@@ -54,8 +54,8 @@ class Agent:
         if self._node == 0:
             u = jnp.empty((u.shape[0], 0))
 
-        with suppress_output():
-            v = self.q_network(node=self._node)(u[jnp.newaxis, :], None)
+        #with suppress_output():
+        v = self.q_network(node=self._node)(u[jnp.newaxis, :], None)
 
         self._actions.append((self._node, v))
         self._node += 1

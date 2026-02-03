@@ -885,7 +885,7 @@ class current_q_evaluator(current_constraint_evaluator):
         """
         De-standardises the decisions for the optimised decision dimensions only.
         """
-        
+
         scaler = self.graph.nodes[in_node].get('classifier_x_scalar')
 
         n_d = self.graph.nodes[in_node]['n_design_args']
@@ -937,7 +937,7 @@ class q_learning_evaluator(backward_constraint_evaluator_general):
                 'params': self.graph.nodes[succ]["q_function_serialised"], # TODO <- Need to change how the name is saved for the q function surrogate. 
                 'args': [i for i in range(n_d_k)],
                 'model_class': 'regression', 'model_surrogate': 'q_func_surrogate', 
-                'model_type': self.cfg.surrogate.regresor_selection},
+                'model_type': self.cfg.surrogate.regressor_selection},
                 'obj_fn': partial(lambda x, f1, y: mask_classifier(f1, n_d, ndim, input_indices, aux_indices)(x.reshape(1,-1)[:,:n_d_k],y).reshape(-1,1), y=succ_input.reshape(1,-1))}
 
 

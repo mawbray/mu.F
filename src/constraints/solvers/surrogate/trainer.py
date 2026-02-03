@@ -38,6 +38,7 @@ class trainer_base(ABC):
 class trainer(trainer_base):
     def __init__(self, graph, unit_index, cfg, model_type, iterate):
         super().__init__(graph, unit_index, cfg, model_type, iterate)
+        self.x_scalar_override = None
 
     def get_model_object(self, string: str) -> None:
         if string == 'standardised_model':
@@ -52,7 +53,7 @@ class trainer(trainer_base):
     def load_trainer_methods(self) -> None:
         if self.model_subclass == 'ANN':
             if self.model_class == 'regression':
-                self.trainer = partial(train_ann, model_type='regressor')
+                self.trainer = partial(train_ann, model_type='regressor', x_scalar_override=self.x_scalar_override)
             elif self.model_class == 'classification':
                 self.trainer = partial(train_ann, model_type='classifier')
         elif self.model_subclass == 'GP':
@@ -77,6 +78,8 @@ class trainer(trainer_base):
 
     def train(self, node=None) -> jnp.ndarray:
         dataset = self.get_data(successor_node=node)
+        if self.model_surrogate == 'q_func_surrogate' and self.model_subclass == 'ANN':
+            self.x_scalar_override = self.graph.nodes[self.unit_index].get('classifier_x_scalar')
         self.load_trainer_methods()
         model, args, serialised_data = self.trainer(self.cfg, dataset, self.cfg.surrogate.num_folds) 
 

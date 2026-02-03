@@ -330,7 +330,7 @@ def update_node_bounds_iplus1(graph, node, cfg):
 
 def q_function_construction(cfg, graph, node, iterate):
     # train the model
-    q_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.q_function_selection, 'q_func_surrogate'), iterate)
+    q_surrogate = surrogate(graph, node, cfg, ('regression', cfg.surrogate.regressor_selection, 'q_func_surrogate'), iterate)
     q_surrogate.fit(node=None)
     if cfg.solvers.standardised:
         query_model = q_surrogate.get_model('standardised_model')
@@ -550,6 +550,21 @@ class subproblem_model(ABC):
         # concatenate constraint evaluations
         concat_obj = [process_constraint_evals, forward_constraint_evals, backward_constraint_evals, decentralised_constraint_evals, decentralised_root_constraint_evals]
         cons_g = jnp.concatenate([c for c in concat_obj if c is not None], axis=-1)  # return raw constraint values (n_d \times n_theta \times n_g)
+        # Smooth saturation to keep DEUS score numerically stable while preserving monotonicity.
+        cons_g = 50.0 * jnp.tanh(cons_g / 50.0)
+
+        logging.info(
+            "node %s inputs min/max: %s %s",
+            self.unit_index,
+            jnp.min(unit_inputs) if unit_inputs is not None and unit_inputs.size else None,
+            jnp.max(unit_inputs) if unit_inputs is not None and unit_inputs.size else None,
+        )
+        logging.info(
+            "node %s g min/max: %s %s",
+            self.unit_index,
+            jnp.min(cons_g) if cons_g is not None and cons_g.size else None,
+            jnp.max(cons_g) if cons_g is not None and cons_g.size else None,
+        )
 
         # storing classifier data and updating function evaluations
         if (self.cfg.surrogate.classifier and self.mode != 'backward-forward'):

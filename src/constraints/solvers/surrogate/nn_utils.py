@@ -94,7 +94,20 @@ def check_dims(D):
 
     return D
 
-def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng_key: random.PRNGKey=jax.random.PRNGKey(0)): 
+class _ScalerShim:
+    def __init__(self, mean, scale):
+        self.mean_ = np.array(mean)
+        self.scale_ = np.array(scale)
+
+
+def hyperparameter_selection(
+    cfg: DictConfig,
+    D,
+    num_folds: int,
+    model_type,
+    rng_key: random.PRNGKey = jax.random.PRNGKey(0),
+    x_scalar_override=None,
+):
     # Define the hyperparameters to search over
     if model_type == 'regressor':
         surrogate_cfg = cfg.surrogate.surrogate_forward.ann
@@ -111,13 +124,20 @@ def hyperparameter_selection(cfg: DictConfig, D, num_folds: int, model_type, rng
 
     D = check_dims(D)
 
-    x_scalar = StandardScaler().fit(D.X)
+    if x_scalar_override is not None:
+        x_mean_np = np.array(x_scalar_override.mean)
+        x_std_np = np.array(x_scalar_override.std)
+        x_scalar = _ScalerShim(x_mean_np, x_std_np)
+        standard_X = (np.array(D.X) - x_mean_np) / x_std_np
+    else:
+        x_scalar = StandardScaler().fit(D.X)
+        standard_X = x_scalar.transform(D.X)
     if model_type == 'regressor':
         y_scalar = StandardScaler().fit(D.y)
-        standard_D = Dataset(x_scalar.transform(D.X), y_scalar.transform(D.y))
+        standard_D = Dataset(standard_X, y_scalar.transform(D.y))
     elif model_type == 'classifier':
         y_scalar = jnp.astype((D.y + 1)/2, jnp.int32)
-        standard_D = Dataset(x_scalar.transform(D.X), y_scalar)
+        standard_D = Dataset(standard_X, y_scalar)
 
     
 
