@@ -2,8 +2,10 @@ from casadi import SX, MX, nlpsol, Function, vertcat, Sparsity
 import casadi 
 import numpy as np
 from scipy.stats import qmc
+import jax
 import jax.numpy as jnp
 from jax.experimental import jax2tf
+from collections import deque
 import multiprocessing as mp
 import tensorflow.compat.v1 as tf # .compat.v1
 import ray
@@ -19,7 +21,7 @@ tf.disable_v2_behavior()
 utilities for Casadi NLP solver with equality constraints
 """
 
-def generate_initial_guess(n_starts, n_d, bounds):
+def generate_initial_guess(n_starts, n_d, bounds, seed=None):
     """
     Here we have defined a Sobol sequence to generate the initial guesses for the NLP solver
     n_starts: int
@@ -31,8 +33,39 @@ def generate_initial_guess(n_starts, n_d, bounds):
     n_d = len(bounds[0])
     lower_bound = bounds[0]
     upper_bound = bounds[1]
-    sobol_samples = qmc.Sobol(d=n_d, scramble=True).random(n_starts)
+    sobol_samples = qmc.Sobol(d=n_d, scramble=True, seed=seed).random(n_starts)
     return jnp.array(lower_bound) + (jnp.array(upper_bound) - jnp.array(lower_bound)) * sobol_samples
+
+
+def rejection_sample_initial_guess(n_starts, n_d, bounds, constraints, rejection_margin, maxiter = 10, seed=None):
+   """
+   We use this function as a brief pre-solve step to get the NLP solver to start with some feasible points.
+   """
+
+   feasible_guesses = deque()
+   n_req = n_starts
+   iter_count = 0
+   while len(feasible_guesses) < n_starts and iter_count < maxiter:
+      
+      # Generate sobol sequences and then reject infeasible
+      guess_batch = generate_initial_guess(n_req * rejection_margin, n_d, bounds, seed=seed)
+      batch_eval = constraints(guess_batch)
+      feasible_mask = jnp.all(batch_eval <= 0, axis=1).squeeze() # N_batch,1 -> N_batch
+      feasible_guesses.extend(guess_batch[feasible_mask])
+
+      seed = hash((42, seed)) % (2**32)
+      
+      if len(feasible_guesses) >= n_starts:
+         break
+      
+      n_req = n_starts - len(feasible_guesses)
+      iter_count += 1
+   
+   # If iter lim exceeded, fall back.
+   if len(feasible_guesses) < n_starts:
+      feasible_guesses.extend(guess_batch[:n_req - len(feasible_guesses)])
+ 
+   return jnp.array(list(feasible_guesses))[:n_starts,:]
 
 
 def nlp_multi_start_casadi_eq_cons(initial_guess, objective_func, equality_constraints, bounds, solver):
@@ -250,10 +283,25 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
       if problem_data['uncertain_params'] == None:
         g_fn[i] = partial(cons_data['g_fn'], fn = fn)
       else:
-         raise NotImplementedError("Uncertain parameters not yet implemented for inequality constraints")
+         raise NotImplementedError("Uncertain parameters not yet implemented for inequality constraints")   
+
+    # define the constraints function (for single samples)
+    constraints_single = partial(lambda x, g: jnp.vstack([g[i](x) for i in range(len(g))]), g=g_fn)
     
-    # define the constraints function
-    constraints = partial(lambda x, g: jnp.vstack([g[i](x) for i in range(len(g))]), g=g_fn)
+    # vmap for batch evaluation in rejection sampling
+    constraints_batch = jax.vmap(constraints_single, in_axes=0, out_axes=0)
+
+    # Here we are going to run a rejection sample of the initial guesses to ensure we are throwing feasible
+    # points to the solver (to accelarate convergence).
+    initial_guess = rejection_sample_initial_guess(
+        n_starts = n_starts,
+        n_d = initial_guess.shape[1],
+        bounds = bounds,
+        constraints = constraints_batch,
+        rejection_margin = 10,
+        maxiter = 5,
+        seed = hash((problem_id, 42)) % (2**32)
+    )  
 
     # get objective function
     obj_data = problem_data['objective_func']
@@ -273,7 +321,7 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
     solutions = []
     for i in range(n_starts):
         if len(g_fn) >0:
-          solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, constraints, bounds, np.array(initial_guess[i,:]).squeeze(), lhs, rhs)
+          solver, solution = casadi_nlp_optimizer_eq_cons(objective_func, constraints_single, bounds, np.array(initial_guess[i,:]).squeeze(), lhs, rhs)
         else: 
           solver, solution = casadi_nlp_optimizer_no_gcons(objective_func, bounds, np.array(initial_guess[i,:]).squeeze())
         if solver.stats()['success']:
@@ -386,24 +434,18 @@ def multi_start_solve_bounds_nonlinear_program(initial_guess, objective_func, bo
     _, solutions = jax.lax.scan(partial_jax_solver, init=None, xs=(initial_guess))
     now = time.time() - time_now
 
-    
-   
     # iterate over solutions from one of the upper level initial guesses
     assess_subproblem_solution = partial(return_most_feasible_penalty_subproblem_uncons, objective_func=objective_func)
     _, assessment = jax.lax.scan(assess_subproblem_solution, init=None, xs=solutions.params)
     
-
     cond = solutions[1].error <= jnp.array([tol]).squeeze()
     mask = jnp.asarray(cond)
     update_assessment = (jnp.where(mask, assessment[0], jnp.minimum(assessment[0],jnp.linalg.norm(assessment[1], axis=1).squeeze())), jnp.where(mask, jnp.linalg.norm(assessment[1], axis=1).squeeze(), jnp.inf))
     
-
     # assessment of solutions
     arg_min = jnp.argmin(update_assessment[0], axis=0) # take the minimum objective val
     min_obj = update_assessment[0][arg_min]  # take the corresponding objective value
     min_grad = update_assessment[1][arg_min]# take the corresponding l2 norm of objective gradient
-
-    
 
     return min_obj.squeeze(), solutions[1].error[arg_min].squeeze()
 

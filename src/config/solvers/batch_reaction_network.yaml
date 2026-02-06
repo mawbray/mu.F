@@ -23,6 +23,7 @@ forward_general_constraints: True
 forward_coupling:
   parallelised: true
   n_starts: 4
+  penalty_method: False
   casadi_ipopt_options:
     maxiter: 1000
     verbose: False

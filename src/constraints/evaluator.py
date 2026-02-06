@@ -828,6 +828,10 @@ class current_q_evaluator(current_constraint_evaluator):
         problem_data['constraints'][0] = problem_data['objective_func']['f0']
         obj_fn_original = problem_data['objective_func']['obj_fn']
         problem_data['constraints'][0]['g_fn'] = lambda x, fn: obj_fn_original(x, f1=fn)
+        # Enforce feasibility: classifier <= 0
+        n_cons = len(problem_data['constraints'])
+        problem_data['eq_lhs'] = -jnp.inf * jnp.ones((n_cons, 1))
+        problem_data['eq_rhs'] = jnp.zeros((n_cons, 1))
 
         # Extracting problem dimensionality
         n_design_args = self.graph.nodes[self.node]['n_design_args']
@@ -841,7 +845,6 @@ class current_q_evaluator(current_constraint_evaluator):
         # Getting inputs for the model
         input_indices = np.copy(np.array([n_design_args + input_ for input_ in range(n_input_args)]))
         aux_indices = np.copy(np.array([input_ for input_ in range(ndim - n_aux_args, ndim)]))
-
 
         # Then we need to redefine the objective function for our q-learning target.
         problem_data['objective_func'] = {'f0': {
@@ -898,6 +901,7 @@ class current_q_evaluator(current_constraint_evaluator):
         std = scaler.std[opt_idx]
 
         dec = jnp.ravel(jnp.array(decisions))
+        dec = dec[opt_idx]
         return (dec * std) + mean
 
 
@@ -918,11 +922,15 @@ class q_learning_evaluator(backward_constraint_evaluator_general):
         problem_data = super().prepare_forward_problem(outputs)
 
         # My thoughts are to add the q function evaluation to the logic here
-        # Then to move the objective function from problem data into the constraints. 
+        # Then to move the objective function from problem data into the constraints.
+  
         for succ in self.graph.successors(self.node):
             problem_data[succ][0]['constraints'][0] = problem_data[succ][0]['objective_func']['f0']
             obj_fn_original = problem_data[succ][0]['objective_func']['obj_fn']
             problem_data[succ][0]['constraints'][0]['g_fn'] = lambda x, fn: obj_fn_original(x, f1=fn)
+
+            problem_data[succ][0]['eq_lhs'] = -jnp.ones(1,).reshape(-1,1)*jnp.inf
+            problem_data[succ][0]['eq_rhs'] = -jnp.zeros(1,).reshape(-1,1)
 
             # Get the necessary inputs for the successor
             graph, node, cfg = self.graph, self.node, self.cfg
@@ -932,6 +940,7 @@ class q_learning_evaluator(backward_constraint_evaluator_general):
             input_indices = np.copy(np.array([n_d + input_ for input_ in graph.edges[node, succ]['input_indices']]))
             aux_indices = np.copy(np.array([input_ for input_ in graph.edges[node, succ]['auxiliary_indices']]))
             n_d_k = self.graph.nodes[succ]['n_design_args'] + sum([self.graph.edges[n,succ]['n_input_args'] for n in self.graph.predecessors(succ) if n!=self.node]) + self.graph.graph['n_aux_args']    
+            
             # Then we need to redefine the objective function for our q-learning target.
             problem_data[succ][0]['objective_func'] = {'f0': {
                 'params': self.graph.nodes[succ]["q_function_serialised"], # TODO <- Need to change how the name is saved for the q function surrogate. 
@@ -1458,6 +1467,8 @@ def upper_bound_fn(
     F_LB = betaDist.ppf(1 - conf)
 
     return 1 - F_LB
+
+""" ---- JaxOpt solver evaluation methods for reward optimsiation via penalty methods --- """
 
 if __name__ == "__main__":
     

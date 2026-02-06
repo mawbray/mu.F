@@ -132,6 +132,38 @@ class jax_box_nlp_solver(solver_base):
     def get_objective(self, objective):
         return objective
     
+class penalty_method_nlp_solver(solver_base):
+    def __init(self, cfg, objective_func, constraints, bounds):
+        super().__init__(cfg)
+        self.construct_solver(objective_func, constraints, bounds)
+    
+    def __call__(self, initial_guesses):
+        return self.solve(initial_guesses)
+
+    def construct_solver(self, objective_func, bounds):
+        self.n_d = len(bounds[0])
+        self.bounds = bounds
+        self.objective_func = objective_func
+        self.bounds = bounds
+        return    
+
+    def initial_guess(self):
+        return generate_initial_guess(self.cfg.n_starts, self.n_d, self.bounds)
+    
+    def solve(self, initial_guesses):
+        solver = partial(multi_start_solve_bounds_nonlinear_program, objective_func=self.objective_func, bounds_=(self.bounds[0], self.bounds[1]), tol=self.cfg.jax_opt_options.error_tol)
+        objective, error = solver(initial_guesses)
+
+        del solver
+
+        return {'objective': objective, 'error': error}
+    
+    def get_status(self, stationary_error):
+        return jnp.norm(stationary_error) <= self.cfg.jax_opt_options.error_tol 
+
+    def get_objective(self, objective):
+        return objective
+    
     
 """
 class casadi_box_eq_nlp_solver(solver_base):

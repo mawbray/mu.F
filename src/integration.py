@@ -7,6 +7,7 @@ import networkx as nx
 import jax.numpy as jnp
 import numpy as np
 import logging
+import gc
 import jax.profiler as profiler
 from jax import clear_backends, clear_caches
 
@@ -24,7 +25,6 @@ from utils import apply_feasibility
 from utils import save_graph
 import time
 import ray
-import gc
 from jax.lib import xla_bridge
 import jax
 
@@ -52,6 +52,10 @@ class apply_decomposition:
         else:
             raise ValueError(f"Mode {mode} not recognized. Please use 'forward', 'backward' or 'forward-backward'.")
         
+        runtime_env = {"working_dir": get_original_cwd(),'excludes': ['/paper_results/', '/multirun/', '/outputs/', '/config/', '../.git/']}
+
+        if ('forward' in mode.lower()) or (self.cfg.case_study.eval_rewards is True):
+            ray.init(runtime_env=runtime_env, num_cpus=max_devices)
 
         # Iterate over the nodes and apply nested sampling
         for node in nodes:
@@ -105,6 +109,8 @@ class apply_decomposition:
             clear_caches()
             clear_backends()
             profiler.save_device_memory_profile(f"memory{node}_post_backend_clear.prof")"""
+        
+        if ray.is_initialized(): ray.shutdown()
 
         return graph
 
@@ -553,25 +559,11 @@ class subproblem_model(ABC):
         # Smooth saturation to keep DEUS score numerically stable while preserving monotonicity.
         cons_g = 50.0 * jnp.tanh(cons_g / 50.0)
 
-        logging.info(
-            "node %s inputs min/max: %s %s",
-            self.unit_index,
-            jnp.min(unit_inputs) if unit_inputs is not None and unit_inputs.size else None,
-            jnp.max(unit_inputs) if unit_inputs is not None and unit_inputs.size else None,
-        )
-        logging.info(
-            "node %s g min/max: %s %s",
-            self.unit_index,
-            jnp.min(cons_g) if cons_g is not None and cons_g.size else None,
-            jnp.max(cons_g) if cons_g is not None and cons_g.size else None,
-        )
-
         # storing classifier data and updating function evaluations
         if (self.cfg.surrogate.classifier and self.mode != 'backward-forward'):
             self.constraint_data = update_data(self.constraint_data, d, p, cons_g)  # updating dataset for surrogate model of forward unit evaluation
         if (self.cfg.surrogate.probability_map and self.mode != 'backward-forward'):
             self.probability_map_data = update_data(self.probability_map_data, d, p, self.SAA(cons_g))  # updating dataset for surrogate model of forward unit evaluation
-
 
 
         del process_constraint_evals, forward_constraint_evals, backward_constraint_evals, concat_obj, decentralised_constraint_evals
@@ -595,17 +587,16 @@ class subproblem_model(ABC):
         self.q_values = update_data(self.q_values, d, p, q_learning_target)
 
     def s(self, d, p):
-        runtime_env = {"working_dir": get_original_cwd(),'excludes': ['/paper_results/', '/multirun/', '/outputs/', '/config/', '../.git/']}
-        
-        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0) and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
-            ray.init(runtime_env=runtime_env, num_cpus=10)  # , ,
+                
+        #if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0) and (self.cfg.solvers.evaluation_mode.forward == 'ray'):
+        #ray.init(runtime_env=runtime_env, num_cpus=10)  # , ,
         
         # evaluate feasibility and then update classifier data and number of function evaluations
         g = self.evaluate_subproblem_batch(d, self.max_devices, p, hold=True if self.cfg.case_study.eval_rewards else False)
 
         # We need to init ray now to perform the optimisation over the reward function
-        if (self.cfg.case_study.eval_rewards and self.G.out_degree(self.unit_index) > 0 and self.cfg.solvers.evaluation_mode.reward == 'ray'):
-            ray.init(runtime_env=runtime_env, num_cpus=10)  # , ,
+        #if (self.cfg.case_study.eval_rewards and self.G.out_degree(self.unit_index) > 0 and self.cfg.solvers.evaluation_mode.reward == 'ray'):
+        #    ray.init(runtime_env=runtime_env, num_cpus=10)  # , ,
         
         if self.cfg.case_study.eval_rewards:
             self.evaluate_q_target_batch(d, self.max_devices, p)
@@ -615,9 +606,9 @@ class subproblem_model(ABC):
         # adding function evaluations
         self.function_evaluations += g.shape[0]*g.shape[1]
         # return information for DEUS
-        if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0)  and (self.cfg.solvers.evaluation_mode.forward == 'ray') or\
-            ((self.cfg.case_study.eval_rewards and self.G.out_degree(self.unit_index) > 0 and self.cfg.solvers.evaluation_mode.reward == 'ray')):
-            ray.shutdown()
+        #if (self.forward_constraints is not None) and (self.G.in_degree(self.unit_index) > 0)  and (self.cfg.solvers.evaluation_mode.forward == 'ray') or\
+        #    ((self.cfg.case_study.eval_rewards and self.G.out_degree(self.unit_index) > 0 and self.cfg.solvers.evaluation_mode.reward == 'ray')):
+        #    ray.shutdown()
         
         del self.hold_outputs
         self.hold_outputs = []
