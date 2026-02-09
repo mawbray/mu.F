@@ -578,12 +578,12 @@ class subproblem_model(ABC):
             q_function_evals = self.q_func_evalutor.evaluate(output, aux_args)
             if q_function_evals.ndim == 2:
                 q_function_evals = jnp.expand_dims(q_function_evals, axis=-1)
-            q_learning_target = -rewards + self.cfg.case_study.discount_factor * q_function_evals
+            q_learning_target = rewards + self.cfg.case_study.discount_factor * q_function_evals
             end_time = time.time()
             execution_time = end_time - start_time
             logging.info(f'execution_time_q_function: {execution_time}')
         else:
-            q_learning_target = -rewards
+            q_learning_target = rewards
         self.q_values = update_data(self.q_values, d, p, q_learning_target)
 
     def s(self, d, p):

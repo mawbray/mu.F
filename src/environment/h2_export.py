@@ -124,7 +124,7 @@ class H2ExportEnvironment(DeterministicNode):
         """
         Initialise the H2 Export model.
         """
-        model_cfg = cfg.model if hasattr(cfg, "model") else cfg
+        model_cfg = super()._initialise_env(cfg)
         self._hydrogen_storage_cap = model_cfg.hydrogen_storage_capacity
         self._vector_storage_cap = model_cfg.vector_storage_capacity
         self._n_turbines = model_cfg.number_of_turbines
@@ -203,7 +203,7 @@ def vector_ramping_lower_cons(vector_throughput, _vector_throughput, _active_tra
     return - (
         (_vector_throughput - vector_throughput) / vector_calorific_value
         - lower_ramp_limit * (_active_trains) * train_throughput_capacity
-    ) / lower_ramp_limit * (_active_trains) * train_throughput_capacity
+    ) / (lower_ramp_limit * (_active_trains) * train_throughput_capacity)
 
 @jax.jit
 def vector_ramping_upper_cons(vector_throughput, _vector_throughput, _active_trains, vector_calorific_value, upper_ramp_limit, train_throughput_capacity, total_trains): 
@@ -212,7 +212,7 @@ def vector_ramping_upper_cons(vector_throughput, _vector_throughput, _active_tra
     return - (
         (vector_throughput - _vector_throughput) / vector_calorific_value
         - upper_ramp_limit * (total_trains - _active_trains + 1) * train_throughput_capacity
-    ) / upper_ramp_limit * (total_trains - _active_trains + 1) * train_throughput_capacity
+    ) / (upper_ramp_limit * (total_trains - _active_trains + 1) * train_throughput_capacity)
 
 @jax.jit
 def hydrogen_storage_lower_cons(hydrogen_storage, lower_storage_limit, upper_storage_limit):

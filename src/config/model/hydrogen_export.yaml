@@ -10,7 +10,7 @@ node_aux:
   - None
 
 memory: false
-feas_thresh: 15
+feas_thresh: 0.01
 hydrogen_storage_capacity: 295435
 vector_storage_capacity: 0.0
 number_of_turbines: 1513

@@ -286,22 +286,23 @@ def ray_casadi_multi_start(problem_id, problem_data, cfg):
          raise NotImplementedError("Uncertain parameters not yet implemented for inequality constraints")   
 
     # define the constraints function (for single samples)
-    constraints_single = partial(lambda x, g: jnp.vstack([g[i](x) for i in range(len(g))]), g=g_fn)
-    
-    # vmap for batch evaluation in rejection sampling
-    constraints_batch = jax.vmap(constraints_single, in_axes=0, out_axes=0)
+    if len(g_fn) > 0:
+      constraints_single = partial(lambda x, g: jnp.vstack([g[i](x) for i in range(len(g))]), g=g_fn)
+      
+      # vmap for batch evaluation in rejection sampling
+      constraints_batch = jax.vmap(constraints_single, in_axes=0, out_axes=0)
 
-    # Here we are going to run a rejection sample of the initial guesses to ensure we are throwing feasible
-    # points to the solver (to accelarate convergence).
-    initial_guess = rejection_sample_initial_guess(
-        n_starts = n_starts,
-        n_d = initial_guess.shape[1],
-        bounds = bounds,
-        constraints = constraints_batch,
-        rejection_margin = 10,
-        maxiter = 5,
-        seed = hash((problem_id, 42)) % (2**32)
-    )  
+      # Here we are going to run a rejection sample of the initial guesses to ensure we are throwing feasible
+      # points to the solver (to accelarate convergence).
+      initial_guess = rejection_sample_initial_guess(
+          n_starts = n_starts,
+          n_d = initial_guess.shape[1],
+          bounds = bounds,
+          constraints = constraints_batch,
+          rejection_margin = cfg['solvers']['forward_coupling']['rejection_margin'],
+          maxiter = cfg['solvers']['forward_coupling']['n_rejects'], 
+          seed = hash((problem_id, 42)) % (2**32)
+      )  
 
     # get objective function
     obj_data = problem_data['objective_func']
@@ -392,6 +393,7 @@ class TensorFlowEvaluator(casadi.Callback):
     adj_seed = [tf.placeholder(shape=self.sparsity_out(i).shape,dtype=tf.float64) for i in range(self.n_out())]
     # Construct the reverse tensorflow graph through 'gradients'
     grad = tf.gradients(self.t_out, self.t_in,grad_ys=adj_seed)
+    
     # Create another TensorFlowEvaluator object
     callback = TensorFlowEvaluator(self.t_in+adj_seed,grad,self.session)
     # Make sure you keep a reference to it

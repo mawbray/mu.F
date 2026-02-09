@@ -15,7 +15,7 @@ from collections import deque
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
 
 from constraints.evaluator import current_q_evaluator as Q_Network
-from visualisation.visualiser import visualiser
+from constraints.evaluator import current_constraint_evaluator as Constraint_Surrogate
 from visualisation.methods import add_policy, reconstruction_plot
 from graph.graph_assembly import build_graph_structure
 
@@ -25,6 +25,22 @@ PICKLE_FILE = "graph_{mode}_iterate_{i}_node_{n}.pickle"
 HYDRA_CONFIG_FILE = ".hydra/config.yaml"
 XSLX_file = "inside_samples_{mode}_iterate_{i}.xlsx"
 POOL = "mp-ms"
+CFG_UPDATE = {
+    "parallelised": False,
+    "n_starts": 20,
+    "n_rejects": 100,
+    "rejection_margin": 100,
+    "casadi_ipopt_options": {
+        "maxiter": 2000,
+        "verbose": False,
+        "tol": 1e-4,
+        "options": {
+            "verbose": 0,
+            "maxiter": 2000,
+            "disp": False,
+        },
+    },
+}
 
 
 @contextmanager
@@ -42,20 +58,32 @@ class Agent:
     def __init__(self, solve_date: str, solve_id: str):
         self._out_dir = OUTPUTS_DIR.format(solve_date=solve_date, solve_id=solve_id)
         self.cfg = OmegaConf.load(self._out_dir + HYDRA_CONFIG_FILE)
-        self.cfg = build_graph_structure(self.cfg)
-        self.cfg.solvers.evaluation_mode.reward = POOL
+        self._update_cfg()
         self.graph = self._load_pickle()
         self.q_network = partial(Q_Network, cfg=self.cfg, graph=self.graph, pool=POOL)
+        self.constraint_surrogate = partial(
+            Constraint_Surrogate, cfg=self.cfg, graph=self.graph, pool=POOL
+        )
 
     # ---- Public methods ---- #
     def act(self, u: jnp.ndarray):
         """Take an action based on the current state u"""
 
         if self._node == 0:
-            u = jnp.empty((u.shape[0], 0))
+            u = jnp.empty((u.shape[0], u.shape[1], 0))
 
-        #with suppress_output():
-        v = self.q_network(node=self._node)(u[jnp.newaxis, :], None)
+        # with suppress_output():
+        v, status = self.q_network(node=self._node)(u[jnp.newaxis, :], None)
+
+        # If Q-network optimisation fails for this node, fall back to constraint surrogate
+        if not bool(jnp.all(status)):
+            v_fallback, _ = self.constraint_surrogate(node=self._node)(
+                u[jnp.newaxis, :], None
+            )
+            print(_, v, v_fallback)
+            v = v_fallback
+
+        print(f"Action taken at node {self._node}: {v} with status {status}")
 
         self._actions.append((self._node, v))
         self._node += 1
@@ -107,3 +135,13 @@ class Agent:
         graph = pickle.load(open(Path(self._out_dir) / target_file, "rb"))
 
         return graph
+
+    def _update_cfg(self):
+        """Update the cfg with any new values provided at call time. This is useful for updating the cfg with new surrogate parameters after training."""
+
+        self.cfg = build_graph_structure(self.cfg)
+        self.cfg.solvers.evaluation_mode.reward = POOL
+
+        for key, value in CFG_UPDATE.items():
+            setattr(self.cfg.solvers.forward_coupling, key, value)
+        return None

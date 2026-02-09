@@ -54,10 +54,11 @@ class DeterministicNode(ABC):
 
     # ---- Abstract methods ---- #
 
-    @abstractmethod
     def _initialise_env(self, cfg):
         """Initialise the environment - to be implemented in derived classes"""
-        pass
+        model_cfg = cfg.model if hasattr(cfg, "model") else cfg
+        self._feas_thresh = model_cfg.feas_thresh
+        return model_cfg
 
     @abstractmethod
     def __call__(self, *args, **kwds):
@@ -99,7 +100,8 @@ class DeterministicNode(ABC):
     
     def _termination_conditions(self, x):
         """Termination conditions for the environment"""
-        if jnp.any(self._infeas_sign(x, self.model_cfg.feas_thresh)):
+        test = [self._infeas_sign(x_i, self._feas_thresh) for x_i in x]
+        if jnp.any(jnp.array(test)):
             term = True
             trunc = False
         elif self.current_step >= self.max_steps:

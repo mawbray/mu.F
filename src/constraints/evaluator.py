@@ -224,7 +224,7 @@ class forward_constraint_evaluator(coupling_surrogate_constraint_base):
         if self.pool == 'ray':
             self.evaluation_method = self.ray_evaluation
         
-    def __call__(self, inputs, aux):
+    def __call__(self, inputs, aux=None):
         return self.evaluate(inputs, aux)
     
     def serial_evaluation(self, solver, max_devices, solver_processing):
@@ -690,7 +690,7 @@ class current_constraint_evaluator(backward_constraint_evaluator_general):
     def __init__(self, cfg, graph, node, pool=None):
         super().__init__(cfg, graph, node, pool = pool)
     
-    def __call__(self, inputs, aux):
+    def __call__(self, inputs, aux=None):
         return self.evaluate(inputs, aux)
     
     def evaluate(self, inputs, aux):
@@ -713,16 +713,49 @@ class current_constraint_evaluator(backward_constraint_evaluator_general):
             solver_inputs.append(self.evaluate_parallel(i, inputs[i,:].reshape(1,-1)))        
 
         results = []
+        status_flags = []
         # run solvers in parallel
         for s_i in solver_inputs:
             solver_reshape = []
             # NOTE currently this iterates over uncertainty realisations (although not actually implemented in the code following) - think about expectations here.)
             solver_reshape.append((s_i[self.node][0].solver, s_i[self.node][0].problem_data))
             # evaluate inputs for in parallel for each evaluation of uncertainty
-            results.append(self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[self.node][0]))
+            res, status = self.evaluation_method(solver_reshape, self.cfg.max_devices, s_i[self.node][0])
+            results.append(res)
+            status_flags.append(status)
 
+        return jnp.concatenate([jnp.array(v).reshape(-1,1) for v in results], axis=-1), jnp.array(status_flags)
 
-        return jnp.concatenate([jnp.array(v).reshape(-1,1) for v in results], axis=-1)
+    def serial_evaluation(self, solver, max_devices, solver_processing):
+
+        # determine the batch size
+        workers, remainder = determine_batches(len(solver), 1)
+        # split the problems
+        solver_batches = create_batches(workers, solver)
+
+        # parallelise the batch
+        result_dict = {}
+        evals = 0
+        for i, solve in enumerate(solver_batches): 
+            results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve] # set off and then synchronize before moving on
+            for j, result in enumerate(results):
+                digest = solver_processing.solve_digest(*result, return_results=True)
+                result_dict[evals + j] = (
+                    self.destandardise_model_decisions(digest['result'], self.node),
+                    digest.get('success', False),
+                    digest.get('message', None),
+                )
+            evals += j+1
+
+        del solver_batches, results
+
+        decisions = []
+        status_flags = []
+        for _, (decision, success, _) in result_dict.items():
+            decisions.append(jnp.array([decision]).reshape(1,-1))
+            status_flags.append(success)
+
+        return jnp.concatenate(decisions, axis=0), jnp.array(status_flags)
 
     def prepare_forward_problem(self, inputs):
         """
@@ -790,8 +823,8 @@ class current_constraint_evaluator(backward_constraint_evaluator_general):
         """
         Loads the solver
         """
-        return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)    
-            
+        return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)
+
     def evaluate_parallel(self, i, inputs):
 
         problem_data = self.prepare_forward_problem(inputs)
@@ -810,6 +843,26 @@ class current_constraint_evaluator(backward_constraint_evaluator_general):
         curr_fn_input_i[self.node][0] = forward_solver.solver
 
         return curr_fn_input_i
+    
+    def destandardise_model_decisions(self, decisions, in_node):
+        """
+        De-standardises the decisions for the optimised decision dimensions only.
+        """
+
+        scaler = self.graph.nodes[in_node].get('classifier_x_scalar')
+
+        n_d = self.graph.nodes[in_node]['n_design_args']
+        n_u = self.graph.nodes[in_node]['n_input_args']
+        n_aux = self.graph.graph['n_aux_args']
+        opt_indices = list(range(n_d)) + list(range(n_d + n_u, n_d + n_u + n_aux))
+
+        opt_idx = jnp.array(opt_indices)
+        mean = scaler.mean[opt_idx]
+        std = scaler.std[opt_idx]
+
+        dec = jnp.ravel(jnp.array(decisions))
+        dec = dec[opt_idx]
+        return (dec * std) + mean
         
 class current_q_evaluator(current_constraint_evaluator):
     """
@@ -854,55 +907,8 @@ class current_q_evaluator(current_constraint_evaluator):
             'model_type': self.cfg.surrogate.regressor_selection},
             'obj_fn': partial(lambda x, f1, y: mask_classifier(f1, n_d, ndim, input_indices, aux_indices)(x.reshape(1,-1)[:,:n_d],y).reshape(-1,1), y=inputs.reshape(1,-1))}
 
+            
         return problem_data
-    
-    def load_solver(self):
-        """
-        Loads the solver
-        """
-        self.cfg.solvers.forward_coupling.parallelised = False 
-        return solver_construction(self.cfg.solvers.forward_coupling, self.cfg.solvers.forward_coupling_solver)
-    
-        
-    def serial_evaluation(self, solver, max_devices, solver_processing):
-
-        # determine the batch size
-        workers, remainder = determine_batches(len(solver), 1)
-        # split the problems
-        solver_batches = create_batches(workers, solver)
-
-        # parallelise the batch
-        result_dict = {}
-        evals = 0
-        for i, solve in enumerate(solver_batches): 
-            results = [sol(d['id'], d['data'], d['data']['cfg']) for sol, d in  solve] # set off and then synchronize before moving on
-            for j, result in enumerate(results):
-                result_dict[evals + j] = self.destandardise_model_decisions(solver_processing.solve_digest(*result, return_results=True)['result'], self.node)
-            evals += j+1
-
-        del solver_batches, results
-
-        return jnp.concatenate([jnp.array([value]).reshape(1,-1) for _, value in result_dict.items()], axis=0)
-    
-    def destandardise_model_decisions(self, decisions, in_node):
-        """
-        De-standardises the decisions for the optimised decision dimensions only.
-        """
-
-        scaler = self.graph.nodes[in_node].get('classifier_x_scalar')
-
-        n_d = self.graph.nodes[in_node]['n_design_args']
-        n_u = self.graph.nodes[in_node]['n_input_args']
-        n_aux = self.graph.graph['n_aux_args']
-        opt_indices = list(range(n_d)) + list(range(n_d + n_u, n_d + n_u + n_aux))
-
-        opt_idx = jnp.array(opt_indices)
-        mean = scaler.mean[opt_idx]
-        std = scaler.std[opt_idx]
-
-        dec = jnp.ravel(jnp.array(decisions))
-        dec = dec[opt_idx]
-        return (dec * std) + mean
 
 
 
@@ -925,12 +931,13 @@ class q_learning_evaluator(backward_constraint_evaluator_general):
         # Then to move the objective function from problem data into the constraints.
   
         for succ in self.graph.successors(self.node):
+
             problem_data[succ][0]['constraints'][0] = problem_data[succ][0]['objective_func']['f0']
             obj_fn_original = problem_data[succ][0]['objective_func']['obj_fn']
             problem_data[succ][0]['constraints'][0]['g_fn'] = lambda x, fn: obj_fn_original(x, f1=fn)
 
             problem_data[succ][0]['eq_lhs'] = -jnp.ones(1,).reshape(-1,1)*jnp.inf
-            problem_data[succ][0]['eq_rhs'] = -jnp.zeros(1,).reshape(-1,1)
+            problem_data[succ][0]['eq_rhs'] = jnp.zeros(1,).reshape(-1,1)
 
             # Get the necessary inputs for the successor
             graph, node, cfg = self.graph, self.node, self.cfg

@@ -36,6 +36,8 @@ forward_coupling:
   parallelised: True
   penalty_method: False
   n_starts: 4
+  n_rejects: 100
+  rejection_margin: 10
   casadi_ipopt_options:
     maxiter: 500
     verbose: False

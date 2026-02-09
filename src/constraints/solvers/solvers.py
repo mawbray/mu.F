@@ -65,7 +65,8 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         t_wall = self.get_time(solver)
 
         if not status:
-            objective = np.maximum(np.array([objective]).reshape(-1,), np.max(np.absolute(constraints)).reshape(-1,))
+            if constraints.size()[0] > 0:
+                objective = np.maximum(np.array([objective]).reshape(-1,), np.max(np.absolute(constraints)).reshape(-1,))
 
         if (t_wall >= self.cfg.max_solution_time) and (not status):
             logging.warning(f'--- Forward solver max time exceeded: {t_wall} s ---')
@@ -83,7 +84,7 @@ class serialms_casadi_box_eq_nlp_solver(solver_base):
         if return_results:
             out['result'] = result['x']
 
-        return out        
+        return out
     
     def get_status(self, solver):
         try:
