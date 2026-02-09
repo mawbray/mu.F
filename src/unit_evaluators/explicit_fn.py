@@ -2,7 +2,7 @@
 from functools import partial 
 from jax import jit
 from omegaconf import DictConfig, ListConfig
-from environment.h2_export import H2ExportEnvironment
+from environment.h2_export_2 import H2ExportEnvironmentTwoArg as H2ExportEnvironment
 
 import jax.numpy as jnp
 import jax

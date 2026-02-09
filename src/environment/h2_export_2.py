@@ -7,9 +7,9 @@ import jax
 
 
 
-class H2ExportEnvironment(DeterministicNode):
+class H2ExportEnvironmentTwoArg(DeterministicNode):
     U_SIZE = 2  # [_hydrogen_storage, _vector_throughput]
-    V_SIZE = 1  # [vector_throughput]
+    V_SIZE = 2  # [vector_throughput, hydrogen_throughput]
     Y_SIZE = 2  # [ hydrogen_storage, vector_throughput]
     X_SIZE = 4  # [lower_ramp_limit, upper_ramp_limit, lower_h2_storage, upper_h2_storage]
     """
@@ -17,7 +17,7 @@ class H2ExportEnvironment(DeterministicNode):
 
     Notation:
         - u : [_hydrogen_storage, _vector_throughput]
-        - v : [vector_throughput]
+        - v : [vector_throughput, hydrogen_throughput]
         - z : [_renewable_energy]
         - y : [renewable_energy, hydrogen_storage, vector_throughput]
         - x : [lower_ramp_limit, upper_ramp_limit, lower_h2_storage, \
@@ -43,6 +43,8 @@ class H2ExportEnvironment(DeterministicNode):
         _vector_throughput = u[..., 1]
         _renewable_energy = z[..., 0] if z is not None else 0.0
         vector_throughput = v[..., 0]
+        hydrogen_throughput = v[..., 1]
+
 
         # Simulate the model dynamics here
         _active_trains = number_active_trains_eq(
@@ -63,17 +65,17 @@ class H2ExportEnvironment(DeterministicNode):
             self._fixed_energy_penalty,
             self._train_throughput_capacity,
         )
-        energy_electrolysis = energy_electrolysis_eq(_renewable_energy, vector_energy, self._n_turbines)
-        energy_fuelcell = energy_fuelcell_eq(_renewable_energy, vector_energy, self._n_turbines)
-        hydrogen_delta = hydrogen_delta_eq(
-            vector_throughput,
-            energy_electrolysis,
-            energy_fuelcell,
-            self._vector_molar_efficiency,
-            self._electrolyser_efficiency,
-            self._fuelcell_efficiency,
+        energy_electrolysis = energy_electrolysis_eq(
+            hydrogen_throughput,
+            self._electrolyser_efficiency
         )
-        hydrogen_storage = hydrogen_storage_eq(_hydrogen_storage, hydrogen_delta)
+
+        energy_fuelcell = energy_fuelcell_eq(
+            hydrogen_throughput,
+            self._fuelcell_efficiency
+        )        
+
+        hydrogen_storage = hydrogen_storage_eq(_hydrogen_storage, hydrogen_throughput)
 
 
         # Calculate constraints
@@ -100,6 +102,14 @@ class H2ExportEnvironment(DeterministicNode):
             self._upper_storage_limit,
         )
         upper_h2_storage_cons = hydrogen_storage_upper_cons(hydrogen_storage, self._upper_storage_limit)
+
+        energy_balance_cons = energy_balance_upper_cons(
+                vector_energy,
+                energy_electrolysis,
+                energy_fuelcell,
+                self._n_turbines,
+                _renewable_energy,
+        )
 
         # Calculate reward
         reward = jnp.broadcast_to(-vector_throughput, hydrogen_storage.shape)
@@ -155,16 +165,16 @@ def number_active_trains_eq(vector_throughput, train_throughput_capacity, vector
     return jnp.ceil(vector_throughput / (train_throughput_capacity * vector_calorific_value))
 
 @jax.jit
-def energy_electrolysis_eq(renewable_energy,  vector_energy, num_turbines):
+def energy_electrolysis_eq(hydrogen_throughput, electrolyser_efficiency):
     """ Calculate the energy used for electrolysis """
     # Number * GJ / h - GJ / h = GJ / h
-    return jnp.maximum(renewable_energy * num_turbines - vector_energy, 0)
+    return jnp.maximum(hydrogen_throughput / electrolyser_efficiency, 0)
 
 @jax.jit
-def energy_fuelcell_eq(renewable_energy,  vector_energy, num_turbines):
+def energy_fuelcell_eq(hydrogen_throughput, fuelcell_efficiency):
     """ Calculate the energy used by the fuelcell """
     # GJ / h - GJ / h = GJ / h
-    return jnp.maximum(vector_energy - renewable_energy * num_turbines, 0)
+    return jnp.maximum(- hydrogen_throughput / fuelcell_efficiency, 0)
 
 @jax.jit
 def hydrogen_storage_eq(hydrogen_storage_prev, hydrogen_delta):
@@ -219,3 +229,9 @@ def hydrogen_storage_upper_cons(hydrogen_storage, upper_storage_limit):
     """ Constraint for upper hydrogen storage limit """
     # GJ - GJ = GJ
     return (upper_storage_limit - hydrogen_storage) / upper_storage_limit
+
+@jax.jit
+def energy_balance_upper_cons(vector_energy, energy_electrolysis, energy_fuelcell, n_turbines, renewable_energy):
+    """ Constraint for energy balance """
+    # GJ / h - GJ / h - GJ / h = GJ / h
+    return (n_turbines * renewable_energy - energy_electrolysis - vector_energy + energy_fuelcell) / (11.88 * n_turbines)

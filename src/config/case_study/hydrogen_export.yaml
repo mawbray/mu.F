@@ -6,7 +6,7 @@ eval_rewards: True
 
 adjacency_matrix: None
 
-n_design_args: 1
+n_design_args: 2
 
 n_aux_args:
   # auxiliary arguments per edge
@@ -22,6 +22,8 @@ KS_bounds:
   design_args: 
     - - - 0
         - 8572.8
+      - - -1387.8 # Negative if fuel cell usage
+        - 18954.2 # Positive if electrolysis usage
   aux_args:
     - - - None
         - None
@@ -35,12 +37,13 @@ parameters_best_estimate:
 extendedDS_bounds: [None, None] 
 
 design_space_dimensions:
-- 'vector_throughput'
+- 'v0'
+- 'v1'
 
 global_n_aux_args: 0
 
 process_space_names:
-  - ['vector_throughput']
+  - ['v0', 'v1']
 
 mode:
   - backward

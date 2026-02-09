@@ -2,7 +2,7 @@
 
 from jax import jit, vmap, debug
 import jax.numpy as jnp
-from environment.h2_export import H2ExportEnvironment
+from environment.h2_export_2 import H2ExportEnvironmentTwoArg as H2ExportEnvironment
 from functools import partial
 
 # ----------------------------------------------------------------------------- #

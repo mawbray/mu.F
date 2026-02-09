@@ -15,7 +15,7 @@ hydrogen_storage_capacity: 295435
 vector_storage_capacity: 0.0
 number_of_turbines: 1513
 number_of_trains_conversion: 4
-hfc_capacity: 0.0
+hfc_capacity: 832
 renewable_energy_value: 5.9
 constants:
   train_throughput_capacity: 114
