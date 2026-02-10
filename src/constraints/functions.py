@@ -168,23 +168,11 @@ def negative_output_constraint(output, cfg):
 # -------------------------------------------------------------------------------- #
 # ---------------------------- Hydrogen Export ----------------------------------- #
 # -------------------------------------------------------------------------------- #
-@partial(jit, static_argnums=(1))
-def hydrogen_export_1(dynamic_profile, cfg):
-    return H2ExportEnvironment(cfg=cfg).G(dynamic_profile)[..., 0]
+@partial(jit, static_argnums=(1, 2))
+def hydrogen_export(dynamic_profile, cfg, i: int):
+    return H2ExportEnvironment(cfg=cfg).G(dynamic_profile)[..., i]
 
-@partial(jit, static_argnums=(1))
-def hydrogen_export_2(dynamic_profile, cfg):
-    return H2ExportEnvironment(cfg=cfg).G(dynamic_profile)[..., 1]
-
-@partial(jit, static_argnums=(1))
-def hydrogen_export_3(dynamic_profile, cfg):
-    return H2ExportEnvironment(cfg=cfg).G(dynamic_profile)[..., 2]
-
-@partial(jit, static_argnums=(1))
-def hydrogen_export_4(dynamic_profile, cfg):
-    return H2ExportEnvironment(cfg=cfg).G(dynamic_profile)[..., 3]
-
-
+HYDROGEN_EXPORT_FNS = [partial(hydrogen_export, i=i) for i in range(H2ExportEnvironment.X_SIZE)]
 
 """ insert case study specific functions for constraints here"""
 CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_composition_lb, tablet_composition_ub], 2: [tablet_hardness_lb, tablet_hardness_ub, tablet_size_lb, tablet_size_ub]}, 
@@ -192,4 +180,4 @@ CS_holder = {'tablet_press': {0: [unit1_volume_ub], 1: [unit2_volume_ub, tablet_
              'convex_estimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [estimation_bound_lb]},
              'convex_underestimator': {0: [], 1: [], 2: [], 3: [], 4: [psd_constraint], 5: [underestimation_constraint]},
              'affine_study': {0: [negative_output_constraint], 1: [negative_output_constraint], 2: [negative_output_constraint], 3: [negative_output_constraint], 4: [negative_output_constraint]},
-             'hydrogen_export': {0: [hydrogen_export_1, hydrogen_export_2, hydrogen_export_3, hydrogen_export_4], 'n': [hydrogen_export_1, hydrogen_export_2, hydrogen_export_3, hydrogen_export_4]}}
+             'hydrogen_export': {0: HYDROGEN_EXPORT_FNS, 'n': HYDROGEN_EXPORT_FNS}}

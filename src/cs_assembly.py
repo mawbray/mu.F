@@ -111,7 +111,7 @@ def unit_params_fn(cfg, G):
     elif cfg.case_study.case_study == 'serial_mechanism_batch':
         return {node: partial(arrhenius_kinetics_fn,Ea=jnp.array(cfg.model.arrhenius.EA[node]), A=jnp.array(cfg.model.arrhenius.A[node]), R=jnp.array(cfg.model.arrhenius.R)) for node in G.G.nodes}
     elif cfg.case_study.case_study in ['tablet_press', 'convex_estimator', 'convex_underestimator', 'affine_study', 'hydrogen_export']:
-        return {node: lambda x, y: jnp.empty((0,)) for node in G.G.nodes}
+        return {node: lambda x, y, z: jnp.empty((0,)) for node in G.G.nodes}
     else :
         raise ValueError('Invalid case study')
     

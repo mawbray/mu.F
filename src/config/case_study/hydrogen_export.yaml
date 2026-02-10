@@ -29,10 +29,11 @@ KS_bounds:
         - None
 
 parameters_samples: 
-  - [{'c': [0.], 'w': 1.},{'c': [0.], 'w': 1.}]
+  - [{'c': [ 0.02048169 11.87977224  0.29061465  7.13482955  7.78359092], # Start simple with stationary distribution
+      'w': [0.07390548 0.54504614 0.12598331 0.12247117 0.1325939 ]}]     # we can add markov samples later. 
 
 parameters_best_estimate: 
-  - [0.]
+  - [8.420454054312653]
 
 extendedDS_bounds: [None, None] 
 

@@ -109,10 +109,12 @@ _GPU_PACKAGES = [
 ] 
 
 # Resolve the relative path at build time
-deus_path = (
+DEUS_PATH = (
     Path(__file__).parent
     / "src/samplers/algorithms/deus/src"
 ).as_uri()
+
+_WEATHER_PACKAGE = "meteor_py @ git+https://github.com/cja119/meteor_py.git"
 
 setup(
     name="mu.F",
@@ -159,10 +161,11 @@ setup(
         # Specialized Tools
         "sobol-seq>=0.2.0",
         "tensorflow==2.19.0",
-        f"deus @ {deus_path}",  # Dynamic relative path resolution!
+        f"deus @ {DEUS_PATH}",  # Dynamic relative path resolution!
     ],
     extras_require={
         "gpu": _GPU_PACKAGES,
+        "weather": [_WEATHER_PACKAGE],
     },
     cmdclass={
         "install": PostInstallCommand,

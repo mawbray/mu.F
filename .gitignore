@@ -175,3 +175,4 @@ outputs/
 # Ignoring HPC files
 **/*.pbs
 /jobs
+**/*_analysis.ipynb

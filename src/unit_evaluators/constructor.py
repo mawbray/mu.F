@@ -16,7 +16,7 @@ class base_unit(ABC):
         self.graph = graph
         self.node = node
 
-    def get_decision_dependent_params(self, decisions):
+    def get_decision_dependent_params(self, decisions, input_args=None, uncertain_params=None):
         raise NotImplementedError
 
     def evaluate(self, decisions, x0):
@@ -38,7 +38,7 @@ class unit_evaluation(base_unit):
         self.unit_cfg = unit_cfg(cfg, graph, node)
 
 
-    def get_decision_dependent_params(self, decisions, uncertain_params=None):
+    def get_decision_dependent_params(self, decisions, input_args=None, uncertain_params=None):
         """
         Returns the decision dependent parameters.
 
@@ -48,7 +48,7 @@ class unit_evaluation(base_unit):
         Returns:
             array: Decision dependent parameters.
         """
-        return self.unit_cfg.decision_dependent_params(decisions, uncertain_params)
+        return self.unit_cfg.decision_dependent_params(decisions, input_args, uncertain_params)
 
     def evaluate(self, design_args, input_args, aux_args, uncertain_params=None):
         """
@@ -66,7 +66,7 @@ class unit_evaluation(base_unit):
         and then evaluates the unit using these parameters.
         """
 
-        dd_params = self.get_decision_dependent_params(design_args, uncertain_params)
+        dd_params = self.get_decision_dependent_params(design_args, input_args, uncertain_params)
         dd_params = expand_dims(dd_params, axis=-1)
         input_args = expand_dims(input_args, axis=1)
         design_args = expand_dims(design_args, axis=1)
@@ -184,7 +184,10 @@ class unit_cfg:
 
             # --- set the decision dependent evaluation 
             fn = graph.nodes[node]['unit_params_fn']
-            self.decision_dependent_params = vmap(vmap(fn, in_axes=(0, None), out_axes=0), in_axes=(None, 0), out_axes=1)
+            self.decision_dependent_params = vmap(
+                vmap(fn, in_axes=(0, 0, None), out_axes=0),
+                in_axes=(None, 1, 0), out_axes=1
+                )
 
         # if vmap is not enabled in cfg, set the unit evaluation and decision dependent evaluation functions without using vmap
         else: 
