@@ -54,6 +54,8 @@ class apply_decomposition:
         
         runtime_env = {"working_dir": get_original_cwd(),'excludes': ['/paper_results/', '/multirun/', '/outputs/', '/config/', '../.git/']}
 
+        logging.info(f"Current working directory at Ray init: {get_original_cwd()}")
+
         if ('forward' in mode.lower()) or (self.cfg.case_study.eval_rewards is True):
             ray.init(runtime_env=runtime_env, num_cpus=max_devices)
 

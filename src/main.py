@@ -1,38 +1,44 @@
-from logging import config
+"""
+Main running file. To run enter src and then run with the necessary flags for your case study...
+"""
+
 import os
-import multiprocessing
-os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
-    multiprocessing.cpu_count()
-)
-os.environ["JAX_PLATFORMS"] = "cpu"
-os.environ["CUDA_VISIBLE_DEVICES"] = "" 
-from visualisation.visualiser import visualiser
-
-from direct import apply_direct_method
-from decomposition import decomposition, decomposition_constraint_tuner
-from cs_assembly import case_study_constructor
-from graph.graph_assembly import build_graph_structure
-from utils import *
-from pprint import pprint
-
 import logging
 import hydra
-from omegaconf import DictConfig
 import pandas as pd
 import networkx as nx
 import argparse
 
-"""
-TODO :
-- visualisation of probability maps
-- test and debugging
-- documentation
-"""
+from logging import config
+from omegaconf import DictConfig
+
+def _fix_devices(num_devices):
+    os.environ["XLA_FLAGS"] = f"--xla_force_host_platform_device_count={num_devices}"
+    os.environ["JAX_PLATFORMS"] = "cpu"
+    os.environ["JAX_PLATFORM_NAME"] = "cpu"
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    return None
 
 @hydra.main(config_path="config", config_name="integrator")
 def main(cfg: DictConfig) -> None:
-    # Set the maximum number of devices
-    max_devices = len(jax.devices('cpu'))
+    # Fixing the devices
+    _fix_devices(int(cfg.max_devices))
+    
+    # Import at this level so device setting happens first
+    from direct import apply_direct_method
+    from decomposition import decomposition, decomposition_constraint_tuner
+    from cs_assembly import case_study_constructor
+    from graph.graph_assembly import build_graph_structure
+    from visualisation.visualiser import visualiser
+    from utils import save_graph
+   
+    import jax
+    
+    # Set the maximum number of devices    
+    cpu_devs = jax.devices("cpu")
+    logging.info(f"Requested max_devices: {cfg.max_devices}")
+    logging.info(f"JAX CPU device count: {len(cpu_devs)}")
+    logging.info(f"All devices: {jax.devices()}")
 
     # Querying if the case study is a repeated single node
     if hasattr(cfg.case_study, 'serial_graph'):
@@ -51,14 +57,14 @@ def main(cfg: DictConfig) -> None:
         # getting precedence order
         precedence_order = list(nx.topological_sort(G))
         # run the decomposition
-        G = decomposition(cfg, G, precedence_order, mode, max_devices).run()
+        G = decomposition(cfg, G, precedence_order, mode, cfg.max_devices).run()
         # finished decomposition                    
     elif cfg.method == 'direct':
         # run the decomposition
         feasible, infeasible = apply_direct_method(cfg, G)
         save_graph(G.copy(), 'direct_complete')
     elif cfg.method == 'decomposition_constraint_tuner':
-        decomposition_constraint_tuner(cfg, G, max_devices)
+        decomposition_constraint_tuner(cfg, G, cfg.max_devices)
     else:
         # raise an error
         raise ValueError("Method not recognised")
@@ -72,15 +78,10 @@ def main(cfg: DictConfig) -> None:
 
 if __name__ == "__main__":
     
-    import jax
     import sys
-    from hydra.utils import get_original_cwd
-    jax.config.update('jax_platform_name', 'cpu')
-    platform = jax.lib.xla_bridge.get_backend().platform.casefold()
+    import os
+
+    sys.path.append(os.path.join(os.getcwd(),'src'))      
     
-    # Enable 64 bit floating point precision
-    #jax.config.update("jax_enable_x64", True)
-    sys.path.append(os.path.join(os.getcwd(),'src'))
-    # run the program
     main()
     print("Done")

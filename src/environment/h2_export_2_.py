@@ -11,7 +11,7 @@ class H2ExportEnvironmentTwoArg(DeterministicNode):
     U_SIZE = 2  # [_hydrogen_storage, _vector_throughput]
     V_SIZE = 2  # [vector_throughput, hydrogen_throughput]
     Y_SIZE = 2  # [ hydrogen_storage, vector_throughput]
-    X_SIZE = 5  # [lower_ramp_limit, upper_ramp_limit, lower_h2_storage, upper_h2_storage]
+    X_SIZE = 4  # [lower_ramp_limit, upper_ramp_limit, lower_h2_storage, upper_h2_storage]
     """
     H2 Export Environment
 
@@ -21,7 +21,7 @@ class H2ExportEnvironmentTwoArg(DeterministicNode):
         - z : [_renewable_energy]
         - y : [renewable_energy, hydrogen_storage, vector_throughput]
         - x : [lower_ramp_limit, upper_ramp_limit, lower_h2_storage, \
-                upper_h2_storage, energy_balance_lim]
+                upper_h2_storage]
     """
 
     def __init__(self, **kwargs):
@@ -134,7 +134,7 @@ class H2ExportEnvironmentTwoArg(DeterministicNode):
         vector_throughput = jnp.clip(vector_throughput, a_min=throughput_sat_l, a_max = throughput_sat_u)
         
         outputs = jnp.stack([hydrogen_storage, vector_throughput], axis=-1)
-        constraints = jnp.stack([lower_ramp_cons, upper_ramp_cons, lower_h2_storage_cons, upper_h2_storage_cons, energy_balance_cons], axis=-1)
+        constraints = jnp.stack([lower_ramp_cons, upper_ramp_cons, lower_h2_storage_cons, upper_h2_storage_cons], axis=-1)
         reward = jnp.expand_dims(reward, axis=-1)
 
         combined = jnp.concatenate([outputs, constraints, reward], axis=-1)
