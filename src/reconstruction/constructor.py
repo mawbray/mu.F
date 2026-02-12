@@ -1,6 +1,7 @@
 from abc import ABC
 import jax.numpy as jnp
 import numpy as np
+import logging
 from jax.random import choice, PRNGKey
 
 from reconstruction.samplers import sobol_sampler
@@ -57,13 +58,14 @@ class reconstruction(reconstruct_base):
         :return: The graph
         """
         # get the livesets
-        feasible = False
+        feasible = 0.0
+        _feasible = 0.0
         ls_holder = self.ls_holder
 
 
         uncertain_params = self.get_uncertain_params()
 
-        while not feasible:
+        while feasible < 1:
             # sample the live sets
             live_sets_nd_proj, candidates = self.sample_live_sets(scheme=mode)
             # evaluate the joint model
@@ -71,6 +73,11 @@ class reconstruction(reconstruct_base):
             constraint_vals = jnp.concatenate([g for g in constraint_vals.values()], axis=-1)
             # check feasibility
             feasible = self.update_live_set(candidates, constraint_vals)
+
+            if feasible - _feasible > 0.01:
+                logging.info(f"Sampling live set: {feasible*100:.2f}% complete.")
+
+            _feasible = feasible
 
         joint_live_set, joint_live_set_prob = ls_holder.get_live_set()
         

@@ -28,10 +28,10 @@ class H2ExportEnvironmentTwoArg(DeterministicNode):
         super().__init__(**kwargs)
 
     # ---- Interface with Mu.F ---- #
-    def __call__(self, u: jnp.ndarray, v: jnp.ndarray) -> jnp.ndarray:
+    def __call__(self, u: jnp.ndarray, v: jnp.ndarray, z = jnp.ndarray) -> jnp.ndarray:
         assert u.shape[-1] == self.U_SIZE, f"Expected last dimension {self.U_SIZE}, got {u.shape[-1]}"
         assert v.shape[-1] == self.V_SIZE, f"Expected last dimension {self.V_SIZE}, got {v.shape[-1]}"
-        return self.simulate(u, v, z = 5.9 * jnp.ones_like(u[..., :1]))
+        return self.simulate(u,v,z)
     
     @partial(jax.jit, static_argnums=0)
     def simulate(self, u: jnp.ndarray, v: jnp.ndarray, z: jnp.ndarray = None) -> jnp.ndarray:
@@ -41,7 +41,9 @@ class H2ExportEnvironmentTwoArg(DeterministicNode):
         # Implement the simulation logic
         _hydrogen_storage = u[..., 0]
         _vector_throughput = u[..., 1]
-        _renewable_energy = z[..., 0] if z is not None else 0.0
+        _renewable_energy = (
+            z[..., 0] if z is not None else self._renewable_energy_value
+        )
         vector_throughput = v[..., 0]
         hydrogen_throughput = v[..., 1]
 

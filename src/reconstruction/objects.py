@@ -65,8 +65,4 @@ class live_set:
         return min(np.vstack(self.live_set).shape[0], self.cfg.samplers.ns.final_sample_live)
 
     def check_if_live_set_complete(self):
-        if np.vstack(self.live_set).shape[0] >= self.cfg.samplers.ns.final_sample_live:
-            print(np.vstack(self.live_set).shape, self.cfg.samplers.ns.final_sample_live)
-            return True
-        else:
-            return False
+        return np.vstack(self.live_set).shape[0] / self.cfg.samplers.ns.final_sample_live

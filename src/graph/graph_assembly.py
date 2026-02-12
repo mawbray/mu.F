@@ -121,27 +121,36 @@ def build_graph_structure(cfg):
     This method builds a new cfg file based on creating a serial version of
     the existing config.
     """
-    cfg.case_study.adjacency_matrix = np.eye(cfg.model.number_repeats, k=1).tolist()
-    cfg.case_study.n_design_args = np.full((cfg.model.number_repeats,), cfg.case_study.n_design_args).tolist()
-    cfg.case_study.parameters_samples = list(cfg.case_study.parameters_samples) * cfg.model.number_repeats
-    cfg.case_study.parameters_best_estimate = list(cfg.case_study.parameters_best_estimate) * cfg.model.number_repeats
-    cfg.case_study.extendedDS_bounds = list(cfg.case_study.extendedDS_bounds) * cfg.model.number_repeats
-    #cfg.case_study.design_space_dimensions = list(cfg.case_study.design_space_dimensions) * cfg.case_study.number_repeats
+    cs = cfg.case_study
+    model = cfg.model
+
+    cs.adjacency_matrix = np.eye(model.number_repeats, k=1).tolist()
+    cs.n_design_args = np.full((model.number_repeats,), cs.n_design_args).tolist()
+    cs.parameters_samples = list(cs.parameters_samples) * model.number_repeats
+    cs.parameters_best_estimate = list(cs.parameters_best_estimate) * model.number_repeats
+    cs.extendedDS_bounds = list(cs.extendedDS_bounds) * model.number_repeats
+    #cs.design_space_dimensions = list(cs.design_space_dimensions) * cs.number_repeats
     
-    original_dims = cfg.case_study.design_space_dimensions
-    cfg.case_study.design_space_dimensions = [f"{dim}_{i}" for i in range(cfg.model.number_repeats) for dim in original_dims]
-    cfg.case_study.process_space_names = list(cfg.case_study.process_space_names) * cfg.model.number_repeats
-    cfg.case_study.n_input_args = {f'({n},{n+1})': cfg.case_study.n_input_args for n in range(cfg.model.number_repeats-1)}
-    cfg.case_study.unit_op = list(cfg.case_study.unit_op) * cfg.model.number_repeats
-    cfg.case_study.KS_bounds.design_args = list(cfg.case_study.KS_bounds.design_args) * cfg.model.number_repeats
-    cfg.case_study.KS_bounds.aux_args = list(cfg.case_study.KS_bounds.aux_args) * cfg.model.number_repeats
-    cfg.case_study.n_theta = list(cfg.case_study.n_theta) * cfg.model.number_repeats
-    cfg.case_study.fn_evals = list(cfg.case_study.fn_evals) * cfg.model.number_repeats
-    old_n_aux_args = cfg.case_study.n_aux_args
-    cfg.model.node_aux = [cfg.model.node_aux[0]] * cfg.model.number_repeats
-    new_n_aux_args = {f'node_{n}':old_n_aux_args['node_n'] for n in range(cfg.model.number_repeats)}
-    new_n_aux_args.update({f'({n},{n+1})': old_n_aux_args['(n,n+1)'] for n in range(cfg.model.number_repeats-1)})
-    cfg.case_study.n_aux_args = new_n_aux_args
+    original_dims = cs.design_space_dimensions
+    cs.design_space_dimensions = [f"{dim}_{i}" for i in range(model.number_repeats) for dim in original_dims]
+    cs.process_space_names = list(cs.process_space_names) * model.number_repeats
+    cs.n_input_args = {f'({n},{n+1})': cs.n_input_args for n in range(model.number_repeats-1)}
+    cs.unit_op = list(cs.unit_op) * model.number_repeats
+    cs.KS_bounds.design_args = list(cs.KS_bounds.design_args) * model.number_repeats
+    cs.KS_bounds.aux_args = list(cs.KS_bounds.aux_args) * model.number_repeats
+    cs.n_theta = list(cs.n_theta) * model.number_repeats
+    cs.fn_evals = list(cs.fn_evals) * model.number_repeats
+    old_n_aux_args = cs.n_aux_args
+    model.node_aux = [model.node_aux[0]] * model.number_repeats
+    new_n_aux_args = {f'node_{n}':old_n_aux_args['node_n'] for n in range(model.number_repeats)}
+    new_n_aux_args.update({f'({n},{n+1})': old_n_aux_args['(n,n+1)'] for n in range(model.number_repeats-1)})
+    cs.parameters_samples = list(cs.parameters_samples) * model.number_repeats
+    cs.parameters_best_estimate = list(cs.parameters_best_estimate) * model.number_repeats
+    cs.n_aux_args = new_n_aux_args
+
+    cfg.case_study = cs
+    cfg.model = model
+
     return cfg
     
 def reward_override(cfg):

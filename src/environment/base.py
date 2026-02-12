@@ -32,12 +32,12 @@ class DeterministicNode(ABC):
     """
     def __init__(self, **kwargs):
         self.cfg = self._build_cfg(**kwargs)
-        self._set_infeas_sign()
+        self._initialise_env(self.cfg)
         self.model_cfg = self.cfg.model if hasattr(self.cfg, "model") else self.cfg
         self.current_step = 0
         self.max_steps = self.model_cfg.number_repeats
         self._cache = self.model_cfg.memory
-        self._initialise_env(self.cfg)
+        
 
     # ---- Class methods ---- #
     @classmethod
@@ -58,6 +58,7 @@ class DeterministicNode(ABC):
         """Initialise the environment - to be implemented in derived classes"""
         model_cfg = cfg.model if hasattr(cfg, "model") else cfg
         self._feas_thresh = model_cfg.feas_thresh
+        self._set_infeas_sign()
         return model_cfg
 
     @abstractmethod
@@ -71,7 +72,7 @@ class DeterministicNode(ABC):
         self._initialise_env(self.cfg)
         return jnp.array(self.cfg.model.root_node_inputs)
 
-    def step(self, u, v):
+    def step(self, u, v, z):
         """
         Step method to take action v given observation u.
 
@@ -84,8 +85,7 @@ class DeterministicNode(ABC):
             - x : constraint spaces
         """
         
-        
-        output = self.simulate(u, v)
+        output = self(u, v, z)
 
         y = self.F(output)
         x = self.G(output)
@@ -135,8 +135,9 @@ class DeterministicNode(ABC):
 
     def _set_infeas_sign(self):
         """Sets the notion of infeasibility"""
-        if hasattr(self.cfg, 'samplers'):
-            self._infeas_sign = le if self.cfg.samplers.notion_of_feasibility == 'positive' else ge
+        if hasattr(self.cfg, 'samplers') and self.cfg.samplers.notion_of_feasibility == 'positive':
+            self._infeas_sign = le
+            self._feas_thresh = - self._feas_thresh
         else:
-            self._infeas_sign = None
+            self._infeas_sign = ge
         
