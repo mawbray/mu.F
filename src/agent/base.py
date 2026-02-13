@@ -17,7 +17,13 @@ from contextlib import contextmanager, redirect_stdout, redirect_stderr
 
 from constraints.evaluator import current_q_evaluator as Q_Network
 from constraints.evaluator import current_constraint_evaluator as Constraint_Surrogate
-from visualisation.methods import add_policy, reconstruction_plot, plotting_format
+from visualisation.methods import (
+    add_policy,
+    reconstruction_plot,
+    plotting_format,
+    initializer_cp,
+    get_ds_bounds,
+)
 from graph.graph_assembly import build_graph_structure
 
 # --- Global Constamts ---
@@ -25,6 +31,7 @@ OUTPUTS_DIR = str(Path(__file__).parent.parent) + "/outputs/{solve_date}/{solve_
 PICKLE_FILE = "graph_{mode}_iterate_{i}_node_{n}.pickle"
 HYDRA_CONFIG_FILE = ".hydra/config.yaml"
 XSLX_file = "inside_samples_{mode}_iterate_{i}.xlsx"
+COST_XLSX_FILE = "inside_costs_{mode}_iterate_{i}.xlsx"
 POOL = "mp-ms"
 CFG_UPDATE = {
     "parallelised": False,
@@ -132,6 +139,55 @@ class Agent:
         vis = add_policy(vis, policy_vec, cfg=self.cfg, color="r", marker="o", size=60)
         vis.savefig(self._out_dir + "reconstructed_with_policy.svg", dpi=300)
         return None
+
+    def plot_cost_colormap(self, gridsize: int = 35, cmap: str = "viridis"):
+        import matplotlib.pyplot as plt
+
+        mode = mode or self.cfg.case_study.mode[0]
+        cols = list(self.cfg.case_study.design_space_dimensions)
+
+        sample_path = self._out_dir + XSLX_file.format(mode=mode, i=0)
+        cost_path = self._out_dir + COST_XLSX_FILE.format(mode=mode, i=0)
+
+        samples = pd.read_excel(sample_path, index_col=0)
+        costs = pd.read_excel(cost_path, index_col=0)
+        data = samples[cols].join(costs[["cumulative_cost"]], how="inner")
+        data["cumulative_cost"] = pd.to_numeric(data["cumulative_cost"], errors="coerce")
+        data = data.dropna(subset=["cumulative_cost"])
+
+        pp = initializer_cp(data[cols])
+        bounds = get_ds_bounds(self.cfg, self.graph)
+
+        mappable = None
+        for r, c in zip(*np.tril_indices_from(pp.axes, -1)):
+            x_var = pp.x_vars[c]
+            y_var = pp.y_vars[r]
+            ax = pp.axes[r, c]
+
+            if x_var in bounds.columns and y_var in bounds.columns:
+                ax.axvline(bounds[x_var].iloc[0], ls="--", linewidth=2, c="black")
+                ax.axvline(bounds[x_var].iloc[1], ls="--", linewidth=2, c="black")
+                ax.axhline(bounds[y_var].iloc[0], ls="--", linewidth=2, c="black")
+                ax.axhline(bounds[y_var].iloc[1], ls="--", linewidth=2, c="black")
+
+            mappable = ax.hexbin(
+                data[x_var],
+                data[y_var],
+                C=data["cumulative_cost"],
+                reduce_C_function=np.mean,
+                gridsize=gridsize,
+                cmap=cmap,
+                mincnt=1,
+            )
+
+        if mappable is not None:
+            pp.fig.colorbar(mappable, ax=pp.axes, label="Cumulative Cost", shrink=0.65)
+
+        out_path = self._out_dir + f"reconstructed_cost_colormap_{mode}_{i}.svg"
+        pp.savefig(out_path, dpi=300)
+        plt.close(pp.fig)
+        
+        return pp
 
     def plot_trajectories(self, action_names: Optional[List] = None):
 

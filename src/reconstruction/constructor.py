@@ -32,7 +32,7 @@ class reconstruction(reconstruct_base):
         self.ls_holder = live_set(cfg, cfg.samplers.notion_of_feasibility)
         self.feasible = False
 
-    def update_live_set(self, candidates, constraint_vals):
+    def update_live_set(self, candidates, constraint_vals, reward_vals: None):
         """
         Check the feasibility
         :param constraint_vals: The constraint values
@@ -41,7 +41,11 @@ class reconstruction(reconstruct_base):
         :return: The feasibility
         """
         # evaluate the feasibility and return those feasible candidates
-        feasible_points, feasible_prob = self.ls_holder.check_live_set_membership(candidates, constraint_vals)
+        feasible_points, feasible_prob, idxs = self.ls_holder.check_live_set_membership(candidates, constraint_vals)
+
+        if reward_vals is not None:
+            self.ls_holder.append_reward(reward_vals, idxs)
+
         # append to live set
         self.ls_holder.append_to_live_set(feasible_points, feasible_prob)
         # check if live set is complete
@@ -69,10 +73,15 @@ class reconstruction(reconstruct_base):
             # sample the live sets
             live_sets_nd_proj, candidates = self.sample_live_sets(scheme=mode)
             # evaluate the joint model
-            constraint_vals = self.evaluate_joint_model(candidates, uncertain_params=uncertain_params)
+            if self.cfg.case_study.eval_rewards:
+                constraint_vals, reward_vals = self.evaluate_joint_model(candidates, uncertain_params=uncertain_params, eval_rewards=True)
+            else:
+                constraint_vals = self.evaluate_joint_model(candidates, uncertain_params=uncertain_params, eval_rewards=False)
+                reward_vals = None
+            
             constraint_vals = jnp.concatenate([g for g in constraint_vals.values()], axis=-1)
             # check feasibility
-            feasible = self.update_live_set(candidates, constraint_vals)
+            feasible = self.update_live_set(candidates, constraint_vals, reward_vals)
 
             if feasible - _feasible > 0.01:
                 logging.info(f"Sampling live set: {feasible*100:.2f}% complete.")
@@ -81,8 +90,10 @@ class reconstruction(reconstruct_base):
 
         joint_live_set, joint_live_set_prob = ls_holder.get_live_set()
         
-
-        return joint_live_set, joint_live_set_prob
+        if not self.cfg.case_study.eval_rewards:
+            return joint_live_set, joint_live_set_prob
+        else:
+            return joint_live_set, joint_live_set_prob, ls_holder.get_rewards()
     
     def get_uncertain_params(self):
         if self.cfg.formulation == 'probabilistic':
@@ -137,7 +148,7 @@ class reconstruction(reconstruct_base):
 
 
 
-    def evaluate_joint_model(self, candidates, uncertain_params):
+    def evaluate_joint_model(self, candidates, uncertain_params, eval_rewards):
         """
         Evaluate the joint model
         :param candidates: The candidates
@@ -146,4 +157,4 @@ class reconstruction(reconstruct_base):
         :return: The constraint values
         """
         # evaluate the joint model
-        return self.model.get_constraints(candidates,  uncertain_params)
+        return self.model.get_constraints(candidates,  uncertain_params, eval_rewards)

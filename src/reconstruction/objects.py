@@ -7,6 +7,7 @@ class live_set:
     def __init__(self, cfg, notion_of_feasibility):
         self.cfg = cfg
         self.live_set, self.live_set_prob = [], []
+        self.rewards = []
         self.notion_of_feasibility = notion_of_feasibility
         self.dead_set, self.dead_set_prob = [], []
     
@@ -39,7 +40,7 @@ class live_set:
         feasible, prob = self.evaluate_feasibility(g)
         feasible_points = x[feasible, :]
         feasible_prob = prob[feasible]
-        return feasible_points, feasible_prob
+        return feasible_points, feasible_prob, feasible
     
     def append_to_live_set(self, x, y):
         """
@@ -50,6 +51,16 @@ class live_set:
         self.live_set_prob.append(y.reshape(-1,1))
         return
     
+    def append_reward(self, reward_vals, idxs):
+        """
+        Docstring for append_reward
+        
+        :param self: Description
+        :param reward: Description
+        """
+        self.rewards.append(np.asarray(reward_vals)[idxs].reshape(-1, 1))
+
+
     def get_live_set(self):
         """
         Get the live set
@@ -57,6 +68,13 @@ class live_set:
         """
         return np.vstack(self.live_set)[:self.live_set_len(), :], np.vstack(self.live_set_prob)[:self.live_set_len()]
     
+    def get_rewards(self):
+        """
+        Get the rewards
+        :return: rewards
+        """
+        return np.vstack(self.rewards)[:self.live_set_len(), :]
+
     def live_set_len(self):
         """
         Get the length of the live set

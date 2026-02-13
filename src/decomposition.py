@@ -78,7 +78,10 @@ class decomposition:
     def reconstruct(self, m, i):
 
         network_model = network_simulator(self.cfg, self.G, constraint_evaluator)
-        joint_live_set, joint_live_set_prob = reconstruction(self.cfg, self.G, network_model).run() # TODO update uncertainty evaluations
+        if self.cfg.case_study.eval_rewards:
+            joint_live_set, joint_live_set_prob, rewards = reconstruction(self.cfg, self.G, network_model).run() # TODO update uncertainty evaluations
+        else:
+            joint_live_set, joint_live_set_prob = reconstruction(self.cfg, self.G, network_model).run()
         # update the graph with the function evaluations
         for node in self.G.nodes():
             self.G.nodes[node]["fn_evals"] += network_model.function_evaluations[node]
@@ -89,6 +92,11 @@ class decomposition:
         elif self.cfg.reconstruction.plot_reconstruction == 'probability_map':
             df = pd.DataFrame({key: joint_live_set[:,i] for i, key in enumerate(self.cfg.case_study.design_space_dimensions)})
             df['probability'] = joint_live_set_prob
+        if self.cfg.case_study.eval_rewards:
+            print(rewards.shape)
+            rdf = pd.DataFrame({'cumulative_cost': rewards.flatten()})
+            rdf.to_excel(f'inside_costs_{m}_iterate_{i}.xlsx')
+
         visualiser(self.cfg, self.G, df, 'reconstruction', path=f'reconstruction_{m}_iterate_{i}').run()
         df.to_excel(f'inside_samples_{m}_iterate_{i}.xlsx')
         save_graph(self.G.copy(), m + '-reconstructed'+ '_iterate_' + str(i))

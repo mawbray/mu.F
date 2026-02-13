@@ -218,7 +218,7 @@ class network_simulator(ABC):
         self.constraint_evaluator = constraint_evaluator
         self.function_evaluations = {node: 0 for node in self.graph.nodes}
 
-    def simulate(self, decisions, uncertain_params=None):
+    def simulate(self, decisions, uncertain_params=None, return_rewards=False):
         """
         Simulates the network for the given decisions and uncertain parameters.
 
@@ -236,22 +236,26 @@ class network_simulator(ABC):
         u_p = None
         n_d = 0
         aux_args = decisions[:, sum([self.graph.nodes[node]['n_design_args'] for node in self.graph.nodes]):]
+
+        if self.cfg.case_study.eval_rewards and return_rewards:
+            rewards = jnp.zeros((decisions.shape[0], 1, 1)) # shape decisions.shape[0], 1, 1
         
         for node in self.graph.nodes:
             if not (uncertain_params == None) :
                 u_p = uncertain_params[node]
-            
 
             if self.graph.in_degree()[node] == 0:
                 if not (self.cfg.model.root_node_inputs[node] == 'None'):
                     inputs = jnp.tile(jnp.expand_dims(jnp.array([self.cfg.model.root_node_inputs[node]]).reshape(1,-1), axis=1), (decisions.shape[0], u_p.shape[0], 1))
+                
                 else:
-                    inputs = jnp.empty((decisions.shape[0], u_p.shape[0], 0))
+                    inputs = jnp.empty((decisions.shape[0], u_p.shape[0], 0)) # n_samp x uncerc x dim
             else:
                 inputs = jnp.concatenate([jnp.copy(self.graph.edges[predecessor, node]['input_data_store'])[:,:,:] for predecessor in self.graph.predecessors(node)], axis=-1)
 
             unit_nd = self.graph.nodes[node]['n_design_args']
             outputs = self.graph.nodes[node]['forward_evaluator'].evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, u_p)
+            
             
             for successor in self.graph.successors(node):
                 edge_data = self.graph.edges[node, successor]['edge_fn'](jnp.copy(outputs))
@@ -261,13 +265,22 @@ class network_simulator(ABC):
             node_constraint_evaluator = self.constraint_evaluator(self.cfg, self.graph, node)
 
             self.graph.nodes[node]['constraint_store'] = node_constraint_evaluator.evaluate(decisions[:, n_d:n_d+unit_nd], inputs, aux_args, outputs)
+            
+            if self.cfg.case_study.eval_rewards and return_rewards:
+                rewards += outputs[..., -1] # n_samp x uncerc x dim 
 
             n_d += unit_nd
 
         # constraint evaluation, information for extended KS bounds
-        return {node: self.graph.nodes[node]['constraint_store'] for node in self.graph.nodes}, {edge: self.graph.edges[edge[0],edge[1]]['input_data_store'] for edge in self.graph.edges}
+        cons = {node: self.graph.nodes[node]['constraint_store'] for node in self.graph.nodes}
+        edges = {edge: self.graph.edges[edge[0],edge[1]]['input_data_store'] for edge in self.graph.edges}
+
+        if self.cfg.case_study.eval_rewards and return_rewards:
+            return cons, edges, rewards
+
+        return cons, edges
     
-    def get_constraints(self, decisions, uncertain_params=None):
+    def get_constraints(self, decisions, uncertain_params=None,return_rewards=False):
         """
         Returns the constraints for the given decisions and uncertain parameters.
 
@@ -280,10 +293,19 @@ class network_simulator(ABC):
 
         The method simulates the network and returns the constraints.
         """
-        constraints, _ = self.simulate(decisions, uncertain_params)
+        
+        if return_rewards:
+            constraints, _, rewards = self.simulate(decisions, uncertain_params, True)
+        else:
+            constraints, _ = self.simulate(decisions, uncertain_params, False)
+
         for node, g in constraints.copy().items():
             self.function_evaluations[node] += g.shape[0]*g.shape[1]
-        return constraints
+        
+        if return_rewards:
+            return constraints, rewards
+        else:
+            return constraints
     
     def get_extended_ks_info(self, decisions, uncertain_params=None):
         """
